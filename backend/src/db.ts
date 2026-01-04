@@ -1,8 +1,8 @@
 // backend/src/db.ts
-import fs = require("fs");
-import path = require("path");
-import Database = require("better-sqlite3");
-import crypto = require("crypto");
+import fs from "fs";
+import path from "path";
+import Database from "better-sqlite3";
+import crypto from "crypto";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "app.db");

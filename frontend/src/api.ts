@@ -71,11 +71,19 @@ export function resolveImageUrl(u: string | null | undefined) {
 export function resolveAssets(images: Array<string | ImageAsset> | null | undefined): ImageAsset[] {
   const arr = images ?? [];
   return arr.map((x) => {
-    if (typeof x === "string") return { url: x, thumbUrl: x, mediumUrl: x };
+    if (typeof x === "string") {
+      const ru = resolveImageUrl(x) ?? x;
+      return { url: ru, thumbUrl: ru, mediumUrl: ru };
+    }
+
+    const url = resolveImageUrl(x.url) ?? x.url;
+    const thumb = resolveImageUrl(x.thumbUrl ?? x.url) ?? (x.thumbUrl ?? x.url);
+    const med = resolveImageUrl(x.mediumUrl ?? x.url) ?? (x.mediumUrl ?? x.url);
+
     return {
-      url: x.url,
-      thumbUrl: x.thumbUrl ?? x.url,
-      mediumUrl: x.mediumUrl ?? x.url,
+      url,
+      thumbUrl: thumb,
+      mediumUrl: med,
     };
   });
 }

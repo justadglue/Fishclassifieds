@@ -172,7 +172,9 @@ export default function EditListingPage() {
 
   const existingPreviews = useMemo(() => {
     const assets = resolveAssets(images ?? []);
-    return assets.map((a) => a.thumbUrl || a.url).filter(Boolean);
+    return assets
+      .map((a) => resolveImageUrl(a.thumbUrl || a.url))
+      .filter((x): x is string => !!x);
   }, [images]);
 
   const pendingPreviews = useMemo(() => {
@@ -468,23 +470,18 @@ export default function EditListingPage() {
               <div className="mt-1 text-xs text-slate-600">{fmtStatus(orig)}</div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <IconButton
-                title={toggleLabel}
-                onClick={doTogglePauseResume}
-                disabled={!canTogglePause || loading}
-                variant="default"
-                >
-                {orig.status === "paused" ? (
+                <IconButton title={toggleLabel} onClick={doTogglePauseResume} disabled={!canTogglePause || loading} variant="default">
+                  {orig.status === "paused" ? (
                     <>
-                    <IconPlay />
-                    <span className="ml-2">Resume Ad</span>
+                      <IconPlay />
+                      <span className="ml-2">Resume Ad</span>
                     </>
-                ) : (
+                  ) : (
                     <>
-                    <IconPause />
-                    <span className="ml-2">Pause Ad</span>
+                      <IconPause />
+                      <span className="ml-2">Pause Ad</span>
                     </>
-                )}
+                  )}
                 </IconButton>
 
                 <IconButton title="Mark as sold" onClick={doSold} disabled={!canResolve || loading} variant="primary">

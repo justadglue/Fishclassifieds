@@ -12,7 +12,6 @@ export default function SignUpPage() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [agree, setAgree] = useState(false);
-  const [newsletter, setNewsletter] = useState(true);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -37,17 +36,18 @@ export default function SignUpPage() {
 
     setErr(null);
     setLoading(true);
+
     try {
       const displayName = `${firstName.trim()} ${surname.trim()}`.trim();
 
       await authRegister({
         email: email.trim(),
+        username: username.trim(),
         password,
         displayName,
       });
 
       await authLogin({ email: email.trim(), password });
-
       navigate("/me");
     } catch (e: any) {
       setErr(e?.message ?? "Sign up failed");
@@ -65,7 +65,10 @@ export default function SignUpPage() {
           </button>
           <div className="text-sm text-slate-600">
             Already have an account?{" "}
-            <button onClick={() => navigate("/login")} className="font-semibold text-slate-900 underline underline-offset-4">
+            <button
+              onClick={() => navigate("/login")}
+              className="font-semibold text-slate-900 underline underline-offset-4"
+            >
               Login
             </button>
           </div>
@@ -77,7 +80,9 @@ export default function SignUpPage() {
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Create your account</h1>
           <p className="mt-2 text-sm text-slate-600">Create an account to manage your ads.</p>
 
-          {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
+          {err && (
+            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>
+          )}
 
           <form onSubmit={onSubmit} className="mt-6 grid gap-4">
             <div>
@@ -102,6 +107,7 @@ export default function SignUpPage() {
                   className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
                 />
               </div>
+
               <div>
                 <label className="text-sm font-semibold text-slate-800">Surname</label>
                 <input
@@ -118,66 +124,69 @@ export default function SignUpPage() {
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="e.g. reef_keeper92"
+                placeholder="e.g. adam_g"
                 className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
-              {!usernameOk && username && <div className="mt-1 text-xs text-red-700">3–20 characters. Letters, numbers, underscores only.</div>}
+              {!usernameOk && username && (
+                <div className="mt-1 text-xs text-red-700">3–20 chars: letters, numbers, underscore only.</div>
+              )}
             </div>
 
-            <div>
-              <label className="text-sm font-semibold text-slate-800">Password</label>
-              <p className="mt-1 text-xs text-slate-500">Minimum 10 characters.</p>
-              <input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                type="password"
-                placeholder="••••••••••"
-                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
-              />
-              {!pwOk && password && <div className="mt-1 text-xs text-red-700">Password must be at least 10 characters.</div>}
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold text-slate-800">Confirm password</label>
-              <input
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                type="password"
-                placeholder="••••••••••"
-                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
-              />
-              {!matchOk && confirm && <div className="mt-1 text-xs text-red-700">Passwords do not match.</div>}
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <label className="flex gap-3 text-sm text-slate-700">
-                <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-1" />
-                <span>
-                  I agree to the <strong>Terms of Service</strong> and <strong>Privacy Policy</strong>.
-                </span>
-              </label>
-              <label className="mt-3 flex gap-3 text-sm text-slate-700">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <label className="text-sm font-semibold text-slate-800">Password</label>
                 <input
-                  type="checkbox"
-                  checked={newsletter}
-                  onChange={(e) => setNewsletter(e.target.checked)}
-                  className="mt-1"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  type="password"
+                  placeholder="At least 10 characters"
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
                 />
-                <span>Send me occasional updates and announcements (optional).</span>
-              </label>
+                {!pwOk && password && <div className="mt-1 text-xs text-red-700">Password must be 10+ chars.</div>}
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-slate-800">Confirm</label>
+                <input
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  type="password"
+                  placeholder="Re-enter password"
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
+                />
+                {!matchOk && confirm && <div className="mt-1 text-xs text-red-700">Passwords must match.</div>}
+              </div>
             </div>
+
+            <label className="mt-2 flex items-start gap-3 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={agree}
+                onChange={(e) => setAgree(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-slate-300"
+              />
+              <span>
+                I agree to the terms (placeholder). You can replace this with real terms later.
+              </span>
+            </label>
 
             <button
               type="submit"
               disabled={!canSubmit || loading}
-              className={[
-                "rounded-xl border px-4 py-3 text-sm font-extrabold transition",
-                canSubmit && !loading
-                  ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
-                  : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500",
-              ].join(" ")}
+              className="mt-2 rounded-xl border border-slate-900 bg-slate-900 px-4 py-3 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-60"
             >
-              {loading ? "Creating..." : "Create account"}
+              {loading ? "Creating account..." : "Create account"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="text-sm font-semibold text-slate-600 hover:text-slate-900"
+            >
+              ← Back to home
             </button>
           </form>
         </div>

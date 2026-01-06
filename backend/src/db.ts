@@ -54,12 +54,11 @@ function hasColumn(db: Database.Database, table: string, col: string) {
 
 export function openDb() {
   ensureDir(DATA_DIR);
-  const db = new Database(DB_PATH);
 
+  const db = new Database(DB_PATH);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
 
-  // --- Core schema (listings) ---
   db.exec(`
 CREATE TABLE IF NOT EXISTS listings(
   id TEXT PRIMARY KEY,
@@ -103,11 +102,11 @@ CREATE INDEX IF NOT EXISTS idx_listings_expires_at ON listings(expires_at);
 CREATE INDEX IF NOT EXISTS idx_listing_images_listing_id ON listing_images(listing_id);
 `);
 
-  // --- Auth schema ---
   db.exec(`
 CREATE TABLE IF NOT EXISTS users(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
+  username TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   display_name TEXT NOT NULL,
   created_at TEXT NOT NULL,
@@ -128,21 +127,25 @@ CREATE TABLE IF NOT EXISTS sessions(
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_revoked_at ON sessions(revoked_at);
 `);
 
-  // --- Lightweight "migrations" for older DBs ---
+  // ---- listings migration bits ----
   if (!hasColumn(db, "listings", "owner_token")) db.exec(`ALTER TABLE listings ADD COLUMN owner_token TEXT`);
-  if (!hasColumn(db, "listings", "category")) db.exec(`ALTER TABLE listings ADD COLUMN category TEXT NOT NULL DEFAULT 'Fish'`);
+  if (!hasColumn(db, "listings", "category"))
+    db.exec(`ALTER TABLE listings ADD COLUMN category TEXT NOT NULL DEFAULT 'Fish'`);
   if (!hasColumn(db, "listings", "contact")) db.exec(`ALTER TABLE listings ADD COLUMN contact TEXT`);
   if (!hasColumn(db, "listings", "image_url")) db.exec(`ALTER TABLE listings ADD COLUMN image_url TEXT`);
-  if (!hasColumn(db, "listings", "status")) db.exec(`ALTER TABLE listings ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`);
+  if (!hasColumn(db, "listings", "status"))
+    db.exec(`ALTER TABLE listings ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`);
   if (!hasColumn(db, "listings", "updated_at")) db.exec(`ALTER TABLE listings ADD COLUMN updated_at TEXT`);
   if (!hasColumn(db, "listings", "deleted_at")) db.exec(`ALTER TABLE listings ADD COLUMN deleted_at TEXT`);
   if (!hasColumn(db, "listings", "expires_at")) db.exec(`ALTER TABLE listings ADD COLUMN expires_at TEXT`);
-  if (!hasColumn(db, "listings", "resolution")) db.exec(`ALTER TABLE listings ADD COLUMN resolution TEXT NOT NULL DEFAULT 'none'`);
+  if (!hasColumn(db, "listings", "resolution"))
+    db.exec(`ALTER TABLE listings ADD COLUMN resolution TEXT NOT NULL DEFAULT 'none'`);
   if (!hasColumn(db, "listings", "resolved_at")) db.exec(`ALTER TABLE listings ADD COLUMN resolved_at TEXT`);
 
   if (!hasTable(db, "listing_images")) {
@@ -163,7 +166,50 @@ CREATE INDEX IF NOT EXISTS idx_listing_images_listing_id ON listing_images(listi
     if (!hasColumn(db, "listing_images", "medium_url")) db.exec(`ALTER TABLE listing_images ADD COLUMN medium_url TEXT`);
   }
 
-  // --- Normalize existing listing data ---
+  // ---- users migration bits ----
+  // If you created users before this change, add the username column safely and backfill.
+  if (!hasColumn(db, "users", "username")) {
+    db.exec(`ALTER TABLE users ADD COLUMN username TEXT`);
+
+    // Backfill: if username missing, derive from email local-part + short suffix, then enforce uniqueness.
+    const rows = db.prepare(`SELECT id, email, username FROM users`).all() as Array<{
+      id: number;
+      email: string;
+      username: string | null;
+    }>;
+
+    const exists = db.prepare(`SELECT 1 FROM users WHERE lower(username) = lower(?) LIMIT 1`);
+    const upd = db.prepare(`UPDATE users SET username = ? WHERE id = ?`);
+
+    for (const r of rows) {
+      const cur = (r.username ?? "").trim();
+      if (cur) continue;
+
+      const local = String(r.email || "")
+        .split("@")[0]
+        .replace(/[^a-zA-Z0-9_]/g, "_")
+        .slice(0, 16)
+        .toLowerCase();
+
+      let candidate = local || "user";
+      let tries = 0;
+
+      while ((exists.get(candidate) as any) && tries < 20) {
+        candidate = `${(local || "user").slice(0, 12)}_${crypto.randomBytes(2).toString("hex")}`;
+        tries++;
+      }
+
+      upd.run(candidate, r.id);
+    }
+
+    // Now make it NOT NULL + UNIQUE via indexes/constraints.
+    db.exec(`UPDATE users SET username = COALESCE(NULLIF(username,''), 'user_' || hex(randomblob(3)))`);
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(lower(username))`);
+  } else {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(lower(username))`);
+  }
+
+  // Normalize some listing fields / migrations you already had
   db.exec(`
 UPDATE listings
 SET owner_token = COALESCE(NULLIF(owner_token,''),'')

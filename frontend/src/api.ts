@@ -42,7 +42,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`API ${res.status}: ${text || res.statusText}`);
+    throw new Error(`API ${res.status}:${text || res.statusText}`);
   }
 
   const ct = res.headers.get("content-type") || "";
@@ -72,7 +72,6 @@ export function resolveAssets(images: Array<string | ImageAsset> | null | undefi
   });
 }
 
-// Owner-token storage (listing edit rights)
 const OWNER_TOKEN_KEY = "fish_owner_tokens_v1";
 
 function loadOwnerMap(): Record<string, string> {
@@ -90,29 +89,33 @@ function loadOwnerMap(): Record<string, string> {
     return {};
   }
 }
+
 function saveOwnerMap(map: Record<string, string>) {
   localStorage.setItem(OWNER_TOKEN_KEY, JSON.stringify(map));
 }
+
 export function setOwnerToken(listingId: string, token: string) {
   const map = loadOwnerMap();
   map[String(listingId)] = String(token);
   saveOwnerMap(map);
 }
+
 export function getOwnerToken(listingId: string) {
   const map = loadOwnerMap();
   return map[String(listingId)] ?? null;
 }
+
 export function removeOwnerToken(listingId: string) {
   const map = loadOwnerMap();
   delete map[String(listingId)];
   saveOwnerMap(map);
 }
+
 export function listOwnedIds(): string[] {
   const map = loadOwnerMap();
   return Object.keys(map);
 }
 
-// Listings API
 export async function fetchListings(params?: {
   q?: string;
   category?: Category;
@@ -176,7 +179,7 @@ export async function updateListing(
   }
 ) {
   const token = getOwnerToken(id);
-  if (!token) throw new Error("Missing owner token for this listing (not created on this device).");
+  if (!token) throw new Error("Missing owner token for this listing(not created on this device).");
   return apiFetch<Listing>(`/api/listings/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: {
@@ -189,7 +192,7 @@ export async function updateListing(
 
 export async function deleteListing(id: string) {
   const token = getOwnerToken(id);
-  if (!token) throw new Error("Missing owner token for this listing (not created on this device).");
+  if (!token) throw new Error("Missing owner token for this listing(not created on this device).");
   return apiFetch<{ ok: true }>(`/api/listings/${encodeURIComponent(id)}`, {
     method: "DELETE",
     headers: { "x-owner-token": token },
@@ -198,12 +201,13 @@ export async function deleteListing(id: string) {
 
 async function postAction(id: string, action: "pause" | "resume" | "mark-sold") {
   const token = getOwnerToken(id);
-  if (!token) throw new Error("Missing owner token for this listing (not created on this device).");
+  if (!token) throw new Error("Missing owner token for this listing(not created on this device).");
   return apiFetch<Listing>(`/api/listings/${encodeURIComponent(id)}/${action}`, {
     method: "POST",
     headers: { "x-owner-token": token },
   });
 }
+
 export function pauseListing(id: string) {
   return postAction(id, "pause");
 }
@@ -217,26 +221,22 @@ export function markSold(id: string) {
 export async function uploadImage(file: File): Promise<ImageAsset> {
   const fd = new FormData();
   fd.append("image", file);
-
   const res = await fetch(`${API_BASE}/api/uploads`, {
     method: "POST",
     body: fd,
     credentials: "include",
   });
-
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Upload ${res.status}: ${text || res.statusText}`);
+    throw new Error(`Upload ${res.status}:${text || res.statusText}`);
   }
-
   const data = (await res.json()) as ImageAsset;
   return data;
 }
 
-// Auth API
-export type AuthUser = { id: number; email: string; displayName: string };
+export type AuthUser = { id: number; email: string; displayName: string; username: string };
 
-export async function authRegister(input: { email: string; password: string; displayName: string }) {
+export async function authRegister(input: { email: string; username: string; password: string; displayName: string }) {
   return apiFetch<{ user: AuthUser }>(`/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

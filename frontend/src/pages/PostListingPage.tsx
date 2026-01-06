@@ -1,3 +1,4 @@
+// frontend/src/pages/PostListingPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -86,10 +87,8 @@ export default function PostListingPage() {
 
   const previews = useMemo(() => {
     return imgs.map((img) => {
-      const resolvedThumb =
-        img.uploaded?.thumbUrl ? resolveImageUrl(img.uploaded.thumbUrl) : null;
-      const resolvedUrl =
-        img.uploaded?.url ? resolveImageUrl(img.uploaded.url) : null;
+      const resolvedThumb = img.uploaded?.thumbUrl ? resolveImageUrl(img.uploaded.thumbUrl) : null;
+      const resolvedUrl = img.uploaded?.url ? resolveImageUrl(img.uploaded.url) : null;
 
       return {
         id: img.id,
@@ -146,7 +145,7 @@ export default function PostListingPage() {
     try {
       await uploadOne(img);
     } catch {
-      // handled per image
+      // per-image error already stored
     } finally {
       setUploading(false);
     }
@@ -222,9 +221,7 @@ export default function PostListingPage() {
         <h1 className="text-2xl font-extrabold text-slate-900">Post a listing</h1>
         <div className="mt-1 text-sm text-slate-600">Add up to 6 photos.</div>
 
-        {err && (
-          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>
-        )}
+        {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
         <form onSubmit={onSubmit} className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
           {/* Images */}
@@ -297,7 +294,13 @@ export default function PostListingPage() {
 
                       <div className="absolute bottom-2 left-2 flex items-center gap-2">
                         <div className="rounded-lg bg-white/90 px-2 py-1 text-[11px] font-semibold text-slate-700">
-                          {p.status === "uploading" ? "Uploading…" : p.status === "uploaded" ? "Uploaded" : p.status === "error" ? "Error" : "Ready"}
+                          {p.status === "uploading"
+                            ? "Uploading…"
+                            : p.status === "uploaded"
+                            ? "Uploaded"
+                            : p.status === "error"
+                            ? "Error"
+                            : "Ready"}
                         </div>
 
                         {p.status === "error" && (
@@ -327,9 +330,7 @@ export default function PostListingPage() {
               )}
             </div>
 
-            <div className="mt-3 text-xs text-slate-600">
-              Tip: the first photo becomes the thumbnail on the homepage.
-            </div>
+            <div className="mt-3 text-xs text-slate-600">Tip: the first photo becomes the thumbnail on the homepage.</div>
           </div>
 
           {/* Fields */}
@@ -342,6 +343,7 @@ export default function PostListingPage() {
               required
               minLength={3}
               maxLength={80}
+              placeholder="e.g. Guppy trio - healthy stock"
             />
           </label>
 
@@ -370,6 +372,7 @@ export default function PostListingPage() {
                 required
                 minLength={2}
                 maxLength={60}
+                placeholder="e.g. Betta splendens"
               />
             </label>
           </div>
@@ -383,6 +386,7 @@ export default function PostListingPage() {
                 inputMode="decimal"
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
                 required
+                placeholder="e.g. 25"
               />
             </label>
 
@@ -395,6 +399,7 @@ export default function PostListingPage() {
                 required
                 minLength={2}
                 maxLength={80}
+                placeholder="e.g. Brisbane"
               />
             </label>
           </div>
@@ -404,7 +409,7 @@ export default function PostListingPage() {
             <input
               value={contact}
               onChange={(e) => setContact(e.target.value)}
-              placeholder="e.g. phone, email, or 'DM on FB: …'"
+              placeholder="e.g. phone, email, or 'DM here'"
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
               maxLength={200}
             />
@@ -419,22 +424,26 @@ export default function PostListingPage() {
               required
               minLength={1}
               maxLength={1000}
+              placeholder="Add details like age/size, water params, pickup, etc."
             />
           </label>
 
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-          >
-            {loading ? "Posting…" : uploading ? "Uploading…" : "Post listing"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+            >
+              {loading ? "Posting..." : uploading ? "Uploading..." : "Post listing"}
+            </button>
 
-          {imgs.some((i) => i.status === "error") && (
-            <div className="text-xs font-semibold text-slate-600">
-              Some images failed to upload. You can remove them or press “Retry” on each.
-            </div>
-          )}
+            <Link
+              to="/"
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+            >
+              Cancel
+            </Link>
+          </div>
         </form>
       </main>
     </div>

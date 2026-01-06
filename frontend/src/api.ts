@@ -298,6 +298,10 @@ export async function updateProfile(input: {
   });
 }
 
-export async function deleteAccount() {
-  return apiFetch<{ ok: true }>(`/api/account`, { method: "DELETE" });
+export async function deleteAccount(input: { username: string; password: string }) {
+  return apiFetch<{ ok: true }>(`/api/account`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
 }

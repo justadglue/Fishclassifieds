@@ -16,6 +16,7 @@ import { assertConfig, config } from "./config.js";
 import { requireAuth } from "./auth/requireAuth.js";
 import { clearAuthCookies } from "./auth/cookies.js";
 import { nowIso as nowIsoSecurity } from "./security.js";
+import argon2 from "argon2";
 
 assertConfig();
 
@@ -50,7 +51,6 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 
 const UPLOADS_DIR = path.join(process.cwd(), "data", "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 function extFromMimetype(mimetype: string) {
@@ -174,7 +174,6 @@ function requireOwner(req: express.Request, row: any) {
 
 const StatusSchema = z.enum(["draft", "pending", "active", "paused", "expired", "deleted"]);
 const ResolutionSchema = z.enum(["none", "sold"]);
-
 const PUBLIC_LIFECYCLE: ListingStatus[] = ["active", "pending"];
 
 function addDaysIso(isoNow: string, days: number) {
@@ -207,7 +206,6 @@ const ImageAssetSchema = z.object({
   thumbUrl: z.string().min(1),
   medUrl: z.string().min(1),
 });
-
 const ImagesInputSchema = z.array(z.union([z.string(), ImageAssetSchema])).max(6).optional().default([]);
 
 function normalizeImages(input: (string | ImageAsset)[]): ImageAsset[] {
@@ -274,6 +272,7 @@ app.get("/api/profile", requireAuth, (req, res) => {
   const u = db.prepare(`SELECT id,email,username,display_name FROM users WHERE id = ?`).get(user.id) as any | undefined;
   if (!u) return res.status(404).json({ error: "User not found" });
   const p = db.prepare(`SELECT * FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
+
   return res.json({
     user: {
       id: Number(u.id),
@@ -291,6 +290,7 @@ app.put("/api/profile", requireAuth, (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
+
   const { displayName, avatarUrl, location, phone, website, bio } = parsed.data;
   const now = nowIsoSecurity();
 
@@ -298,6 +298,7 @@ app.put("/api/profile", requireAuth, (req, res) => {
     db.prepare(`UPDATE users SET display_name = ?, updated_at = ? WHERE id = ?`).run(displayName, now, user.id);
 
     const existing = db.prepare(`SELECT user_id FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
+
     if (!existing) {
       db.prepare(
         `
@@ -336,42 +337,58 @@ WHERE user_id = ?
   });
 });
 
-/**
- * Delete account (industry-standard):
- * - Hard delete user row (cascades sessions + profile)
- * - Write a minimal "tombstone" record to deleted_accounts with hashes only (no plaintext PII)
- * - Clear auth cookies to log them out immediately
- */
-app.delete("/api/account", requireAuth, (req, res) => {
-  const user = req.user!;
-  const now = nowIsoSecurity();
+const DeleteAccountSchema = z.object({
+  username: z.string().min(1).max(50),
+  password: z.string().min(1).max(200),
+});
 
+app.delete("/api/account", requireAuth, async (req, res) => {
+  const user = req.user!;
+  const parsed = DeleteAccountSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+  }
+
+  const now = nowIsoSecurity();
   const norm = (s: unknown) => String(s ?? "").trim().toLowerCase();
   const sha256 = (s: string) => crypto.createHash("sha256").update(s).digest("hex");
 
-  const tx = db.transaction(() => {
-    const u = db.prepare(`SELECT id,email,username,display_name FROM users WHERE id = ?`).get(user.id) as any | undefined;
-    if (!u) throw new Error("User not found");
+  const presentedUsername = norm(parsed.data.username);
 
-    db.prepare(
-      `
+  try {
+    const row = db
+      .prepare(`SELECT id,email,username,display_name,password_hash FROM users WHERE id = ?`)
+      .get(user.id) as any | undefined;
+
+    if (!row) return res.status(404).json({ error: "User not found" });
+
+    if (norm(row.username) !== presentedUsername) {
+      return res.status(401).json({ error: "Invalid username or password" });
+    }
+
+    const ok = await argon2.verify(String(row.password_hash), parsed.data.password);
+    if (!ok) {
+      return res.status(401).json({ error: "Invalid username or password" });
+    }
+
+    const tx = db.transaction(() => {
+      db.prepare(
+        `
 INSERT INTO deleted_accounts(user_id,email_hash,username_hash,display_name_hash,deleted_at,reason)
 VALUES(?,?,?,?,?,?)
 `
-    ).run(
-      Number(u.id),
-      sha256(norm(u.email)),
-      sha256(norm(u.username)),
-      sha256(norm(u.display_name)),
-      now,
-      null
-    );
+      ).run(
+        Number(row.id),
+        sha256(norm(row.email)),
+        sha256(norm(row.username)),
+        sha256(norm(row.display_name)),
+        now,
+        null
+      );
 
-    // Hard delete. sessions + user_profiles will cascade.
-    db.prepare(`DELETE FROM users WHERE id = ?`).run(Number(u.id));
-  });
+      db.prepare(`DELETE FROM users WHERE id = ?`).run(Number(row.id));
+    });
 
-  try {
     tx();
   } catch (e: any) {
     return res.status(400).json({ error: e?.message ?? "Failed to delete account" });
@@ -380,6 +397,8 @@ VALUES(?,?,?,?,?,?)
   clearAuthCookies(res);
   return res.json({ ok: true });
 });
+
+/* listings routes unchanged ... */
 
 app.post("/api/listings", (req, res) => {
   runAutoExpirePass();
@@ -443,23 +462,19 @@ VALUES(?,?,?,?,?,?)`
 
 app.get("/api/listings", (req, res) => {
   runAutoExpirePass();
-
   const q = String(req.query.q ?? "").trim().toLowerCase();
   const species = String(req.query.species ?? "").trim().toLowerCase();
   const category = String(req.query.category ?? "").trim();
   const min = req.query.minPriceCents ? Number(req.query.minPriceCents) : undefined;
   const max = req.query.maxPriceCents ? Number(req.query.maxPriceCents) : undefined;
   const sort = String(req.query.sort ?? "newest");
-
   const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 24;
-
   const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
 
   const where: string[] = [];
   const params: any[] = [];
-
   where.push(`status IN('active','pending')`);
   where.push(`resolution = 'none'`);
 
@@ -468,22 +483,18 @@ app.get("/api/listings", (req, res) => {
     const pat = `%${q}%`;
     params.push(pat, pat, pat, pat);
   }
-
   if (species) {
     where.push("lower(species)= ?");
     params.push(species);
   }
-
   if (category) {
     where.push("category = ?");
     params.push(category);
   }
-
   if (Number.isFinite(min)) {
     where.push("price_cents >= ?");
     params.push(min);
   }
-
   if (Number.isFinite(max)) {
     where.push("price_cents <= ?");
     params.push(max);
@@ -505,6 +516,7 @@ LIMIT ? OFFSET ?
 `;
 
   const rows = db.prepare(sql).all(...params, limit, offset) as (ListingRow & any)[];
+
   return res.json({
     items: rows.map((r) => mapListing(req, r)),
     total,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import { deleteAccount, fetchProfile, resolveImageUrl, updateProfile, type ProfileResponse } from "../api";
@@ -26,9 +26,13 @@ export default function ProfilePage() {
   const [err, setErr] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
-  const [confirmDelete, setConfirmDelete] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteUsername, setDeleteUsername] = useState("");
+  const [deletePassword, setDeletePassword] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
+
+  const initialFocusRef = useRef<HTMLInputElement | null>(null);
 
   const avatarPreview = useMemo(() => {
     const u = normNullable(avatarUrl);
@@ -49,6 +53,7 @@ export default function ProfilePage() {
       try {
         const res = await fetchProfile();
         if (cancelled) return;
+
         setData(res);
         setDisplayName(res.user.displayName ?? "");
         setAvatarUrl(res.profile.avatarUrl ?? "");
@@ -67,6 +72,26 @@ export default function ProfilePage() {
       cancelled = true;
     };
   }, [authLoading, user, nav]);
+
+  useEffect(() => {
+    if (!deleteOpen) return;
+    setDeleteErr(null);
+    setDeletePassword("");
+    const uname = (data?.user.username ?? user?.username ?? "").trim();
+    setDeleteUsername(uname);
+    window.setTimeout(() => initialFocusRef.current?.focus(), 0);
+  }, [deleteOpen, data, user]);
+
+  useEffect(() => {
+    if (!deleteOpen) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setDeleteOpen(false);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [deleteOpen]);
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
@@ -100,31 +125,30 @@ export default function ProfilePage() {
     }
   }
 
-  async function onDeleteAccount() {
+  async function onConfirmDelete() {
     setDeleteErr(null);
 
-    const username = (data?.user.username ?? user?.username ?? "").trim();
-    const typed = confirmDelete.trim();
+    const expectedUsername = (data?.user.username ?? user?.username ?? "").trim().toLowerCase();
+    const presentedUsername = deleteUsername.trim().toLowerCase();
 
-    if (!username) {
-      setDeleteErr("Cannot verify username for delete confirmation.");
+    if (!expectedUsername) {
+      setDeleteErr("Cannot verify username for deletion.");
       return;
     }
-    if (typed !== username) {
-      setDeleteErr("Type your username exactly to confirm deletion.");
+    if (presentedUsername !== expectedUsername) {
+      setDeleteErr("Username does not match your account.");
       return;
     }
-
-    const ok = window.confirm(
-      "This will permanently delete your account and log you out. This cannot be undone.\n\nPress OK to continue."
-    );
-    if (!ok) return;
+    if (!deletePassword.trim()) {
+      setDeleteErr("Password is required.");
+      return;
+    }
 
     setDeleteLoading(true);
     try {
-      await deleteAccount();
-      setConfirmDelete("");
-      await refresh(); // should clear user in context (401 -> null)
+      await deleteAccount({ username: deleteUsername.trim(), password: deletePassword });
+      setDeleteOpen(false);
+      await refresh();
       nav("/");
     } catch (e: any) {
       setDeleteErr(e?.message ?? "Failed to delete account");
@@ -135,9 +159,8 @@ export default function ProfilePage() {
 
   const readOnlyEmail = data?.user.email ?? user?.email ?? "";
   const readOnlyUsername = data?.user.username ?? user?.username ?? "";
-  const usernameForDelete = readOnlyUsername.trim();
-  const deleteDisabled =
-    deleteLoading || loading || authLoading || !user || !usernameForDelete || confirmDelete.trim() !== usernameForDelete;
+
+  const deleteButtonDisabled = deleteLoading || loading || authLoading || !user;
 
   return (
     <div className="min-h-full">
@@ -301,46 +324,21 @@ export default function ProfilePage() {
                 </button>
               </div>
 
-              <div className="mt-6 border-t border-slate-100 pt-6">
-                <div className="text-sm font-bold text-slate-900">Danger zone</div>
+              <div className="mt-8 border-t border-slate-100 pt-6">
+                <div className="text-sm font-bold text-slate-900">Delete account</div>
                 <div className="mt-2 text-sm text-slate-600">
-                  Deleting your account is permanent. You will be logged out immediately.
+                  This permanently deletes your account and logs you out.
                 </div>
 
-                {deleteErr && (
-                  <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-                    {deleteErr}
-                  </div>
-                )}
-
-                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4">
-                  <div className="text-sm font-extrabold text-red-800">Delete my account</div>
-                  <div className="mt-1 text-sm text-red-800/80">
-                    Type your username (<span className="font-bold">@{usernameForDelete || "username"}</span>) to enable
-                    the delete button.
-                  </div>
-
-                  <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-                    <label className="block">
-                      <div className="mb-1 text-xs font-semibold text-red-900/80">Confirm username</div>
-                      <input
-                        value={confirmDelete}
-                        onChange={(e) => setConfirmDelete(e.target.value)}
-                        className="w-full rounded-xl border border-red-200 bg-white px-3 py-2 text-sm outline-none focus:border-red-300"
-                        placeholder={usernameForDelete ? `Type ${usernameForDelete}` : "Type your username"}
-                        disabled={deleteLoading || authLoading || !user}
-                      />
-                    </label>
-
-                    <button
-                      type="button"
-                      onClick={onDeleteAccount}
-                      disabled={deleteDisabled}
-                      className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-extrabold text-white hover:bg-red-700 disabled:opacity-60"
-                    >
-                      {deleteLoading ? "Deleting..." : "Delete account"}
-                    </button>
-                  </div>
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteOpen(true)}
+                    disabled={deleteButtonDisabled}
+                    className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-extrabold text-white hover:bg-red-700 disabled:opacity-60"
+                  >
+                    Delete account
+                  </button>
                 </div>
               </div>
             </div>
@@ -375,6 +373,84 @@ export default function ProfilePage() {
           </aside>
         </form>
       </main>
+
+      {deleteOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Delete account"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setDeleteOpen(false);
+          }}
+        >
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <div className="text-base font-extrabold text-slate-900">Confirm account deletion</div>
+              <div className="mt-1 text-sm text-slate-600">
+                Enter your username and password to permanently delete your account.
+              </div>
+            </div>
+
+            <div className="px-5 py-4">
+              {deleteErr && (
+                <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                  {deleteErr}
+                </div>
+              )}
+
+              <div className="grid gap-3">
+                <label className="block">
+                  <div className="mb-1 text-xs font-semibold text-slate-700">Username</div>
+                  <input
+                    ref={initialFocusRef}
+                    value={deleteUsername}
+                    onChange={(e) => setDeleteUsername(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                    autoComplete="username"
+                    disabled={deleteLoading}
+                  />
+                </label>
+
+                <label className="block">
+                  <div className="mb-1 text-xs font-semibold text-slate-700">Password</div>
+                  <input
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                    type="password"
+                    autoComplete="current-password"
+                    disabled={deleteLoading}
+                  />
+                </label>
+
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900/80">
+                  This cannot be undone.
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(false)}
+                disabled={deleteLoading}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onConfirmDelete}
+                disabled={deleteLoading}
+                className="rounded-2xl bg-red-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                {deleteLoading ? "Deleting..." : "Delete account"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

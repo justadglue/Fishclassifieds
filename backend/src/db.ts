@@ -37,23 +37,29 @@ export type ListingImageRow = {
   sort_order: number;
 };
 
+export type UserRow = {
+  id: number;
+  email: string;
+  username: string;
+  display_name: string;
+  password_hash: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type UserProfileRow = {
+  user_id: number;
+  avatar_url: string | null;
+  location: string | null;
+  phone: string | null;
+  website: string | null;
+  bio: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 function ensureDir(p: string) {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
-}
-
-function safeUnlink(p: string) {
-  try {
-    if (fs.existsSync(p)) fs.unlinkSync(p);
-  } catch {
-    // ignore
-  }
-}
-
-function resetDbFiles() {
-  ensureDir(DATA_DIR);
-  safeUnlink(DB_PATH);
-  safeUnlink(`${DB_PATH}-wal`);
-  safeUnlink(`${DB_PATH}-shm`);
 }
 
 function createSchema(db: Database.Database) {
@@ -127,18 +133,35 @@ CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_revoked_at ON sessions(revoked_at);
+
+-- 1:1 profile table for editable user profile fields
+CREATE TABLE IF NOT EXISTS user_profiles(
+  user_id INTEGER PRIMARY KEY,
+  avatar_url TEXT,
+  location TEXT,
+  phone TEXT,
+  website TEXT,
+  bio TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
 `);
 }
 
+let _db: Database.Database | null = null;
+
 export function openDb() {
-  // Reset FIRST (before opening db), since you're rebuilding from scratch each run.
-  resetDbFiles();
+  if (_db) return _db;
+  ensureDir(DATA_DIR);
 
   const db = new Database(DB_PATH);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
-
   createSchema(db);
 
+  _db = db;
   return db;
 }

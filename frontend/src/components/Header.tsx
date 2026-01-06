@@ -20,8 +20,8 @@ function Chevron({ open }: { open: boolean }) {
 export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
   const { user, loading, logout } = useAuth();
   const nav = useNavigate();
-
   const maxWidth = props.maxWidth ?? "6xl";
+
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -58,10 +58,13 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
         <Link to="/" className="font-extrabold tracking-tight text-slate-900">
           Fishclassifieds
         </Link>
+
         <div className="flex-1" />
+
         <Link to="/post" className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
           Post a listing
         </Link>
+
         <Link to="/me" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
           My listings
         </Link>
@@ -80,12 +83,14 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
               <span className="max-w-[200px] truncate">{user.displayName || user.email}</span>
               <Chevron open={open} />
             </button>
+
             {open && (
               <div role="menu" className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
                 <div className="border-b border-slate-100 px-4 py-3">
                   <div className="text-xs font-semibold text-slate-500">Signed in as</div>
                   <div className="mt-1 truncate text-sm font-bold text-slate-900">{user.email}</div>
                 </div>
+
                 <div className="p-2">
                   <Link
                     to="/me"
@@ -95,6 +100,16 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
                   >
                     My listings
                   </Link>
+
+                  <Link
+                    to="/profile"
+                    onClick={() => setOpen(false)}
+                    className="mt-1 block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                    role="menuitem"
+                  >
+                    My profile
+                  </Link>
+
                   <button
                     type="button"
                     onClick={doLogout}

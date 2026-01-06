@@ -72,6 +72,8 @@ export function resolveAssets(images: Array<string | ImageAsset> | null | undefi
   });
 }
 
+/* -------------------- OWNER TOKENS (LISTINGS) -------------------- */
+
 const OWNER_TOKEN_KEY = "fish_owner_tokens_v1";
 
 function loadOwnerMap(): Record<string, string> {
@@ -115,6 +117,8 @@ export function listOwnedIds(): string[] {
   const map = loadOwnerMap();
   return Object.keys(map);
 }
+
+/* -------------------- LISTINGS -------------------- */
 
 export async function fetchListings(params?: {
   q?: string;
@@ -211,9 +215,11 @@ async function postAction(id: string, action: "pause" | "resume" | "mark-sold") 
 export function pauseListing(id: string) {
   return postAction(id, "pause");
 }
+
 export function resumeListing(id: string) {
   return postAction(id, "resume");
 }
+
 export function markSold(id: string) {
   return postAction(id, "mark-sold");
 }
@@ -233,6 +239,8 @@ export async function uploadImage(file: File): Promise<ImageAsset> {
   const data = (await res.json()) as ImageAsset;
   return data;
 }
+
+/* -------------------- AUTH -------------------- */
 
 export type AuthUser = { id: number; email: string; displayName: string; username: string };
 
@@ -262,4 +270,38 @@ export async function authMe() {
 
 export async function authRefresh() {
   return apiFetch<{ user: AuthUser }>(`/api/auth/refresh`, { method: "POST" });
+}
+
+/* -------------------- PROFILE -------------------- */
+
+export type UserProfile = {
+  avatarUrl: string | null;
+  location: string | null;
+  phone: string | null;
+  website: string | null;
+  bio: string | null;
+};
+
+export type ProfileResponse = {
+  user: AuthUser;
+  profile: UserProfile;
+};
+
+export async function fetchProfile() {
+  return apiFetch<ProfileResponse>(`/api/profile`);
+}
+
+export async function updateProfile(input: {
+  displayName: string;
+  avatarUrl?: string | null;
+  location?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  bio?: string | null;
+}) {
+  return apiFetch<ProfileResponse>(`/api/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
 }

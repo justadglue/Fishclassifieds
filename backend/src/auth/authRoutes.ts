@@ -3,7 +3,7 @@ import { Router } from "express";
 import { z } from "zod";
 import argon2 from "argon2";
 import crypto from "crypto";
-import { openDb } from "../db.js";
+import type Database from "better-sqlite3";
 import { sha256Hex, nowIso, addDaysIso } from "../security.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "./jwt.js";
 import { clearAuthCookies, setAuthCookies, COOKIE_REFRESH } from "./cookies.js";
@@ -26,6 +26,12 @@ const LoginSchema = z.object({
   password: z.string().min(1).max(200),
 });
 
+function getDb(req: Request): Database.Database {
+  const db = (req.app as any)?.locals?.db as Database.Database | undefined;
+  if (!db) throw new Error("DB not available on app.locals.db");
+  return db;
+}
+
 function getIp(req: Request) {
   const xf = req.headers["x-forwarded-for"];
   if (typeof xf === "string" && xf.length) return xf.split(",")[0].trim();
@@ -42,7 +48,7 @@ router.post("/register", async (req: Request, res: Response) => {
   const normEmail = email.toLowerCase().trim();
   const normUsername = username.toLowerCase().trim();
 
-  const db = openDb();
+  const db = getDb(req);
 
   const existingEmail = db
     .prepare(`SELECT id FROM users WHERE lower(email)= lower(?)`)
@@ -64,13 +70,14 @@ router.post("/register", async (req: Request, res: Response) => {
   const info = db
     .prepare(
       `
-      INSERT INTO users(email,username,password_hash,display_name,created_at,updated_at)
-      VALUES(?,?,?,?,?,?)
-      `
+INSERT INTO users(email,username,password_hash,display_name,created_at,updated_at)
+VALUES(?,?,?,?,?,?)
+`
     )
     .run(normEmail, normUsername, passwordHash, displayName, nowIso(), nowIso());
 
   const userId = Number(info.lastInsertRowid);
+
   return res.status(201).json({
     user: { id: userId, email: normEmail, displayName, username: normUsername },
   });
@@ -83,8 +90,8 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 
   const { email, password } = parsed.data;
+  const db = getDb(req);
 
-  const db = openDb();
   const row = db
     .prepare(`SELECT * FROM users WHERE lower(email)= lower(?)`)
     .get(email.toLowerCase().trim()) as any | undefined;
@@ -100,9 +107,9 @@ router.post("/login", async (req: Request, res: Response) => {
 
   db.prepare(
     `
-    INSERT INTO sessions(id,user_id,refresh_token_hash,created_at,last_used_at,expires_at,revoked_at,user_agent,ip)
-    VALUES(?,?,?,?,?,?,NULL,?,?)
-    `
+INSERT INTO sessions(id,user_id,refresh_token_hash,created_at,last_used_at,expires_at,revoked_at,user_agent,ip)
+VALUES(?,?,?,?,?,?,NULL,?,?)
+`
   ).run(
     sessionId,
     row.id,
@@ -137,16 +144,19 @@ router.post("/refresh", (req: Request, res: Response) => {
     return res.status(401).json({ error: "Invalid refresh token" });
   }
 
-  const db = openDb();
+  const db = getDb(req);
+
   const session = db.prepare(`SELECT * FROM sessions WHERE id = ?`).get(payload.sid) as any | undefined;
   if (!session) {
     clearAuthCookies(res);
     return res.status(401).json({ error: "Session not found" });
   }
+
   if (session.revoked_at) {
     clearAuthCookies(res);
     return res.status(401).json({ error: "Session revoked" });
   }
+
   if (new Date(session.expires_at).getTime() <= Date.now()) {
     db.prepare(`UPDATE sessions SET revoked_at = ? WHERE id = ?`).run(nowIso(), session.id);
     clearAuthCookies(res);
@@ -175,10 +185,10 @@ router.post("/refresh", (req: Request, res: Response) => {
 
   db.prepare(
     `
-    UPDATE sessions
-    SET refresh_token_hash = ?,last_used_at = ?
-    WHERE id = ?
-    `
+UPDATE sessions
+SET refresh_token_hash = ?,last_used_at = ?
+WHERE id = ?
+`
   ).run(newHash, nowIso(), session.id);
 
   const newAccess = signAccessToken({ sub: String(user.id), email: user.email });
@@ -194,12 +204,13 @@ router.post("/logout", (req: Request, res: Response) => {
   if (raw && typeof raw === "string") {
     try {
       const payload = verifyRefreshToken(raw);
-      const db = openDb();
+      const db = getDb(req);
       db.prepare(`UPDATE sessions SET revoked_at = ? WHERE id = ?`).run(nowIso(), payload.sid);
     } catch {
       // ignore
     }
   }
+
   clearAuthCookies(res);
   return res.json({ ok: true });
 });

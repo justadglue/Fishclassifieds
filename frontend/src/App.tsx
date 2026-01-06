@@ -6,6 +6,7 @@ import ListingPage from "./pages/ListingPage";
 import PostListingPage from "./pages/PostListingPage";
 import MyListingsPage from "./pages/MyListingsPage";
 import EditListingPage from "./pages/EditListingPage";
+import ProfilePage from "./pages/ProfilePage";
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
       <Route path="/post" element={<PostListingPage />} />
       <Route path="/me" element={<MyListingsPage />} />
       <Route path="/edit/:id" element={<EditListingPage />} />
+      <Route path="/profile" element={<ProfilePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignUpPage />} />
     </Routes>

@@ -14,23 +14,22 @@ import sharp from "sharp";
 import authRoutes from "./auth/authRoutes.js";
 import { assertConfig, config } from "./config.js";
 import { requireAuth } from "./auth/requireAuth.js";
+import { nowIso as nowIsoSecurity } from "./security.js";
 
 assertConfig();
 
 const app = express();
 const db = openDb();
+(app as any).locals.db = db;
 
 app.set("trust proxy", 1);
-
 app.use(
   cors({
     origin: config.corsOrigin,
     credentials: true,
   })
 );
-
 app.use(helmet());
-
 app.use(
   rateLimit({
     windowMs: 60_000,
@@ -39,7 +38,6 @@ app.use(
     legacyHeaders: false,
   })
 );
-
 app.use(express.json());
 app.use(cookieParser());
 
@@ -61,11 +59,13 @@ type ImageAsset = { fullUrl: string; thumbUrl: string; medUrl: string };
 function baseUrl(req: express.Request) {
   return `${req.protocol}://${req.get("host")}`;
 }
+
 function toAbs(req: express.Request, maybePath: string) {
   if (/^https?:\/\//i.test(maybePath)) return maybePath;
   const p = maybePath.startsWith("/") ? maybePath : `/${maybePath}`;
   return `${baseUrl(req)}${p}`;
 }
+
 function toRelUploads(filename: string) {
   return `/uploads/${filename}`;
 }
@@ -139,11 +139,9 @@ async function makeDerivatives(absPath: string, baseNameNoExt: string): Promise<
 app.post("/api/uploads", upload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
-
     const fullRel = toRelUploads(req.file.filename);
     const abs = path.join(UPLOADS_DIR, req.file.filename);
     const base = path.parse(req.file.filename).name;
-
     const d = await makeDerivatives(abs, base);
 
     const out: ImageAsset = {
@@ -179,6 +177,7 @@ function addDaysIso(isoNow: string, days: number) {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString();
 }
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -203,6 +202,7 @@ const ImageAssetSchema = z.object({
   thumbUrl: z.string().min(1),
   medUrl: z.string().min(1),
 });
+
 const ImagesInputSchema = z.array(z.union([z.string(), ImageAssetSchema])).max(6).optional().default([]);
 
 function normalizeImages(input: (string | ImageAsset)[]): ImageAsset[] {
@@ -245,9 +245,108 @@ app.get("/api/me", requireAuth, (req, res) => {
   return res.json({ user: req.user });
 });
 
+/* -------------------- PROFILE -------------------- */
+
+const ProfileSchema = z.object({
+  displayName: z.string().min(1).max(80),
+  avatarUrl: z.string().max(500).nullable().optional(),
+  location: z.string().max(120).nullable().optional(),
+  phone: z.string().max(40).nullable().optional(),
+  website: z.string().max(300).nullable().optional(),
+  bio: z.string().max(1000).nullable().optional(),
+});
+
+function mapProfileRow(row: any) {
+  return {
+    avatarUrl: row?.avatar_url ?? null,
+    location: row?.location ?? null,
+    phone: row?.phone ?? null,
+    website: row?.website ?? null,
+    bio: row?.bio ?? null,
+  };
+}
+
+app.get("/api/profile", requireAuth, (req, res) => {
+  const user = req.user!;
+  const u = db
+    .prepare(`SELECT id,email,username,display_name FROM users WHERE id = ?`)
+    .get(user.id) as any | undefined;
+
+  if (!u) return res.status(404).json({ error: "User not found" });
+
+  const p = db.prepare(`SELECT * FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
+
+  return res.json({
+    user: {
+      id: Number(u.id),
+      email: String(u.email),
+      username: String(u.username),
+      displayName: String(u.display_name),
+    },
+    profile: mapProfileRow(p),
+  });
+});
+
+app.put("/api/profile", requireAuth, (req, res) => {
+  const user = req.user!;
+  const parsed = ProfileSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+  }
+
+  const { displayName, avatarUrl, location, phone, website, bio } = parsed.data;
+
+  const now = nowIsoSecurity();
+
+  const tx = db.transaction(() => {
+    db.prepare(`UPDATE users SET display_name = ?, updated_at = ? WHERE id = ?`).run(displayName, now, user.id);
+
+    const existing = db.prepare(`SELECT user_id FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
+
+    if (!existing) {
+      db.prepare(
+        `
+INSERT INTO user_profiles(user_id,avatar_url,location,phone,website,bio,created_at,updated_at)
+VALUES(?,?,?,?,?,?,?,?)
+`
+      ).run(user.id, avatarUrl ?? null, location ?? null, phone ?? null, website ?? null, bio ?? null, now, now);
+    } else {
+      db.prepare(
+        `
+UPDATE user_profiles
+SET avatar_url = ?, location = ?, phone = ?, website = ?, bio = ?, updated_at = ?
+WHERE user_id = ?
+`
+      ).run(avatarUrl ?? null, location ?? null, phone ?? null, website ?? null, bio ?? null, now, user.id);
+    }
+  });
+
+  try {
+    tx();
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? "Failed to update profile" });
+  }
+
+  const u = db
+    .prepare(`SELECT id,email,username,display_name FROM users WHERE id = ?`)
+    .get(user.id) as any | undefined;
+  const p = db.prepare(`SELECT * FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
+
+  return res.json({
+    user: {
+      id: Number(u.id),
+      email: String(u.email),
+      username: String(u.username),
+      displayName: String(u.display_name),
+    },
+    profile: mapProfileRow(p),
+  });
+});
+
+/* -------------------- LISTINGS -------------------- */
+
 app.post("/api/listings", (req, res) => {
   runAutoExpirePass();
-
   const parsed = CreateListingSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
@@ -256,12 +355,15 @@ app.post("/api/listings", (req, res) => {
   const id = crypto.randomUUID();
   const now = nowIso();
   const ownerToken = crypto.randomUUID();
+
   const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
   const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
+
   const requireApproval = String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
 
   const { title, category, species, priceCents, location, description, contact, images, imageUrl } = parsed.data;
   const requestedStatus = parsed.data.status;
+
   const status: ListingStatus = requestedStatus === "draft" ? "draft" : requireApproval ? "pending" : "active";
 
   db.prepare(
@@ -312,13 +414,13 @@ app.get("/api/listings", (req, res) => {
   const q = String(req.query.q ?? "").trim().toLowerCase();
   const species = String(req.query.species ?? "").trim().toLowerCase();
   const category = String(req.query.category ?? "").trim();
-
   const min = req.query.minPriceCents ? Number(req.query.minPriceCents) : undefined;
   const max = req.query.maxPriceCents ? Number(req.query.maxPriceCents) : undefined;
-
   const sort = String(req.query.sort ?? "newest");
+
   const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 24;
+
   const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
 
@@ -333,29 +435,24 @@ app.get("/api/listings", (req, res) => {
     const pat = `%${q}%`;
     params.push(pat, pat, pat, pat);
   }
-
   if (species) {
     where.push("lower(species)= ?");
     params.push(species);
   }
-
   if (category) {
     where.push("category = ?");
     params.push(category);
   }
-
   if (Number.isFinite(min)) {
     where.push("price_cents >= ?");
     params.push(min);
   }
-
   if (Number.isFinite(max)) {
     where.push("price_cents <= ?");
     params.push(max);
   }
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-
   const totalRow = db.prepare(`SELECT COUNT(*)as c FROM listings ${whereSql}`).get(...params) as any;
   const total = Number(totalRow?.c ?? 0);
 
@@ -382,7 +479,6 @@ LIMIT ? OFFSET ?
 
 app.get("/api/listings/:id", (req, res) => {
   runAutoExpirePass();
-
   const id = req.params.id;
   const row = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(id);
   if (!row) return res.status(404).json({ error: "Not found" });
@@ -401,7 +497,6 @@ app.get("/api/listings/:id", (req, res) => {
 
 app.patch("/api/listings/:id", (req, res) => {
   runAutoExpirePass();
-
   const id = req.params.id;
   const row = db.prepare<(ListingRow & any)>("SELECT * FROM listings WHERE id = ?").get(id);
   if (!row) return res.status(404).json({ error: "Not found" });
@@ -452,7 +547,6 @@ app.patch("/api/listings/:id", (req, res) => {
       `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
 VALUES(?,?,?,?,?,?)`
     );
-
     const normalized = normalizeImages(p.images ?? []).slice(0, 6);
     normalized.forEach((img, idx) => ins.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx));
   }
@@ -463,7 +557,6 @@ VALUES(?,?,?,?,?,?)`
 
 app.delete("/api/listings/:id", (req, res) => {
   runAutoExpirePass();
-
   const id = req.params.id;
   const row = db.prepare<(ListingRow & any)>("SELECT * FROM listings WHERE id = ?").get(id);
   if (!row) return res.status(404).json({ error: "Not found" });
@@ -500,7 +593,6 @@ function setResolution(id: string, resolution: ListingResolution) {
 
 app.post("/api/listings/:id/pause", (req, res) => {
   runAutoExpirePass();
-
   const row = loadOwnedListing(req, res);
   if (!row) return;
 
@@ -520,7 +612,6 @@ app.post("/api/listings/:id/pause", (req, res) => {
 
 app.post("/api/listings/:id/resume", (req, res) => {
   runAutoExpirePass();
-
   const row = loadOwnedListing(req, res);
   if (!row) return;
 
@@ -539,7 +630,6 @@ app.post("/api/listings/:id/resume", (req, res) => {
 
 app.post("/api/listings/:id/mark-sold", (req, res) => {
   runAutoExpirePass();
-
   const row = loadOwnedListing(req, res);
   if (!row) return;
 

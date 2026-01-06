@@ -5,7 +5,8 @@ Creates a single text dump of your repo for pasting into ChatGPT.
 Examples:
   .\project_dump.ps1 -Mode Extended
   .\project_dump.ps1 -Mode Extended -UltraMinify -Redact
-  .\project_dump.ps1 -Mode Extended -UltraMinify -Redact -OutPath .\dump.txt
+  .\project_dump.ps1 -Mode Extended -UltraMinify -Redact -StripClassNames
+  .\project_dump.ps1 -Mode Extended -UltraMinify -Redact -StripClassNames -OutPath .\dump.txt
 
 Notes:
 - UltraMinify is intentionally aggressive (it’s for dumping, not compiling).
@@ -15,6 +16,10 @@ Notes:
 Change (safe-minify):
 - UltraMinify no longer collapses internal whitespace or tightens punctuation spacing.
 - This prevents breaking semantics and prevents destroying string literals like Tailwind className values.
+
+Extreme option:
+- StripClassNames removes class/className attributes from HTML/JSX/TSX.
+  This WILL break styling and is for dump-size reduction only.
 #>
 
 [CmdletBinding()]
@@ -29,6 +34,9 @@ param(
   [switch]$UltraMinify,
 
   [switch]$Redact,
+
+  # EXTREME: removes className/class attributes from JSX/TSX/HTML to reduce dump size
+  [switch]$StripClassNames,
 
   [switch]$Quiet
 )
@@ -193,6 +201,59 @@ function Try-MinifyJson {
   }
 }
 
+function Strip-ClassAttributes {
+  param(
+    [Parameter(Mandatory=$true)][AllowEmptyString()][string]$Text,
+    [Parameter(Mandatory=$true)][string]$RelPath
+  )
+
+  $t = $Text
+  if ($null -eq $t) { return "" }
+
+  $ext = Get-ExtensionLower -Path $RelPath
+
+  # Only touch JSX/TSX/HTML-ish files
+  $isJsxLike = ($ext -in @(".tsx",".jsx"))
+  $isHtmlLike = ($ext -in @(".html",".htm"))
+
+  if (-not ($isJsxLike -or $isHtmlLike)) {
+    return $t
+  }
+
+  # Normalize newlines (so Singleline patterns can remove multi-line attributes too)
+  $t = $t -replace "^\uFEFF",""
+  $t = $t -replace "`r`n","`n"
+  $t = $t -replace "`r","`n"
+
+  # JSX/TSX: remove className=...
+  # Handles:
+  #   className="..."
+  #   className='...'
+  #   className={`...`}
+  #   className={"..."} / className={'...'}
+  #   className={someExpression} (best-effort; may not handle deeply nested braces)
+  if ($isJsxLike) {
+    $t = [regex]::Replace(
+      $t,
+      '\s+className\s*=\s*(\{`[^`]*`\}|\{[^}]*\}|"[^"]*"|''[^'']*'')',
+      '',
+      [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+  }
+
+  # HTML: remove class="..." / class='...'
+  if ($isHtmlLike) {
+    $t = [regex]::Replace(
+      $t,
+      '\s+class\s*=\s*(".*?"|''.*?'')',
+      '',
+      [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+  }
+
+  return $t
+}
+
 function UltraMinify-Text {
   param(
     [Parameter(Mandatory=$true)][AllowEmptyString()][string]$Text,
@@ -212,6 +273,11 @@ function UltraMinify-Text {
   if ($ext -eq ".json") {
     $min = Try-MinifyJson -Text $t
     if ($null -ne $min) { return $min }
+  }
+
+  # EXTREME size reduction for dump-only: remove class/className attributes
+  if ($StripClassNames.IsPresent) {
+    $t = Strip-ClassAttributes -Text $t -RelPath $RelPath
   }
 
   # Strip block comments for common languages (dump-only; still aggressive)
@@ -244,13 +310,13 @@ function UltraMinify-Text {
       if ($l -match "^\s*//") { continue }
     }
 
-    # Trim ends + drop blanks (this is safe and preserves internal spaces)
+    # Trim ends + drop blanks (safe and preserves internal spaces)
     $l = $l.Trim()
     if ([string]::IsNullOrWhiteSpace($l)) { continue }
 
     # Inline comment stripping:
     # - JS/TS/JSX/TSX: DISABLED (unsafe without a real parser; can break URLs/regex/strings)
-    # - SQL / PS / YAML-like: keep conservative stripping as before.
+    # - SQL / PS / YAML-like: keep conservative stripping.
     if ($ext -eq ".sql") {
       $l = [regex]::Replace($l, "\s+--.*$", "")
       $l = $l.Trim()
@@ -273,7 +339,6 @@ function UltraMinify-Text {
     }
 
     # IMPORTANT: do NOT collapse internal whitespace and do NOT tighten punctuation spacing.
-    # This preserves semantics and preserves string literals (e.g., Tailwind className values).
     $out.Add($l)
   }
 
@@ -291,7 +356,6 @@ function Test-IsEnvFile {
   $name = [System.IO.Path]::GetFileName($RelPath)
   if ($null -eq $name) { return $false }
   $lower = $name.ToLowerInvariant()
-  # .env, .env.local, .env.production, .env.example, etc.
   return ($lower -eq ".env" -or $lower.StartsWith(".env."))
 }
 
@@ -303,23 +367,18 @@ function Test-LooksLikeCredentialValue {
   $v = $v.Trim()
   if ($v.Length -lt 16) { return $false }
 
-  # JWT: header.payload.signature (base64url-ish)
   if ($v -match '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$') { return $true }
-
-  # Common API key prefixes (add more as you encounter them)
   if ($v -match '^(?i)(sk-|rk-|pk-|api_|key_)[A-Za-z0-9_\-]{10,}$') { return $true }
 
-  # Very long single-token strings (base64/base64url/hex-ish), no spaces
   if ($v.Length -ge 32 -and $v -notmatch '\s') {
-    if ($v -match '^[A-Fa-f0-9]{32,}$') { return $true } # hex
-    if ($v -match '^[A-Za-z0-9+/=]{32,}$') { return $true } # base64
-    if ($v -match '^[A-Za-z0-9_-]{32,}$') { return $true } # base64url-ish / random-ish
+    if ($v -match '^[A-Fa-f0-9]{32,}$') { return $true }
+    if ($v -match '^[A-Za-z0-9+/=]{32,}$') { return $true }
+    if ($v -match '^[A-Za-z0-9_-]{32,}$') { return $true }
   }
 
   return $false
 }
 
-# Simple always-on redactions (low false-positive risk)
 $redactionRulesAlways = @(
   @{
     Name        = "Authorization Bearer"
@@ -333,17 +392,12 @@ $redactionRulesAlways = @(
   }
 )
 
-# .env-only rule: redact explicit secret-like variable names (word-chunk match, not substring)
-# Examples that WILL match: API_KEY=, OPENAI_API_KEY=, DB_PASSWORD=, JWT_SECRET=, ACCESS_TOKEN=
-# Examples that WILL NOT match: MONKEY=, HOCKEY=, KEYSTONE= (no separator/whole chunk)
 $redactionRuleEnvOnly = @{
   Name        = "Env var secrets (env files only)"
   Pattern     = '(?im)^(\s*(?:[A-Z0-9]+_)*(?:API_KEY|ACCESS_TOKEN|REFRESH_TOKEN|TOKEN|SECRET|PASSWORD|PRIVATE_KEY|CLIENT_SECRET)(?:_[A-Z0-9]+)*\s*=\s*)([^\r\n#]+)'
   Replacement = '$1<REDACTED>'
 }
 
-# Quoted fields: only redact when value looks like a credential
-# (We do this with a match evaluator in Apply-Redactions to avoid over-redacting schemas/examples.)
 $quotedKeyPatterns = @(
   '(?i)(api[_-]?key)\s*[:=]\s*(["''])([^"''\r\n]+)\2',
   '(?i)(password)\s*[:=]\s*(["''])([^"''\r\n]+)\2',
@@ -360,7 +414,6 @@ function Apply-Redactions {
   $t = $Text
   if ($null -eq $t -or $t.Length -eq 0) { return "" }
 
-  # Always-on (safe)
   foreach ($rule in $redactionRulesAlways) {
     $t = [regex]::Replace(
       $t,
@@ -370,7 +423,6 @@ function Apply-Redactions {
     )
   }
 
-  # .env-only redaction
   if (Test-IsEnvFile -RelPath $RelPath) {
     $t = [regex]::Replace(
       $t,
@@ -380,21 +432,15 @@ function Apply-Redactions {
     )
   }
 
-  # Heuristic quoted-field redaction (reduce false positives)
   foreach ($pat in $quotedKeyPatterns) {
     $t = [regex]::Replace($t, $pat, {
       param($m)
 
-      # Group layout differs slightly between patterns; we just grab the last captured group as value and the quote group.
-      # For apiKey/password patterns: groups are (name)(quote)(value)
-      # For secret/token patterns: groups are (quote)(value) OR (quote)(value) after a non-captured key
       $groups = $m.Groups
       $val = $groups[$groups.Count - 1].Value
       $quote = $groups[$groups.Count - 2].Value
 
       if (Test-LooksLikeCredentialValue -Value $val) {
-        # Replace only the value portion, preserve surrounding text + original quote style
-        # Safer: rebuild from match by replacing the value substring
         $full = $m.Value
         return $full.Substring(0, $full.Length - $val.Length - $quote.Length) + "<REDACTED>" + $quote
       }
@@ -491,11 +537,9 @@ function Build-MetaPrompt {
   }
 
   $meta += "META: If any secrets appear unredacted, call them out explicitly (file + snippet) so they can be added to redaction rules. If none, do not mention this."
-
   $meta += "META: Do NOT claim truncation/incompleteness based on assistant-rendered excerpts (including '...' or apparent cutoff). Assume the user's dump is complete unless the dump text itself contains an unavoidable syntax break that blocks the requested task."
   $meta += "META: Only raise cutoff/truncation if it directly prevents answering the user’s question or generating correct drop-in code, and then specify exactly what needed content is missing and why it matters."
   $meta += ("META: Mode={0}; UltraMinify={1}; Redact={2}; Root={3}; FileCount={4}" -f $Mode, $UltraMinifyEnabled, $RedactEnabled, $RootFull, $FileCount)
-
   $meta += "META: The dump ends at '===== END FILES ====='. Any text after is a prompt about the dump above."
   $meta += "META: This dump is authoritative. Assume no prior context if not explicitly related to the prompt after the '===== END FILES ====='. Do not reference earlier discussions unless explicitly quoted here."
 
@@ -509,7 +553,7 @@ $outFull  = [System.IO.Path]::GetFullPath($OutPath)
 Write-Info ("Root:  {0}" -f $rootFull)
 Write-Info ("Out:   {0}" -f $outFull)
 Write-Info ("Mode:  {0}" -f $Mode)
-Write-Info ("Flags: UltraMinify={0}, Redact={1}" -f $UltraMinify.IsPresent, $Redact.IsPresent)
+Write-Info ("Flags: UltraMinify={0}, Redact={1}, StripClassNames={2}" -f $UltraMinify.IsPresent, $Redact.IsPresent, $StripClassNames.IsPresent)
 
 $filesToDump = Collect-Files -Root $rootFull -Mode $Mode
 
@@ -524,7 +568,6 @@ $sw = New-Object System.IO.StreamWriter($outFull, $false, $utf8NoBom)
 try {
   $sw.NewLine = "`n"
 
-  # Always include a meta prompt at the very top (even in UltraMinify mode).
   $metaPrompt = Build-MetaPrompt `
     -Mode $Mode `
     -UltraMinifyEnabled $UltraMinify.IsPresent `
@@ -541,6 +584,7 @@ try {
     $sw.WriteLine(("Mode: {0}" -f $Mode))
     $sw.WriteLine(("UltraMinify: {0}" -f $UltraMinify.IsPresent))
     $sw.WriteLine(("Redact: {0}" -f $Redact.IsPresent))
+    $sw.WriteLine(("StripClassNames: {0}" -f $StripClassNames.IsPresent))
     $sw.WriteLine(("FileCount: {0}" -f $filesToDump.Count))
     $sw.WriteLine("===== BEGIN FILES =====")
     $sw.WriteLine("")
@@ -566,7 +610,6 @@ try {
     }
 
     if ($UltraMinify) {
-      # Minimal separators: one blank line between files, marker + content only.
       if (-not $first) { $sw.WriteLine("") }
       $first = $false
 

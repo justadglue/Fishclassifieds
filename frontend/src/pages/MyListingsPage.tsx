@@ -11,6 +11,7 @@ import {
   markSold,
   type Listing,
 } from "../api";
+import Header from "../components/Header";
 
 function centsToDollars(cents: number) {
   return (cents / 100).toLocaleString(undefined, { style: "currency", currency: "AUD" });
@@ -198,22 +199,7 @@ export default function MyListingsPage() {
 
   return (
     <div className="min-h-full">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <Link to="/" className="font-extrabold tracking-tight text-slate-900">
-            Fishclassifieds
-          </Link>
-          <div className="flex items-center gap-3">
-            <Link to="/post" className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
-              Post a listing
-            </Link>
-            <Link to="/" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-              Browse
-            </Link>
-          </div>
-        </div>
-      </header>
-
+      <Header maxWidth="5xl" />
       <main className="mx-auto max-w-5xl px-4 py-6">
         <h1 className="text-xl font-extrabold text-slate-900">My listings</h1>
         <div className="mt-1 text-sm text-slate-600">Listings created on this device.</div>

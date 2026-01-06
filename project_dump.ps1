@@ -1,234 +1,486 @@
+﻿<#
+project_dump.ps1
+Creates a single text dump of your repo for pasting into ChatGPT.
+
+Examples:
+  .\project_dump.ps1 -Mode Extended
+  .\project_dump.ps1 -Mode Extended -UltraMinify -Redact
+  .\project_dump.ps1 -Mode Extended -UltraMinify -Redact -OutPath .\dump.txt
+
+Notes:
+- UltraMinify is intentionally aggressive (it’s for dumping, not compiling).
+- Redact removes common secrets/tokens/keys from the dump output.
+- Compatible with Windows PowerShell 5.1+ (no ?? operator).
+#>
+
+[CmdletBinding()]
 param(
-  [string]$Root=".",
-  [string]$Out="project_dump_core.txt",
-  [int]$MaxBytes=12000000,
+  [ValidateSet("Basic","Extended")]
+  [string]$Mode = "Basic",
 
-  # Core is default; pass -Mode Extended to include more
-  [ValidateSet("Core","Extended")]
-  [string]$Mode="Core",
+  [string]$RootPath = (Get-Location).Path,
 
-  # Reduce whitespace tokens in content
-  [switch]$MinifyContent,
+  [string]$OutPath = (Join-Path (Get-Location).Path "project_dump.txt"),
 
-  # If something looks like a key/token, mask it in output
-  [switch]$RedactSecrets,
+  [switch]$UltraMinify,
 
-  # Silence console noise
+  [switch]$Redact,
+
   [switch]$Quiet
 )
 
-$ErrorActionPreference="Stop"
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
 
-# Make console output UTF-8 too (helps if you print paths/content)
-try {
-  $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
-  [Console]::OutputEncoding = $utf8NoBom
-  $OutputEncoding = $utf8NoBom
-} catch {}
+function Write-Info {
+  param([string]$Message)
+  if (-not $Quiet) { Write-Host $Message }
+}
 
-# Resolve paths (PS 5.1 compatible)
-$RootPath = (Resolve-Path $Root).Path
-if ([System.IO.Path]::IsPathRooted($Out)) { $OutPath = $Out } else { $OutPath = Join-Path $RootPath $Out }
+function Normalize-RelPath {
+  param(
+    [Parameter(Mandatory=$true)][string]$FullPath,
+    [Parameter(Mandatory=$true)][string]$Root
+  )
+  $rootNorm = [System.IO.Path]::GetFullPath($Root)
+  $fullNorm = [System.IO.Path]::GetFullPath($FullPath)
 
-$ignoreDirs = @(".git","node_modules","dist","build",".venv",".idea",".vscode",".next",".turbo","coverage","__pycache__",".pytest_cache")
+  if ($fullNorm.StartsWith($rootNorm, [System.StringComparison]::OrdinalIgnoreCase)) {
+    $rel = $fullNorm.Substring($rootNorm.Length).TrimStart('\','/')
+    return $rel
+  }
 
-# Hard “never dump” patterns (filenames)
-$neverDumpNameLike = @(
-  "package-lock.json",
-  "yarn.lock",
-  "pnpm-lock.yaml",
-  "*.sqlite",
-  "*.sqlite-wal",
-  "*.sqlite-shm",
-  "*.log",
-  "*.pem",
-  "*.pfx",
-  "*.p12",
-  "*.key",
-  "*.cer",
-  "*.crt",
-  "*.env",
-  ".env",
-  ".env.*",
-  "*secret*",
-  "*token*",
-  "*api*key*",
-  "*apikey*",
-  "*openai*key*",
-  "*sk-*"
-)
+  return $FullPath
+}
 
-# Text-like extensions
-$textExts = @(
-  ".js",".ts",".tsx",".jsx",
-  ".json",".yml",".yaml",".toml",".xml",
-  ".html",".css",".md",".txt",
-  ".ps1",".sh",".ini",".cfg"
-)
+function Get-ExtensionLower {
+  param([string]$Path)
+  $ext = [System.IO.Path]::GetExtension($Path)
+  if ($null -eq $ext) { $ext = "" }
+  return $ext.ToLowerInvariant()
+}
 
-function Should-IgnorePath([string]$relPath) {
-  $segments = $relPath -split '[\\/]'
-  if ($segments | Where-Object { $ignoreDirs -contains $_ }) { return $true }
+function Is-BinaryFileByExtension {
+  param([string]$Path)
+  $ext = Get-ExtensionLower -Path $Path
+
+  $bin = @(
+    ".png",".jpg",".jpeg",".gif",".webp",".bmp",".ico",
+    ".zip",".7z",".rar",".tar",".gz",".bz2",
+    ".exe",".dll",".pdb",".so",".dylib",
+    ".pdf",".woff",".woff2",".ttf",".otf",
+    ".mp4",".mov",".avi",".mkv",".mp3",".wav",
+    ".db",".sqlite",".sqlite3",".db-wal",".db-shm",
+    ".map"
+  )
+  return $bin -contains $ext
+}
+
+function Should-SkipPath {
+  param(
+    [Parameter(Mandatory=$true)][string]$FullPath,
+    [Parameter(Mandatory=$true)][string]$RelPath
+  )
+
+  $lower = $RelPath.ToLowerInvariant()
+
+  $dirExcludes = @(
+    ".git\",
+    "node_modules\",
+    "dist\",
+    "build\",
+    "coverage\",
+    ".turbo\",
+    ".vite\",
+    ".next\",
+    ".cache\",
+    "out\",
+    "tmp\",
+    "temp\",
+    "logs\",
+    "backend\data\uploads\",
+    "backend\data\"
+  )
+
+  foreach ($d in $dirExcludes) {
+    if ($lower.Contains($d)) { return $true }
+  }
+
+  $fileName = [System.IO.Path]::GetFileName($RelPath).ToLowerInvariant()
+  $nameExcludes = @(
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    ".ds_store",
+    "thumbs.db",
+    "app.db",
+    "app.db-wal",
+    "app.db-shm"
+  )
+  if ($nameExcludes -contains $fileName) { return $true }
+
+  if (Is-BinaryFileByExtension -Path $RelPath) { return $true }
+
   return $false
 }
 
-function Name-MatchesAny([string]$name, [string[]]$patterns) {
-  foreach ($p in $patterns) { if ($name -like $p) { return $true } }
+function Is-TextFileExtension {
+  param([string]$Path)
+  $ext = Get-ExtensionLower -Path $Path
+
+  $textExts = @(
+    ".txt",".md",".markdown",".json",".jsonc",".yaml",".yml",
+    ".ts",".tsx",".js",".jsx",".mjs",".cjs",
+    ".css",".scss",".less",".html",".htm",
+    ".env",".example",
+    ".sql",
+    ".ps1",".psm1",".psd1",
+    ".gitignore",".gitattributes",
+    ".editorconfig",
+    ".toml",".ini",".cfg",
+    ".sh",".bash",".zsh",
+    ".java",".kt",".go",".rs",".py",".cpp",".c",".h"
+  )
+
+  if ($textExts -contains $ext) { return $true }
+  if ($ext -eq "") { return $true }
   return $false
 }
 
-# CORE whitelist (relative paths / globs)
-$coreAllow = @(
-  # root
-  "package.json",
-
-  # frontend
-  "frontend/package.json",
-  "frontend/index.html",
-  "frontend/vite.config.*",
-  "frontend/tsconfig*.json",
-  "frontend/eslint.config.js",
-  "frontend/postcss.config.js",
-  "frontend/tailwind.config.*",
-  "frontend/src/**/*"
-
-  # backend (typical TS layout)
-  "backend/package.json",
-  "backend/tsconfig*.json",
-  "backend/src/**/*"
-)
-
-# EXTENDED additions: everything text-like inside frontend/ and backend/
-$extendedAllow = @(
-  "frontend/**",
-  "backend/**"
-)
-
-function RelPath-MatchesWhitelist([string]$relPath, [string[]]$whitelist) {
-  # Normalize to forward slashes for consistent matching
-  $p = ($relPath -replace "\\","/")
-
-  foreach ($w in $whitelist) {
-    $wp = ($w -replace "\\","/")
-
-    # Very small glob support: **/ and * patterns via -like
-    # Convert **/ to * and keep as -like (good enough for our use)
-    $likePattern = $wp -replace "\*\*/","*"
-    if ($p -like $likePattern) { return $true }
-  }
-  return $false
-}
-
-function Minify-Text([string]$s){
-  if($null -eq $s){ return "" }
-  $s = $s -replace "`r`n","`n"
-  # trim trailing spaces per line
-  $s = [regex]::Replace($s, "[ \t]+(?=`n)", "")
-  # collapse 3+ newlines to 2
-  $s = [regex]::Replace($s, "`n{3,}", "`n`n")
-  return $s.Trim("`n")
-}
-
-function Redact-Text([string]$s){
-  if($null -eq $s){ return "" }
-
-  # Mask OpenAI-style keys like sk-... or sk-proj-...
-  $s = [regex]::Replace($s, '(sk-(?:proj-)?)[A-Za-z0-9_\-]{10,}', '$1***REDACTED***')
-
-  # Mask lines like: apiKey=..., api-key: "...", API_KEY=...
-  $s = [regex]::Replace(
-    $s,
-    '(?im)\b(api[_-]?key)\b(\s*[:=]\s*)(["' + "'" + ']?)[^\s"'';]{8,}\3',
-    '$1$2$3***REDACTED***$3'
-  )
-
-  # Mask Authorization: Bearer ...
-  $s = [regex]::Replace(
-    $s,
-    '(?im)\b(authorization)\b(\s*[:=]\s*bearer\s+)[A-Za-z0-9\-\._~\+/]+=*',
-    '$1$2***REDACTED***'
-  )
-
-  # Mask OPENAI_API_KEY style explicitly too
-  $s = [regex]::Replace(
-    $s,
-    '(?im)\b(openai[_-]?api[_-]?key)\b(\s*[:=]\s*)(["' + "'" + ']?)[^\s"'';]{8,}\3',
-    '$1$2$3***REDACTED***$3'
-  )
-
-  return $s
-}
-
-function Read-TextFileSmart([string]$path) {
-  # Read raw bytes then decode in a way that avoids mojibake:
-  # - If BOM exists, respect it.
-  # - Else try UTF-8 strict; if it fails, fall back to Windows-1252.
-  $bytes = [System.IO.File]::ReadAllBytes($path)
-  if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
-    return [System.Text.Encoding]::UTF8.GetString($bytes, 3, $bytes.Length - 3)
-  }
-  if ($bytes.Length -ge 2 -and $bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE) {
-    return [System.Text.Encoding]::Unicode.GetString($bytes, 2, $bytes.Length - 2) # UTF-16 LE
-  }
-  if ($bytes.Length -ge 2 -and $bytes[0] -eq 0xFE -and $bytes[1] -eq 0xFF) {
-    return [System.Text.Encoding]::BigEndianUnicode.GetString($bytes, 2, $bytes.Length - 2) # UTF-16 BE
-  }
+function Read-FileTextSafe {
+  param([Parameter(Mandatory=$true)][string]$Path)
 
   try {
-    $utf8Strict = [System.Text.UTF8Encoding]::new($false, $true) # throw on invalid bytes
-    return $utf8Strict.GetString($bytes)
+    return [System.IO.File]::ReadAllText($Path, [System.Text.Encoding]::UTF8)
   } catch {
-    # Fallback for legacy-encoded files (common on Windows)
-    $cp1252 = [System.Text.Encoding]::GetEncoding(1252)
-    return $cp1252.GetString($bytes)
+    try {
+      return [System.IO.File]::ReadAllText($Path, [System.Text.Encoding]::Default)
+    } catch {
+      return ""
+    }
   }
 }
 
-# Build whitelist
-$whitelist = @()
-$whitelist += $coreAllow
-if ($Mode -eq "Extended") { $whitelist += $extendedAllow }
+function Try-MinifyJson {
+  param([Parameter(Mandatory=$true)][AllowEmptyString()][string]$Text)
 
-if(-not $Quiet){
-  Write-Host "Root:   $RootPath"
-  Write-Host "Out:    $OutPath"
-  Write-Host "Mode:   $Mode"
+  $t = $Text
+  if ($null -eq $t) { $t = "" }
+
+  $t = $t -replace "^\uFEFF",""
+  $t = $t -replace "`r`n","`n"
+  $t = $t -replace "`r","`n"
+  $t = $t.Trim()
+
+  if ([string]::IsNullOrWhiteSpace($t)) { return "" }
+
+  try {
+    $node = [System.Text.Json.JsonDocument]::Parse($t)
+    return $node.RootElement.GetRawText()
+  } catch {
+    return $null
+  }
 }
 
-# Write output file as UTF-8 (no BOM) via StreamWriter
-$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
-$dir = Split-Path -Parent $OutPath
-if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+function UltraMinify-Text {
+  param(
+    [Parameter(Mandatory=$true)][AllowEmptyString()][string]$Text,
+    [Parameter(Mandatory=$true)][string]$RelPath
+  )
 
-$sw = New-Object System.IO.StreamWriter($OutPath, $false, $utf8NoBom)
+  $ext = Get-ExtensionLower -Path $RelPath
+
+  $t = $Text
+  if ($null -eq $t) { $t = "" }
+
+  $t = $t -replace "^\uFEFF",""
+  $t = $t -replace "`r`n","`n"
+  $t = $t -replace "`r","`n"
+
+  # JSON: real minify (no newlines/spaces)
+  if ($ext -eq ".json") {
+    $min = Try-MinifyJson -Text $t
+    if ($null -ne $min) { return $min }
+  }
+
+  # Strip block comments for common languages (dump-only; intentionally aggressive)
+  if (@(".ts",".tsx",".js",".jsx",".mjs",".cjs",".css",".scss",".less",".c",".cpp",".h",".java",".kt",".go",".rs") -contains $ext) {
+    $t = [regex]::Replace($t, "/\*.*?\*/", "", [System.Text.RegularExpressions.RegexOptions]::Singleline)
+  }
+  if (@(".ps1",".psm1",".psd1") -contains $ext) {
+    $t = [regex]::Replace($t, "<#.*?#>", "", [System.Text.RegularExpressions.RegexOptions]::Singleline)
+  }
+  if (@(".html",".htm",".md",".markdown") -contains $ext) {
+    $t = [regex]::Replace($t, "<!--.*?-->", "", [System.Text.RegularExpressions.RegexOptions]::Singleline)
+  }
+
+  $lines = $t -split "`n"
+  $out = New-Object System.Collections.Generic.List[string]
+
+  $isMarkdownLike = ($ext -in @(".md",".markdown",".txt"))
+  $isCodeLike = ($ext -in @(".ts",".tsx",".js",".jsx",".mjs",".cjs",".css",".scss",".less",".c",".cpp",".h",".java",".kt",".go",".rs",".py",".sql",".ps1",".psm1",".psd1",".yaml",".yml",".toml",".ini",".cfg",".html",".htm"))
+
+  foreach ($line in $lines) {
+    $l = $line
+
+    # Drop whole-line comments (language aware)
+    if (@(".ps1",".psm1",".psd1") -contains $ext) {
+      if ($l -match "^\s*#") { continue }
+    } elseif ($ext -eq ".sql") {
+      if ($l -match "^\s*--") { continue }
+    } elseif (@(".yaml",".yml",".toml",".ini",".cfg") -contains $ext) {
+      if ($l -match "^\s*#") { continue }
+    } elseif (-not $isMarkdownLike) {
+      if ($l -match "^\s*//") { continue }
+    }
+
+    # Trim ends + drop blanks
+    $l = $l.Trim()
+    if ([string]::IsNullOrWhiteSpace($l)) { continue }
+
+    # Remove inline comments (conservative rules to avoid nuking URLs/strings)
+    if (@(".ts",".tsx",".js",".jsx",".mjs",".cjs") -contains $ext) {
+      # Avoid killing URLs: only treat as comment if there's at least one whitespace before //
+      $l = [regex]::Replace($l, "\s+//.*$", "")
+      $l = $l.Trim()
+      if ([string]::IsNullOrWhiteSpace($l)) { continue }
+    } elseif ($ext -eq ".sql") {
+      $l = [regex]::Replace($l, "\s+--.*$", "")
+      $l = $l.Trim()
+      if ([string]::IsNullOrWhiteSpace($l)) { continue }
+    } elseif (@(".ps1",".psm1",".psd1") -contains $ext) {
+      $l = [regex]::Replace($l, "\s+#.*$", "")
+      $l = $l.Trim()
+      if ([string]::IsNullOrWhiteSpace($l)) { continue }
+    } elseif (@(".yaml",".yml",".toml",".ini",".cfg") -contains $ext) {
+      $l = [regex]::Replace($l, "\s+#.*$", "")
+      $l = $l.Trim()
+      if ([string]::IsNullOrWhiteSpace($l)) { continue }
+    } elseif ($ext -eq ".py") {
+      # Conservative: only strip " # ..." when there are no quotes before the #
+      if ($l -notmatch "[`"']") {
+        $l = [regex]::Replace($l, "\s+#.*$", "")
+        $l = $l.Trim()
+        if ([string]::IsNullOrWhiteSpace($l)) { continue }
+      }
+    }
+
+    # Collapse internal whitespace heavily (except markdown/text where whitespace can matter)
+    if ($isCodeLike -and -not $isMarkdownLike) {
+      $l = [regex]::Replace($l, "\s+", " ")
+
+      # Tighten common punctuation spacing (dump-only)
+      if (@(".ts",".tsx",".js",".jsx",".mjs",".cjs",".css",".scss",".less",".c",".cpp",".h",".java",".kt",".go",".rs",".py",".sql",".html",".htm") -contains $ext) {
+        $l = [regex]::Replace($l, "\s*([,;{}\(\)\[\]])\s*", '$1')
+        $l = [regex]::Replace($l, "\s*(:)\s*", '$1') # helps JSON-ish / TS types
+      }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($l)) { continue }
+    $out.Add($l)
+  }
+
+  return ($out -join "`n")
+}
+
+# --- Redaction rules ---
+# Important: keep these from breaking code like `password: z.string()...`
+# We mainly redact:
+#  - quoted secrets: KEY="value" / key: "value"
+#  - .env-style lines: KEY=value
+#  - bearer tokens
+#  - PEM private keys
+$redactionRules = @(
+  @{
+    Name        = "Quoted API Key"
+    Pattern     = '(?i)(api[_-]?key\s*[:=]\s*)(["''])([^"''\r\n]+)\2'
+    Replacement = '$1$2<REDACTED>$2'
+  },
+  @{
+    Name        = "Quoted Password"
+    Pattern     = '(?i)(password\s*[:=]\s*)(["''])([^"''\r\n]+)\2'
+    Replacement = '$1$2<REDACTED>$2'
+  },
+  @{
+    Name        = "Quoted Secret"
+    Pattern     = '(?i)((?:client[_-]?secret|secret)\s*[:=]\s*)(["''])([^"''\r\n]+)\2'
+    Replacement = '$1$2<REDACTED>$2'
+  },
+  @{
+    Name        = "Quoted Token"
+    Pattern     = '(?i)((?:access[_-]?token|refresh[_-]?token|token)\s*[:=]\s*)(["''])([^"''\r\n]+)\2'
+    Replacement = '$1$2<REDACTED>$2'
+  },
+  @{
+    Name        = "Env var secrets"
+    Pattern     = '(?im)^(\s*[A-Z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD)[A-Z0-9_]*\s*=\s*)([^\r\n#]+)'
+    Replacement = '$1<REDACTED>'
+  },
+  @{
+    Name        = "Authorization Bearer"
+    Pattern     = '(?i)(authorization\s*:\s*bearer\s+)([^\r\n\s]+)'
+    Replacement = '$1<REDACTED>'
+  },
+  @{
+    Name        = "PEM Private Key"
+    Pattern     = '-----BEGIN (?:RSA )?PRIVATE KEY-----.*?-----END (?:RSA )?PRIVATE KEY-----'
+    Replacement = '-----BEGIN PRIVATE KEY-----<REDACTED>-----END PRIVATE KEY-----'
+  }
+)
+
+function Apply-Redactions {
+  param([Parameter(Mandatory=$true)][AllowEmptyString()][string]$Text)
+
+  $t = $Text
+  if ($null -eq $t) { return "" }
+  if ($t.Length -eq 0) { return "" }
+
+  foreach ($rule in $redactionRules) {
+    $t = [regex]::Replace(
+      $t,
+      $rule.Pattern,
+      $rule.Replacement,
+      [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+  }
+  return $t
+}
+
+function Collect-Files {
+  param(
+    [Parameter(Mandatory=$true)][string]$Root,
+    [Parameter(Mandatory=$true)][string]$Mode
+  )
+
+  $rootFull = [System.IO.Path]::GetFullPath($Root)
+
+  if (-not (Test-Path -LiteralPath $rootFull -PathType Container)) {
+    throw "RootPath does not exist or is not a directory: $rootFull"
+  }
+
+  $basicAllowNames = @(
+    "package.json",
+    "tsconfig.json",
+    "vite.config.ts",
+    "vite.config.js",
+    "tailwind.config.js",
+    "tailwind.config.ts",
+    "postcss.config.js",
+    "postcss.config.cjs",
+    "eslint.config.js",
+    ".eslintrc",
+    ".eslintrc.json",
+    ".prettierrc",
+    ".prettierrc.json",
+    "readme.md",
+    ".env.example"
+  )
+
+  $files = Get-ChildItem -Path $rootFull -Recurse -File -Force
+
+  $picked = New-Object System.Collections.Generic.List[System.IO.FileInfo]
+  foreach ($f in $files) {
+    $rel = Normalize-RelPath -FullPath $f.FullName -Root $rootFull
+
+    if (Should-SkipPath -FullPath $f.FullName -RelPath $rel) { continue }
+    if (-not (Is-TextFileExtension -Path $rel)) { continue }
+
+    if ($Mode -eq "Basic") {
+      $name = $f.Name.ToLowerInvariant()
+      $relLower = $rel.ToLowerInvariant()
+
+      $isAllowedByName = $basicAllowNames -contains $name
+      $isAllowedByFolder =
+        $relLower.StartsWith("backend\src\") -or
+        $relLower.StartsWith("frontend\src\")
+
+      if (-not ($isAllowedByName -or $isAllowedByFolder)) { continue }
+    }
+
+    $maxBytes = if ($Mode -eq "Extended") { 2MB } else { 512KB }
+    if ($f.Length -gt $maxBytes) { continue }
+
+    $picked.Add($f)
+  }
+
+  return $picked | Sort-Object FullName
+}
+
+# ---------- Main ----------
+$rootFull = [System.IO.Path]::GetFullPath($RootPath)
+$outFull  = [System.IO.Path]::GetFullPath($OutPath)
+
+Write-Info ("Root:  {0}" -f $rootFull)
+Write-Info ("Out:   {0}" -f $outFull)
+Write-Info ("Mode:  {0}" -f $Mode)
+Write-Info ("Flags: UltraMinify={0}, Redact={1}" -f $UltraMinify.IsPresent, $Redact.IsPresent)
+
+$filesToDump = Collect-Files -Root $rootFull -Mode $Mode
+
+$outDir = [System.IO.Path]::GetDirectoryName($outFull)
+if (-not [string]::IsNullOrWhiteSpace($outDir)) {
+  New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+}
+
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$sw = New-Object System.IO.StreamWriter($outFull, $false, $utf8NoBom)
+
 try {
-  Get-ChildItem -Path $RootPath -Recurse -File | ForEach-Object {
-    $file = $_
-    if ($file.FullName -eq $OutPath) { return }
+  $sw.NewLine = "`n"
 
-    $relPath = $file.FullName.Substring($RootPath.Length).TrimStart('\','/')
-    if (Should-IgnorePath $relPath) { return }
+  if (-not $UltraMinify) {
+    $sw.WriteLine("===== PROJECT DUMP =====")
+    $sw.WriteLine(("Root: {0}" -f $rootFull))
+    $sw.WriteLine(("Mode: {0}" -f $Mode))
+    $sw.WriteLine(("UltraMinify: {0}" -f $UltraMinify.IsPresent))
+    $sw.WriteLine(("Redact: {0}" -f $Redact.IsPresent))
+    $sw.WriteLine(("FileCount: {0}" -f $filesToDump.Count))
+    $sw.WriteLine("===== BEGIN FILES =====")
+    $sw.WriteLine("")
+  }
 
-    if ($file.Length -gt $MaxBytes) { return }
+  $first = $true
+  foreach ($f in $filesToDump) {
+    $rel = Normalize-RelPath -FullPath $f.FullName -Root $rootFull
 
-    $ext = $file.Extension.ToLowerInvariant()
-    if (-not ($textExts -contains $ext)) { return }
+    if (-not $Quiet -and -not $UltraMinify) {
+      Write-Host ("Included: {0}" -f $rel)
+    }
 
-    # Never dump name patterns
-    if (Name-MatchesAny $file.Name $neverDumpNameLike) { return }
+    $content = Read-FileTextSafe -Path $f.FullName
+    if ($null -eq $content) { $content = "" }
 
-    # Whitelist enforcement
-    if (-not (RelPath-MatchesWhitelist $relPath $whitelist)) { return }
+    if ($UltraMinify) {
+      $content = UltraMinify-Text -Text $content -RelPath $rel
+      if ($null -eq $content) { $content = "" }
+    }
 
-    $content = Read-TextFileSmart -path $file.FullName
-    if ($MinifyContent) { $content = Minify-Text $content }
-    if ($RedactSecrets) { $content = Redact-Text $content }
+    if ($Redact) {
+      $content = Apply-Redactions -Text $content
+      if ($null -eq $content) { $content = "" }
+    }
 
-    # Ultra-compact framing
-    # @@@path\n<content>\n@@@\n
-    $sw.Write(("@@@{0}`n{1}`n@@@`n" -f $relPath, $content))
+    if ($UltraMinify) {
+      # Minimal separators: one blank line between files, marker + content only.
+      if (-not $first) { $sw.WriteLine("") }
+      $first = $false
 
-    if(-not $Quiet){ Write-Host "Included: $relPath" }
+      $sw.WriteLine(("@@@{0}" -f $rel))
+      if (-not [string]::IsNullOrEmpty($content)) {
+        $sw.WriteLine($content.Trim())
+      }
+    } else {
+      $sw.WriteLine(("===== FILE: {0} =====" -f $rel))
+      if (-not [string]::IsNullOrEmpty($content)) {
+        $sw.WriteLine($content)
+      }
+      $sw.WriteLine("===== END FILE =====")
+      $sw.WriteLine("")
+    }
+  }
+
+  if (-not $UltraMinify) {
+    $sw.WriteLine("===== END FILES =====")
   }
 }
 finally {
@@ -236,4 +488,6 @@ finally {
   $sw.Dispose()
 }
 
-if(-not $Quiet){ Write-Host "Wrote: $OutPath" }
+if (-not $Quiet) {
+  Write-Host ("Wrote: {0}" -f $outFull)
+}

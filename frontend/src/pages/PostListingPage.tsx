@@ -9,6 +9,7 @@ import {
   type Category,
   type ImageAsset,
 } from "../api";
+import Header from "../components/Header";
 
 function dollarsToCents(v: string) {
   const n = Number(v);
@@ -200,23 +201,7 @@ export default function PostListingPage() {
 
   return (
     <div className="min-h-full">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-          <Link to="/" className="font-extrabold tracking-tight text-slate-900">
-            Fishclassifieds
-          </Link>
-
-          <div className="flex items-center gap-3">
-            <Link to="/me" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-              My listings
-            </Link>
-            <Link to="/" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-              Browse
-            </Link>
-          </div>
-        </div>
-      </header>
-
+      <Header maxWidth="3xl" />
       <main className="mx-auto max-w-3xl px-4 py-6">
         <h1 className="text-2xl font-extrabold text-slate-900">Post a listing</h1>
         <div className="mt-1 text-sm text-slate-600">Add up to 6 photos.</div>

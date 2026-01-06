@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { fetchListings, resolveAssets, type Category, type Listing } from "../api";
+import Header from "../components/Header";
+
+import { useAuth } from "../auth";
 
 type SortMode = "newest" | "price_asc" | "price_desc";
 type PageSize = 12 | 24 | 48 | 96;
@@ -182,6 +185,8 @@ export default function HomePage() {
     "equipment",
   ];
 
+  const { user, logout, loading: authLoading } = useAuth();
+
   useEffect(() => {
     let cancelled = false;
 
@@ -264,34 +269,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-full">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-          <Link to="/" className="font-extrabold tracking-tight text-slate-900">
-            Fishclassifieds
-          </Link>
-
-          <div className="flex-1" />
-
-          <Link to="/post" className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
-            Post a listing
-          </Link>
-
-          <Link to="/me" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-            My listings
-          </Link>
-
-          <div className="flex items-center gap-2">
-            <Link to="/login" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-              Login
-            </Link>
-            <span className="text-slate-300">/</span>
-            <Link to="/signup" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-              Sign up
-            </Link>
-          </div>
-        </div>
-      </header>
-
+      <Header maxWidth="6xl" />
       <main className="mx-auto max-w-6xl px-4 py-6">
         <div className="grid gap-6 md:grid-cols-[280px_1fr]">
           <aside className="rounded-2xl border border-slate-200 bg-white p-4">

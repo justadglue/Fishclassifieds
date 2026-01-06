@@ -1,4 +1,3 @@
-// frontend/src/api.ts
 export type Category = "Fish" | "Shrimp" | "Snails" | "Plants" | "Equipment";
 export type ListingStatus = "draft" | "pending" | "active" | "paused" | "expired" | "deleted";
 export type ListingResolution = "none" | "sold";
@@ -18,31 +17,23 @@ export type Listing = {
   location: string;
   description: string;
   contact: string | null;
-
-  // legacy (may exist; backend also returns it)
   imageUrl: string | null;
-
-  // canonical
   images: ImageAsset[];
-
   status: ListingStatus;
   resolution: ListingResolution;
-
   expiresAt: string | null;
   resolvedAt: string | null;
-
   createdAt: string;
   updatedAt: string;
 };
 
 export type SortMode = "newest" | "price_asc" | "price_desc";
 
-const API_BASE =
-  (import.meta as any).env?.VITE_API_URL?.toString().trim() ||
-  "http://localhost:3001";
+const API_BASE = (import.meta as any).env?.VITE_API_URL?.toString().trim() || "http://localhost:3001";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
     ...init,
     headers: {
       ...(init?.headers || {}),
@@ -59,12 +50,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-// ----- URL helpers -----
 export function resolveImageUrl(u: string | null | undefined) {
   if (!u) return null;
   const s = String(u);
   if (s.startsWith("http://") || s.startsWith("https://")) return s;
-  // backend serves /uploads from same API base
   if (s.startsWith("/")) return `${API_BASE}${s}`;
   return s;
 }
@@ -76,16 +65,14 @@ export function resolveAssets(images: Array<string | ImageAsset> | null | undefi
       const ru = resolveImageUrl(x) ?? x;
       return { fullUrl: ru, thumbUrl: ru, medUrl: ru };
     }
-
     const full = resolveImageUrl(x.fullUrl) ?? x.fullUrl;
     const thumb = resolveImageUrl(x.thumbUrl) ?? x.thumbUrl;
     const med = resolveImageUrl(x.medUrl) ?? x.medUrl;
-
     return { fullUrl: full, thumbUrl: thumb, medUrl: med };
   });
 }
 
-// ----- Owner token storage -----
+// Owner-token storage (listing edit rights)
 const OWNER_TOKEN_KEY = "fish_owner_tokens_v1";
 
 function loadOwnerMap(): Record<string, string> {
@@ -103,34 +90,29 @@ function loadOwnerMap(): Record<string, string> {
     return {};
   }
 }
-
 function saveOwnerMap(map: Record<string, string>) {
   localStorage.setItem(OWNER_TOKEN_KEY, JSON.stringify(map));
 }
-
 export function setOwnerToken(listingId: string, token: string) {
   const map = loadOwnerMap();
   map[String(listingId)] = String(token);
   saveOwnerMap(map);
 }
-
 export function getOwnerToken(listingId: string) {
   const map = loadOwnerMap();
   return map[String(listingId)] ?? null;
 }
-
 export function removeOwnerToken(listingId: string) {
   const map = loadOwnerMap();
   delete map[String(listingId)];
   saveOwnerMap(map);
 }
-
 export function listOwnedIds(): string[] {
   const map = loadOwnerMap();
   return Object.keys(map);
 }
 
-// ----- Listings -----
+// Listings API
 export async function fetchListings(params?: {
   q?: string;
   category?: Category;
@@ -145,14 +127,11 @@ export async function fetchListings(params?: {
   if (params?.q) qs.set("q", params.q);
   if (params?.category) qs.set("category", params.category);
   if (params?.species) qs.set("species", params.species);
-
   if (params?.minPriceCents !== undefined) qs.set("minPriceCents", String(params.minPriceCents));
   if (params?.maxPriceCents !== undefined) qs.set("maxPriceCents", String(params.maxPriceCents));
-
   if (params?.sort) qs.set("sort", params.sort);
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
   if (params?.offset !== undefined) qs.set("offset", String(params.offset));
-
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return apiFetch<{ items: Listing[]; total: number; limit: number; offset: number }>(`/api/listings${suffix}`);
 }
@@ -169,21 +148,16 @@ export async function createListing(input: {
   location: string;
   description: string;
   contact?: string | null;
-
   images?: Array<string | ImageAsset>;
   imageUrl?: string | null;
-
-  // optional
   status?: "draft" | "active";
 }) {
   const body = JSON.stringify(input);
-
   const res = await apiFetch<Listing & { ownerToken: string }>(`/api/listings`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
   });
-
   return res;
 }
 
@@ -197,14 +171,12 @@ export async function updateListing(
     location?: string;
     description?: string;
     contact?: string | null;
-
     images?: Array<string | ImageAsset>;
     imageUrl?: string | null;
   }
 ) {
   const token = getOwnerToken(id);
   if (!token) throw new Error("Missing owner token for this listing (not created on this device).");
-
   return apiFetch<Listing>(`/api/listings/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: {
@@ -218,41 +190,30 @@ export async function updateListing(
 export async function deleteListing(id: string) {
   const token = getOwnerToken(id);
   if (!token) throw new Error("Missing owner token for this listing (not created on this device).");
-
   return apiFetch<{ ok: true }>(`/api/listings/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    headers: {
-      "x-owner-token": token,
-    },
+    headers: { "x-owner-token": token },
   });
 }
 
-// ----- Action endpoints -----
 async function postAction(id: string, action: "pause" | "resume" | "mark-sold") {
   const token = getOwnerToken(id);
   if (!token) throw new Error("Missing owner token for this listing (not created on this device).");
-
   return apiFetch<Listing>(`/api/listings/${encodeURIComponent(id)}/${action}`, {
     method: "POST",
-    headers: {
-      "x-owner-token": token,
-    },
+    headers: { "x-owner-token": token },
   });
 }
-
 export function pauseListing(id: string) {
   return postAction(id, "pause");
 }
-
 export function resumeListing(id: string) {
   return postAction(id, "resume");
 }
-
 export function markSold(id: string) {
   return postAction(id, "mark-sold");
 }
 
-// ----- Uploads -----
 export async function uploadImage(file: File): Promise<ImageAsset> {
   const fd = new FormData();
   fd.append("image", file);
@@ -260,6 +221,7 @@ export async function uploadImage(file: File): Promise<ImageAsset> {
   const res = await fetch(`${API_BASE}/api/uploads`, {
     method: "POST",
     body: fd,
+    credentials: "include",
   });
 
   if (!res.ok) {
@@ -269,4 +231,35 @@ export async function uploadImage(file: File): Promise<ImageAsset> {
 
   const data = (await res.json()) as ImageAsset;
   return data;
+}
+
+// Auth API
+export type AuthUser = { id: number; email: string; displayName: string };
+
+export async function authRegister(input: { email: string; password: string; displayName: string }) {
+  return apiFetch<{ user: AuthUser }>(`/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function authLogin(input: { email: string; password: string }) {
+  return apiFetch<{ user: AuthUser }>(`/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function authLogout() {
+  return apiFetch<{ ok: true }>(`/api/auth/logout`, { method: "POST" });
+}
+
+export async function authMe() {
+  return apiFetch<{ user: AuthUser }>(`/api/me`);
+}
+
+export async function authRefresh() {
+  return apiFetch<{ user: AuthUser }>(`/api/auth/refresh`, { method: "POST" });
 }

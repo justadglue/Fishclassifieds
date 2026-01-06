@@ -14,6 +14,7 @@ import sharp from "sharp";
 import authRoutes from "./auth/authRoutes.js";
 import { assertConfig, config } from "./config.js";
 import { requireAuth } from "./auth/requireAuth.js";
+import { clearAuthCookies } from "./auth/cookies.js";
 import { nowIso as nowIsoSecurity } from "./security.js";
 
 assertConfig();
@@ -23,13 +24,16 @@ const db = openDb();
 (app as any).locals.db = db;
 
 app.set("trust proxy", 1);
+
 app.use(
   cors({
     origin: config.corsOrigin,
     credentials: true,
   })
 );
+
 app.use(helmet());
+
 app.use(
   rateLimit({
     windowMs: 60_000,
@@ -38,6 +42,7 @@ app.use(
     legacyHeaders: false,
   })
 );
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -45,6 +50,7 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 
 const UPLOADS_DIR = path.join(process.cwd(), "data", "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 function extFromMimetype(mimetype: string) {
@@ -143,13 +149,11 @@ app.post("/api/uploads", upload.single("image"), async (req, res) => {
     const abs = path.join(UPLOADS_DIR, req.file.filename);
     const base = path.parse(req.file.filename).name;
     const d = await makeDerivatives(abs, base);
-
     const out: ImageAsset = {
       fullUrl: toAbs(req, fullRel),
       thumbUrl: toAbs(req, d.thumb),
       medUrl: toAbs(req, d.med),
     };
-
     return res.status(201).json(out);
   } catch (e: any) {
     const msg = e?.message ?? "Upload error";
@@ -170,6 +174,7 @@ function requireOwner(req: express.Request, row: any) {
 
 const StatusSchema = z.enum(["draft", "pending", "active", "paused", "expired", "deleted"]);
 const ResolutionSchema = z.enum(["none", "sold"]);
+
 const PUBLIC_LIFECYCLE: ListingStatus[] = ["active", "pending"];
 
 function addDaysIso(isoNow: string, days: number) {
@@ -245,8 +250,6 @@ app.get("/api/me", requireAuth, (req, res) => {
   return res.json({ user: req.user });
 });
 
-/* -------------------- PROFILE -------------------- */
-
 const ProfileSchema = z.object({
   displayName: z.string().min(1).max(80),
   avatarUrl: z.string().max(500).nullable().optional(),
@@ -268,14 +271,9 @@ function mapProfileRow(row: any) {
 
 app.get("/api/profile", requireAuth, (req, res) => {
   const user = req.user!;
-  const u = db
-    .prepare(`SELECT id,email,username,display_name FROM users WHERE id = ?`)
-    .get(user.id) as any | undefined;
-
+  const u = db.prepare(`SELECT id,email,username,display_name FROM users WHERE id = ?`).get(user.id) as any | undefined;
   if (!u) return res.status(404).json({ error: "User not found" });
-
   const p = db.prepare(`SELECT * FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
-
   return res.json({
     user: {
       id: Number(u.id),
@@ -293,16 +291,13 @@ app.put("/api/profile", requireAuth, (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
-
   const { displayName, avatarUrl, location, phone, website, bio } = parsed.data;
-
   const now = nowIsoSecurity();
 
   const tx = db.transaction(() => {
     db.prepare(`UPDATE users SET display_name = ?, updated_at = ? WHERE id = ?`).run(displayName, now, user.id);
 
     const existing = db.prepare(`SELECT user_id FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
-
     if (!existing) {
       db.prepare(
         `
@@ -327,9 +322,7 @@ WHERE user_id = ?
     return res.status(400).json({ error: e?.message ?? "Failed to update profile" });
   }
 
-  const u = db
-    .prepare(`SELECT id,email,username,display_name FROM users WHERE id = ?`)
-    .get(user.id) as any | undefined;
+  const u = db.prepare(`SELECT id,email,username,display_name FROM users WHERE id = ?`).get(user.id) as any | undefined;
   const p = db.prepare(`SELECT * FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
 
   return res.json({
@@ -343,7 +336,50 @@ WHERE user_id = ?
   });
 });
 
-/* -------------------- LISTINGS -------------------- */
+/**
+ * Delete account (industry-standard):
+ * - Hard delete user row (cascades sessions + profile)
+ * - Write a minimal "tombstone" record to deleted_accounts with hashes only (no plaintext PII)
+ * - Clear auth cookies to log them out immediately
+ */
+app.delete("/api/account", requireAuth, (req, res) => {
+  const user = req.user!;
+  const now = nowIsoSecurity();
+
+  const norm = (s: unknown) => String(s ?? "").trim().toLowerCase();
+  const sha256 = (s: string) => crypto.createHash("sha256").update(s).digest("hex");
+
+  const tx = db.transaction(() => {
+    const u = db.prepare(`SELECT id,email,username,display_name FROM users WHERE id = ?`).get(user.id) as any | undefined;
+    if (!u) throw new Error("User not found");
+
+    db.prepare(
+      `
+INSERT INTO deleted_accounts(user_id,email_hash,username_hash,display_name_hash,deleted_at,reason)
+VALUES(?,?,?,?,?,?)
+`
+    ).run(
+      Number(u.id),
+      sha256(norm(u.email)),
+      sha256(norm(u.username)),
+      sha256(norm(u.display_name)),
+      now,
+      null
+    );
+
+    // Hard delete. sessions + user_profiles will cascade.
+    db.prepare(`DELETE FROM users WHERE id = ?`).run(Number(u.id));
+  });
+
+  try {
+    tx();
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? "Failed to delete account" });
+  }
+
+  clearAuthCookies(res);
+  return res.json({ ok: true });
+});
 
 app.post("/api/listings", (req, res) => {
   runAutoExpirePass();
@@ -355,15 +391,12 @@ app.post("/api/listings", (req, res) => {
   const id = crypto.randomUUID();
   const now = nowIso();
   const ownerToken = crypto.randomUUID();
-
   const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
   const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
-
   const requireApproval = String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
 
   const { title, category, species, priceCents, location, description, contact, images, imageUrl } = parsed.data;
   const requestedStatus = parsed.data.status;
-
   const status: ListingStatus = requestedStatus === "draft" ? "draft" : requireApproval ? "pending" : "active";
 
   db.prepare(
@@ -435,18 +468,22 @@ app.get("/api/listings", (req, res) => {
     const pat = `%${q}%`;
     params.push(pat, pat, pat, pat);
   }
+
   if (species) {
     where.push("lower(species)= ?");
     params.push(species);
   }
+
   if (category) {
     where.push("category = ?");
     params.push(category);
   }
+
   if (Number.isFinite(min)) {
     where.push("price_cents >= ?");
     params.push(min);
   }
+
   if (Number.isFinite(max)) {
     where.push("price_cents <= ?");
     params.push(max);
@@ -468,7 +505,6 @@ LIMIT ? OFFSET ?
 `;
 
   const rows = db.prepare(sql).all(...params, limit, offset) as (ListingRow & any)[];
-
   return res.json({
     items: rows.map((r) => mapListing(req, r)),
     total,
@@ -498,7 +534,7 @@ app.get("/api/listings/:id", (req, res) => {
 app.patch("/api/listings/:id", (req, res) => {
   runAutoExpirePass();
   const id = req.params.id;
-  const row = db.prepare<(ListingRow & any)>("SELECT * FROM listings WHERE id = ?").get(id);
+  const row = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(id);
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
@@ -514,7 +550,6 @@ app.patch("/api/listings/:id", (req, res) => {
 
   const sets: string[] = [];
   const params: any[] = [];
-
   const map: Record<string, any> = {
     title: p.title,
     category: p.category,
@@ -543,10 +578,12 @@ app.patch("/api/listings/:id", (req, res) => {
 
   if (p.images) {
     db.prepare(`DELETE FROM listing_images WHERE listing_id = ?`).run(id);
+
     const ins = db.prepare(
       `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
 VALUES(?,?,?,?,?,?)`
     );
+
     const normalized = normalizeImages(p.images ?? []).slice(0, 6);
     normalized.forEach((img, idx) => ins.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx));
   }
@@ -558,7 +595,7 @@ VALUES(?,?,?,?,?,?)`
 app.delete("/api/listings/:id", (req, res) => {
   runAutoExpirePass();
   const id = req.params.id;
-  const row = db.prepare<(ListingRow & any)>("SELECT * FROM listings WHERE id = ?").get(id);
+  const row = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(id);
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
@@ -569,7 +606,7 @@ app.delete("/api/listings/:id", (req, res) => {
 
 function loadOwnedListing(req: express.Request, res: express.Response) {
   const id = req.params.id;
-  const row = db.prepare<(ListingRow & any)>("SELECT * FROM listings WHERE id = ?").get(id);
+  const row = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(id);
   if (!row) {
     res.status(404).json({ error: "Not found" });
     return null;

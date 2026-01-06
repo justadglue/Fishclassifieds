@@ -148,6 +148,21 @@ CREATE TABLE IF NOT EXISTS user_profiles(
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
+
+-- Minimal tombstone for deleted accounts (no plaintext PII; only hashes)
+CREATE TABLE IF NOT EXISTS deleted_accounts(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  email_hash TEXT NOT NULL,
+  username_hash TEXT NOT NULL,
+  display_name_hash TEXT NOT NULL,
+  deleted_at TEXT NOT NULL,
+  reason TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_deleted_accounts_deleted_at ON deleted_accounts(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_deleted_accounts_email_hash ON deleted_accounts(email_hash);
+CREATE INDEX IF NOT EXISTS idx_deleted_accounts_username_hash ON deleted_accounts(username_hash);
 `);
 }
 
@@ -156,12 +171,10 @@ let _db: Database.Database | null = null;
 export function openDb() {
   if (_db) return _db;
   ensureDir(DATA_DIR);
-
   const db = new Database(DB_PATH);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   createSchema(db);
-
   _db = db;
   return db;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
-import { fetchProfile, updateProfile, resolveImageUrl, type ProfileResponse } from "../api";
+import { deleteAccount, fetchProfile, resolveImageUrl, updateProfile, type ProfileResponse } from "../api";
 import { useAuth } from "../auth";
 
 function normNullable(s: string): string | null {
@@ -14,6 +14,7 @@ export default function ProfilePage() {
   const { user, loading: authLoading, refresh } = useAuth();
 
   const [data, setData] = useState<ProfileResponse | null>(null);
+
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [location, setLocation] = useState("");
@@ -24,6 +25,10 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
+
+  const [confirmDelete, setConfirmDelete] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
   const avatarPreview = useMemo(() => {
     const u = normNullable(avatarUrl);
@@ -36,8 +41,8 @@ export default function ProfilePage() {
       nav("/login");
       return;
     }
-    let cancelled = false;
 
+    let cancelled = false;
     (async () => {
       setErr(null);
       setLoading(true);
@@ -95,8 +100,44 @@ export default function ProfilePage() {
     }
   }
 
+  async function onDeleteAccount() {
+    setDeleteErr(null);
+
+    const username = (data?.user.username ?? user?.username ?? "").trim();
+    const typed = confirmDelete.trim();
+
+    if (!username) {
+      setDeleteErr("Cannot verify username for delete confirmation.");
+      return;
+    }
+    if (typed !== username) {
+      setDeleteErr("Type your username exactly to confirm deletion.");
+      return;
+    }
+
+    const ok = window.confirm(
+      "This will permanently delete your account and log you out. This cannot be undone.\n\nPress OK to continue."
+    );
+    if (!ok) return;
+
+    setDeleteLoading(true);
+    try {
+      await deleteAccount();
+      setConfirmDelete("");
+      await refresh(); // should clear user in context (401 -> null)
+      nav("/");
+    } catch (e: any) {
+      setDeleteErr(e?.message ?? "Failed to delete account");
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
   const readOnlyEmail = data?.user.email ?? user?.email ?? "";
   const readOnlyUsername = data?.user.username ?? user?.username ?? "";
+  const usernameForDelete = readOnlyUsername.trim();
+  const deleteDisabled =
+    deleteLoading || loading || authLoading || !user || !usernameForDelete || confirmDelete.trim() !== usernameForDelete;
 
   return (
     <div className="min-h-full">
@@ -121,7 +162,6 @@ export default function ProfilePage() {
             {err}
           </div>
         )}
-
         {savedMsg && (
           <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
             {savedMsg}
@@ -240,6 +280,7 @@ export default function ProfilePage() {
                 >
                   {loading ? "Saving..." : "Save profile"}
                 </button>
+
                 <button
                   type="button"
                   disabled={loading}
@@ -258,6 +299,49 @@ export default function ProfilePage() {
                 >
                   Reset
                 </button>
+              </div>
+
+              <div className="mt-6 border-t border-slate-100 pt-6">
+                <div className="text-sm font-bold text-slate-900">Danger zone</div>
+                <div className="mt-2 text-sm text-slate-600">
+                  Deleting your account is permanent. You will be logged out immediately.
+                </div>
+
+                {deleteErr && (
+                  <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                    {deleteErr}
+                  </div>
+                )}
+
+                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4">
+                  <div className="text-sm font-extrabold text-red-800">Delete my account</div>
+                  <div className="mt-1 text-sm text-red-800/80">
+                    Type your username (<span className="font-bold">@{usernameForDelete || "username"}</span>) to enable
+                    the delete button.
+                  </div>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                    <label className="block">
+                      <div className="mb-1 text-xs font-semibold text-red-900/80">Confirm username</div>
+                      <input
+                        value={confirmDelete}
+                        onChange={(e) => setConfirmDelete(e.target.value)}
+                        className="w-full rounded-xl border border-red-200 bg-white px-3 py-2 text-sm outline-none focus:border-red-300"
+                        placeholder={usernameForDelete ? `Type ${usernameForDelete}` : "Type your username"}
+                        disabled={deleteLoading || authLoading || !user}
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={onDeleteAccount}
+                      disabled={deleteDisabled}
+                      className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-extrabold text-white hover:bg-red-700 disabled:opacity-60"
+                    >
+                      {deleteLoading ? "Deleting..." : "Delete account"}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -281,7 +365,7 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div className="mt-4 rounded-xl bg-slate-50 p-4 text-xs text-slate-700 whitespace-pre-wrap">
+            <div className="mt-4 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs text-slate-700">
               {bio.trim() || "Your bio will appear here."}
             </div>
 

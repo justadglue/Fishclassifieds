@@ -72,8 +72,6 @@ export function resolveAssets(images: Array<string | ImageAsset> | null | undefi
   });
 }
 
-/* -------------------- OWNER TOKENS (LISTINGS) -------------------- */
-
 const OWNER_TOKEN_KEY = "fish_owner_tokens_v1";
 
 function loadOwnerMap(): Record<string, string> {
@@ -117,8 +115,6 @@ export function listOwnedIds(): string[] {
   const map = loadOwnerMap();
   return Object.keys(map);
 }
-
-/* -------------------- LISTINGS -------------------- */
 
 export async function fetchListings(params?: {
   q?: string;
@@ -240,8 +236,6 @@ export async function uploadImage(file: File): Promise<ImageAsset> {
   return data;
 }
 
-/* -------------------- AUTH -------------------- */
-
 export type AuthUser = { id: number; email: string; displayName: string; username: string };
 
 export async function authRegister(input: { email: string; username: string; password: string; displayName: string }) {
@@ -271,8 +265,6 @@ export async function authMe() {
 export async function authRefresh() {
   return apiFetch<{ user: AuthUser }>(`/api/auth/refresh`, { method: "POST" });
 }
-
-/* -------------------- PROFILE -------------------- */
 
 export type UserProfile = {
   avatarUrl: string | null;
@@ -304,4 +296,8 @@ export async function updateProfile(input: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
+}
+
+export async function deleteAccount() {
+  return apiFetch<{ ok: true }>(`/api/account`, { method: "DELETE" });
 }

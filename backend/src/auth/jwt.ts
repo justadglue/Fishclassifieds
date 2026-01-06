@@ -1,14 +1,14 @@
 import jwt from "jsonwebtoken";
-import { config } from "../config";
+import { config } from "../config.js";
 
 export type AccessTokenPayload = {
-  sub: string; // user id as string
+  sub: string;
   email: string;
 };
 
 export type RefreshTokenPayload = {
-  sub: string;     // user id
-  sid: string;     // session id
+  sub: string;
+  sid: string;
 };
 
 export function signAccessToken(payload: AccessTokenPayload): string {
@@ -20,7 +20,6 @@ export function signAccessToken(payload: AccessTokenPayload): string {
 }
 
 export function signRefreshToken(payload: RefreshTokenPayload): string {
-  // refresh token itself is JWT, rotated and stored hashed server-side
   return jwt.sign(payload, config.jwtRefreshSecret, {
     expiresIn: `${config.jwtRefreshTtlDays}d`,
     issuer: "fishclassifieds",

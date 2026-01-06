@@ -11,6 +11,10 @@ Notes:
 - UltraMinify is intentionally aggressive (it’s for dumping, not compiling).
 - Redact removes common secrets/tokens/keys from the dump output.
 - Compatible with Windows PowerShell 5.1+ (no ?? operator).
+
+Change (safe-minify):
+- UltraMinify no longer collapses internal whitespace or tightens punctuation spacing.
+- This prevents breaking semantics and prevents destroying string literals like Tailwind className values.
 #>
 
 [CmdletBinding()]
@@ -35,6 +39,13 @@ $ErrorActionPreference = "Stop"
 function Write-Info {
   param([string]$Message)
   if (-not $Quiet) { Write-Host $Message }
+}
+
+function Write-Include {
+  param([string]$RelPath)
+  if (-not $Quiet) {
+    Write-Host ("Included: {0}" -f $RelPath)
+  }
 }
 
 function Normalize-RelPath {
@@ -203,7 +214,7 @@ function UltraMinify-Text {
     if ($null -ne $min) { return $min }
   }
 
-  # Strip block comments for common languages (dump-only; intentionally aggressive)
+  # Strip block comments for common languages (dump-only; still aggressive)
   if (@(".ts",".tsx",".js",".jsx",".mjs",".cjs",".css",".scss",".less",".c",".cpp",".h",".java",".kt",".go",".rs") -contains $ext) {
     $t = [regex]::Replace($t, "/\*.*?\*/", "", [System.Text.RegularExpressions.RegexOptions]::Singleline)
   }
@@ -218,7 +229,6 @@ function UltraMinify-Text {
   $out = New-Object System.Collections.Generic.List[string]
 
   $isMarkdownLike = ($ext -in @(".md",".markdown",".txt"))
-  $isCodeLike = ($ext -in @(".ts",".tsx",".js",".jsx",".mjs",".cjs",".css",".scss",".less",".c",".cpp",".h",".java",".kt",".go",".rs",".py",".sql",".ps1",".psm1",".psd1",".yaml",".yml",".toml",".ini",".cfg",".html",".htm"))
 
   foreach ($line in $lines) {
     $l = $line
@@ -234,17 +244,14 @@ function UltraMinify-Text {
       if ($l -match "^\s*//") { continue }
     }
 
-    # Trim ends + drop blanks
+    # Trim ends + drop blanks (this is safe and preserves internal spaces)
     $l = $l.Trim()
     if ([string]::IsNullOrWhiteSpace($l)) { continue }
 
-    # Remove inline comments (conservative rules to avoid nuking URLs/strings)
-    if (@(".ts",".tsx",".js",".jsx",".mjs",".cjs") -contains $ext) {
-      # Avoid killing URLs: only treat as comment if there's at least one whitespace before //
-      $l = [regex]::Replace($l, "\s+//.*$", "")
-      $l = $l.Trim()
-      if ([string]::IsNullOrWhiteSpace($l)) { continue }
-    } elseif ($ext -eq ".sql") {
+    # Inline comment stripping:
+    # - JS/TS/JSX/TSX: DISABLED (unsafe without a real parser; can break URLs/regex/strings)
+    # - SQL / PS / YAML-like: keep conservative stripping as before.
+    if ($ext -eq ".sql") {
       $l = [regex]::Replace($l, "\s+--.*$", "")
       $l = $l.Trim()
       if ([string]::IsNullOrWhiteSpace($l)) { continue }
@@ -265,57 +272,55 @@ function UltraMinify-Text {
       }
     }
 
-    # Collapse internal whitespace heavily (except markdown/text where whitespace can matter)
-    if ($isCodeLike -and -not $isMarkdownLike) {
-      $l = [regex]::Replace($l, "\s+", " ")
-
-      # Tighten common punctuation spacing (dump-only)
-      if (@(".ts",".tsx",".js",".jsx",".mjs",".cjs",".css",".scss",".less",".c",".cpp",".h",".java",".kt",".go",".rs",".py",".sql",".html",".htm") -contains $ext) {
-        $l = [regex]::Replace($l, "\s*([,;{}\(\)\[\]])\s*", '$1')
-        $l = [regex]::Replace($l, "\s*(:)\s*", '$1') # helps JSON-ish / TS types
-      }
-    }
-
-    if ([string]::IsNullOrWhiteSpace($l)) { continue }
+    # IMPORTANT: do NOT collapse internal whitespace and do NOT tighten punctuation spacing.
+    # This preserves semantics and preserves string literals (e.g., Tailwind className values).
     $out.Add($l)
   }
 
   return ($out -join "`n")
 }
 
-# --- Redaction rules ---
-# Important: keep these from breaking code like `password: z.string()...`
-# We mainly redact:
-#  - quoted secrets: KEY="value" / key: "value"
-#  - .env-style lines: KEY=value
-#  - bearer tokens
-#  - PEM private keys
-$redactionRules = @(
-  @{
-    Name        = "Quoted API Key"
-    Pattern     = '(?i)(api[_-]?key\s*[:=]\s*)(["''])([^"''\r\n]+)\2'
-    Replacement = '$1$2<REDACTED>$2'
-  },
-  @{
-    Name        = "Quoted Password"
-    Pattern     = '(?i)(password\s*[:=]\s*)(["''])([^"''\r\n]+)\2'
-    Replacement = '$1$2<REDACTED>$2'
-  },
-  @{
-    Name        = "Quoted Secret"
-    Pattern     = '(?i)((?:client[_-]?secret|secret)\s*[:=]\s*)(["''])([^"''\r\n]+)\2'
-    Replacement = '$1$2<REDACTED>$2'
-  },
-  @{
-    Name        = "Quoted Token"
-    Pattern     = '(?i)((?:access[_-]?token|refresh[_-]?token|token)\s*[:=]\s*)(["''])([^"''\r\n]+)\2'
-    Replacement = '$1$2<REDACTED>$2'
-  },
-  @{
-    Name        = "Env var secrets"
-    Pattern     = '(?im)^(\s*[A-Z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD)[A-Z0-9_]*\s*=\s*)([^\r\n#]+)'
-    Replacement = '$1<REDACTED>'
-  },
+# --- Redaction rules (minimal / necessary-only) ---
+# Goals:
+#  - Always redact PEM private keys and Authorization: Bearer headers.
+#  - Redact .env-style secret vars ONLY in .env* files (avoid substring false positives like MONKEY).
+#  - Redact quoted apiKey/password/secret/token ONLY when the value looks credential-like (JWT / long token / key prefixes).
+
+function Test-IsEnvFile {
+  param([Parameter(Mandatory=$true)][string]$RelPath)
+  $name = [System.IO.Path]::GetFileName($RelPath)
+  if ($null -eq $name) { return $false }
+  $lower = $name.ToLowerInvariant()
+  # .env, .env.local, .env.production, .env.example, etc.
+  return ($lower -eq ".env" -or $lower.StartsWith(".env."))
+}
+
+function Test-LooksLikeCredentialValue {
+  param([Parameter(Mandatory=$true)][string]$Value)
+
+  $v = $Value
+  if ($null -eq $v) { return $false }
+  $v = $v.Trim()
+  if ($v.Length -lt 16) { return $false }
+
+  # JWT: header.payload.signature (base64url-ish)
+  if ($v -match '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$') { return $true }
+
+  # Common API key prefixes (add more as you encounter them)
+  if ($v -match '^(?i)(sk-|rk-|pk-|api_|key_)[A-Za-z0-9_\-]{10,}$') { return $true }
+
+  # Very long single-token strings (base64/base64url/hex-ish), no spaces
+  if ($v.Length -ge 32 -and $v -notmatch '\s') {
+    if ($v -match '^[A-Fa-f0-9]{32,}$') { return $true } # hex
+    if ($v -match '^[A-Za-z0-9+/=]{32,}$') { return $true } # base64
+    if ($v -match '^[A-Za-z0-9_-]{32,}$') { return $true } # base64url-ish / random-ish
+  }
+
+  return $false
+}
+
+# Simple always-on redactions (low false-positive risk)
+$redactionRulesAlways = @(
   @{
     Name        = "Authorization Bearer"
     Pattern     = '(?i)(authorization\s*:\s*bearer\s+)([^\r\n\s]+)'
@@ -328,14 +333,35 @@ $redactionRules = @(
   }
 )
 
+# .env-only rule: redact explicit secret-like variable names (word-chunk match, not substring)
+# Examples that WILL match: API_KEY=, OPENAI_API_KEY=, DB_PASSWORD=, JWT_SECRET=, ACCESS_TOKEN=
+# Examples that WILL NOT match: MONKEY=, HOCKEY=, KEYSTONE= (no separator/whole chunk)
+$redactionRuleEnvOnly = @{
+  Name        = "Env var secrets (env files only)"
+  Pattern     = '(?im)^(\s*(?:[A-Z0-9]+_)*(?:API_KEY|ACCESS_TOKEN|REFRESH_TOKEN|TOKEN|SECRET|PASSWORD|PRIVATE_KEY|CLIENT_SECRET)(?:_[A-Z0-9]+)*\s*=\s*)([^\r\n#]+)'
+  Replacement = '$1<REDACTED>'
+}
+
+# Quoted fields: only redact when value looks like a credential
+# (We do this with a match evaluator in Apply-Redactions to avoid over-redacting schemas/examples.)
+$quotedKeyPatterns = @(
+  '(?i)(api[_-]?key)\s*[:=]\s*(["''])([^"''\r\n]+)\2',
+  '(?i)(password)\s*[:=]\s*(["''])([^"''\r\n]+)\2',
+  '(?i)(?:client[_-]?secret|secret)\s*[:=]\s*(["''])([^"''\r\n]+)\2',
+  '(?i)(?:access[_-]?token|refresh[_-]?token|token)\s*[:=]\s*(["''])([^"''\r\n]+)\2'
+)
+
 function Apply-Redactions {
-  param([Parameter(Mandatory=$true)][AllowEmptyString()][string]$Text)
+  param(
+    [Parameter(Mandatory=$true)][AllowEmptyString()][string]$Text,
+    [Parameter(Mandatory=$true)][string]$RelPath
+  )
 
   $t = $Text
-  if ($null -eq $t) { return "" }
-  if ($t.Length -eq 0) { return "" }
+  if ($null -eq $t -or $t.Length -eq 0) { return "" }
 
-  foreach ($rule in $redactionRules) {
+  # Always-on (safe)
+  foreach ($rule in $redactionRulesAlways) {
     $t = [regex]::Replace(
       $t,
       $rule.Pattern,
@@ -343,6 +369,40 @@ function Apply-Redactions {
       [System.Text.RegularExpressions.RegexOptions]::Singleline
     )
   }
+
+  # .env-only redaction
+  if (Test-IsEnvFile -RelPath $RelPath) {
+    $t = [regex]::Replace(
+      $t,
+      $redactionRuleEnvOnly.Pattern,
+      $redactionRuleEnvOnly.Replacement,
+      [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+  }
+
+  # Heuristic quoted-field redaction (reduce false positives)
+  foreach ($pat in $quotedKeyPatterns) {
+    $t = [regex]::Replace($t, $pat, {
+      param($m)
+
+      # Group layout differs slightly between patterns; we just grab the last captured group as value and the quote group.
+      # For apiKey/password patterns: groups are (name)(quote)(value)
+      # For secret/token patterns: groups are (quote)(value) OR (quote)(value) after a non-captured key
+      $groups = $m.Groups
+      $val = $groups[$groups.Count - 1].Value
+      $quote = $groups[$groups.Count - 2].Value
+
+      if (Test-LooksLikeCredentialValue -Value $val) {
+        # Replace only the value portion, preserve surrounding text + original quote style
+        # Safer: rebuild from match by replacing the value substring
+        $full = $m.Value
+        return $full.Substring(0, $full.Length - $val.Length - $quote.Length) + "<REDACTED>" + $quote
+      }
+
+      return $m.Value
+    })
+  }
+
   return $t
 }
 
@@ -406,6 +466,42 @@ function Collect-Files {
   return $picked | Sort-Object FullName
 }
 
+function Build-MetaPrompt {
+  param(
+    [Parameter(Mandatory = $true)][string]$Mode,
+    [Parameter(Mandatory = $true)][bool]$UltraMinifyEnabled,
+    [Parameter(Mandatory = $true)][bool]$RedactEnabled,
+    [Parameter(Mandatory = $true)][string]$RootFull,
+    [Parameter(Mandatory = $true)][int]$FileCount
+  )
+
+  $meta = @()
+  $meta += "META: Repo dump; multiple files concatenated."
+
+  if ($UltraMinifyEnabled) {
+    $meta += "META: DELIMITER: each file starts with '@@@<relative-path>' and continues until next '@@@' or EOF."
+  } else {
+    $meta += "META: DELIMITER: files wrapped by '===== FILE: <path> =====' and '===== END FILE ====='."
+  }
+
+  if ($RedactEnabled) {
+    $meta += "META: '<REDACTED>' intentionally replaces secrets; it is NOT an error or missing code."
+  } else {
+    $meta += "META: Redaction=OFF. If you see any secrets/credentials/tokens/keys, point them out (file + snippet) so they can be redacted. If none, do not mention this."
+  }
+
+  $meta += "META: If any secrets appear unredacted, call them out explicitly (file + snippet) so they can be added to redaction rules. If none, do not mention this."
+
+  $meta += "META: Do NOT claim truncation/incompleteness based on assistant-rendered excerpts (including '...' or apparent cutoff). Assume the user's dump is complete unless the dump text itself contains an unavoidable syntax break that blocks the requested task."
+  $meta += "META: Only raise cutoff/truncation if it directly prevents answering the user’s question or generating correct drop-in code, and then specify exactly what needed content is missing and why it matters."
+  $meta += ("META: Mode={0}; UltraMinify={1}; Redact={2}; Root={3}; FileCount={4}" -f $Mode, $UltraMinifyEnabled, $RedactEnabled, $RootFull, $FileCount)
+
+  $meta += "META: The dump ends at '===== END FILES ====='. Any text after is a prompt about the dump above."
+  $meta += "META: This dump is authoritative. Assume no prior context if not explicitly related to the prompt after the '===== END FILES ====='. Do not reference earlier discussions unless explicitly quoted here."
+
+  return ($meta -join "`n")
+}
+
 # ---------- Main ----------
 $rootFull = [System.IO.Path]::GetFullPath($RootPath)
 $outFull  = [System.IO.Path]::GetFullPath($OutPath)
@@ -428,6 +524,17 @@ $sw = New-Object System.IO.StreamWriter($outFull, $false, $utf8NoBom)
 try {
   $sw.NewLine = "`n"
 
+  # Always include a meta prompt at the very top (even in UltraMinify mode).
+  $metaPrompt = Build-MetaPrompt `
+    -Mode $Mode `
+    -UltraMinifyEnabled $UltraMinify.IsPresent `
+    -RedactEnabled $Redact.IsPresent `
+    -RootFull $rootFull `
+    -FileCount $filesToDump.Count
+
+  $sw.WriteLine($metaPrompt)
+  $sw.WriteLine("")
+
   if (-not $UltraMinify) {
     $sw.WriteLine("===== PROJECT DUMP =====")
     $sw.WriteLine(("Root: {0}" -f $rootFull))
@@ -443,9 +550,7 @@ try {
   foreach ($f in $filesToDump) {
     $rel = Normalize-RelPath -FullPath $f.FullName -Root $rootFull
 
-    if (-not $Quiet -and -not $UltraMinify) {
-      Write-Host ("Included: {0}" -f $rel)
-    }
+    Write-Include -RelPath $rel
 
     $content = Read-FileTextSafe -Path $f.FullName
     if ($null -eq $content) { $content = "" }
@@ -456,7 +561,7 @@ try {
     }
 
     if ($Redact) {
-      $content = Apply-Redactions -Text $content
+      $content = Apply-Redactions -Text $content -RelPath $rel
       if ($null -eq $content) { $content = "" }
     }
 
@@ -479,9 +584,7 @@ try {
     }
   }
 
-  if (-not $UltraMinify) {
-    $sw.WriteLine("===== END FILES =====")
-  }
+  $sw.WriteLine("===== END FILES =====")
 }
 finally {
   $sw.Flush()

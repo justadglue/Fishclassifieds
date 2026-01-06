@@ -1,5 +1,5 @@
 import type { Response } from "express";
-import { config } from "../config";
+import { config } from "../config.js";
 
 const isProd = config.nodeEnv === "production";
 
@@ -21,7 +21,7 @@ export function setAuthCookies(res: Response, accessToken: string, refreshToken:
     sameSite: isProd ? "none" : "lax",
     secure: isProd,
     domain: config.cookieDomain || undefined,
-    path: "/api/auth", // limit where the refresh cookie is sent
+    path: "/api/auth",
     maxAge: 1000 * 60 * 60 * 24 * config.jwtRefreshTtlDays,
   });
 }
@@ -31,6 +31,7 @@ export function clearAuthCookies(res: Response) {
     domain: config.cookieDomain || undefined,
     path: "/",
   });
+
   res.clearCookie(COOKIE_REFRESH, {
     domain: config.cookieDomain || undefined,
     path: "/api/auth",

@@ -3,8 +3,6 @@ import { Link, useSearchParams } from "react-router-dom";
 import { fetchListings, resolveAssets, type Category, type Listing } from "../api";
 import Header from "../components/Header";
 
-import { useAuth } from "../auth";
-
 type SortMode = "newest" | "price_asc" | "price_desc";
 type PageSize = 12 | 24 | 48 | 96;
 
@@ -39,7 +37,6 @@ function buildPageButtons(current: number, totalPages: number) {
 
   const out: (number | "…")[] = [];
   const show = new Set<number>();
-
   show.add(1);
   show.add(totalPages);
 
@@ -53,7 +50,6 @@ function buildPageButtons(current: number, totalPages: number) {
   show.add(totalPages - 2);
 
   const pages = Array.from(show).sort((a, b) => a - b);
-
   let prev = 0;
   for (const p of pages) {
     if (prev && p - prev > 1) out.push("…");
@@ -95,7 +91,7 @@ function PaginationBar(props: {
           </div>
         ) : (
           <button
-            key={p}
+            key={`page-${p}`}
             type="button"
             onClick={() => onGoPage(p)}
             disabled={loading}
@@ -125,7 +121,6 @@ function PaginationBar(props: {
 
 function StatusPill({ l }: { l: Listing }) {
   if (l.status !== "pending") return null;
-
   return (
     <div className="absolute left-3 top-3 rounded-full bg-black/55 px-2 py-1 text-[11px] font-bold text-white backdrop-blur">
       Pending
@@ -148,7 +143,6 @@ export default function HomePage() {
 
   const [items, setItems] = useState<Listing[]>([]);
   const [total, setTotal] = useState(0);
-
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -185,15 +179,11 @@ export default function HomePage() {
     "equipment",
   ];
 
-  const { user, logout, loading: authLoading } = useAuth();
-
   useEffect(() => {
     let cancelled = false;
-
     async function run() {
       setLoading(true);
       setErr(null);
-
       try {
         const data = await fetchListings({
           q: q || undefined,
@@ -223,31 +213,18 @@ export default function HomePage() {
         if (!cancelled) setLoading(false);
       }
     }
-
     run();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, category, species, minPriceCents, maxPriceCents, sort, per, page]);
+  }, [q, category, species, minPriceCents, maxPriceCents, sort, per, page, offset, sp, setSp]);
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(sp);
-
-    const resetsPage =
-      key === "q" ||
-      key === "category" ||
-      key === "species" ||
-      key === "min" ||
-      key === "max" ||
-      key === "sort" ||
-      key === "per";
-
+    const resetsPage = key !== "page";
     if (resetsPage) next.set("page", "1");
-
     if (!value) next.delete(key);
     else next.set(key, value);
-
     setSp(next, { replace: true });
   }
 
@@ -263,7 +240,6 @@ export default function HomePage() {
 
   const showingFrom = total === 0 ? 0 : (page - 1) * per + 1;
   const showingTo = Math.min(total, (page - 1) * per + items.length);
-
   const canPrev = page > 1;
   const canNext = page < totalPages;
 
@@ -332,7 +308,6 @@ export default function HomePage() {
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
                   />
                 </label>
-
                 <label className="block">
                   <div className="mb-1 text-xs font-semibold text-slate-700">Max ($)</div>
                   <input
@@ -403,9 +378,7 @@ export default function HomePage() {
               onGoPage={goPage}
             />
 
-            {err && (
-              <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>
-            )}
+            {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
             {!loading && !err && total === 0 && (
               <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
@@ -436,9 +409,7 @@ export default function HomePage() {
                           decoding="async"
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">
-                          No image
-                        </div>
+                        <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">No image</div>
                       )}
                     </div>
 
@@ -454,7 +425,6 @@ export default function HomePage() {
                           {centsToDollars(l.priceCents)}
                         </div>
                       </div>
-
                       <div className="mt-3 line-clamp-2 text-xs text-slate-700">{l.description}</div>
                       <div className="mt-3 text-[11px] font-semibold text-slate-500">{relativeTime(l.createdAt)}</div>
                     </div>

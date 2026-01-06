@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import Database from "better-sqlite3";
-import crypto from "crypto";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "app.db");
@@ -42,23 +41,22 @@ function ensureDir(p: string) {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 }
 
-function hasTable(db: Database.Database, name: string) {
-  const row = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(name) as any;
-  return !!row;
+function safeUnlink(p: string) {
+  try {
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  } catch {
+    // ignore
+  }
 }
 
-function hasColumn(db: Database.Database, table: string, col: string) {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as any[];
-  return cols.some((c) => String(c.name) === col);
-}
-
-export function openDb() {
+function resetDbFiles() {
   ensureDir(DATA_DIR);
+  safeUnlink(DB_PATH);
+  safeUnlink(`${DB_PATH}-wal`);
+  safeUnlink(`${DB_PATH}-shm`);
+}
 
-  const db = new Database(DB_PATH);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-
+function createSchema(db: Database.Database) {
   db.exec(`
 CREATE TABLE IF NOT EXISTS listings(
   id TEXT PRIMARY KEY,
@@ -100,9 +98,7 @@ CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);
 CREATE INDEX IF NOT EXISTS idx_listings_resolution ON listings(resolution);
 CREATE INDEX IF NOT EXISTS idx_listings_expires_at ON listings(expires_at);
 CREATE INDEX IF NOT EXISTS idx_listing_images_listing_id ON listing_images(listing_id);
-`);
 
-  db.exec(`
 CREATE TABLE IF NOT EXISTS users(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
@@ -132,167 +128,17 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_revoked_at ON sessions(revoked_at);
 `);
+}
 
-  // ---- listings migration bits ----
-  if (!hasColumn(db, "listings", "owner_token")) db.exec(`ALTER TABLE listings ADD COLUMN owner_token TEXT`);
-  if (!hasColumn(db, "listings", "category"))
-    db.exec(`ALTER TABLE listings ADD COLUMN category TEXT NOT NULL DEFAULT 'Fish'`);
-  if (!hasColumn(db, "listings", "contact")) db.exec(`ALTER TABLE listings ADD COLUMN contact TEXT`);
-  if (!hasColumn(db, "listings", "image_url")) db.exec(`ALTER TABLE listings ADD COLUMN image_url TEXT`);
-  if (!hasColumn(db, "listings", "status"))
-    db.exec(`ALTER TABLE listings ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`);
-  if (!hasColumn(db, "listings", "updated_at")) db.exec(`ALTER TABLE listings ADD COLUMN updated_at TEXT`);
-  if (!hasColumn(db, "listings", "deleted_at")) db.exec(`ALTER TABLE listings ADD COLUMN deleted_at TEXT`);
-  if (!hasColumn(db, "listings", "expires_at")) db.exec(`ALTER TABLE listings ADD COLUMN expires_at TEXT`);
-  if (!hasColumn(db, "listings", "resolution"))
-    db.exec(`ALTER TABLE listings ADD COLUMN resolution TEXT NOT NULL DEFAULT 'none'`);
-  if (!hasColumn(db, "listings", "resolved_at")) db.exec(`ALTER TABLE listings ADD COLUMN resolved_at TEXT`);
+export function openDb() {
+  // Reset FIRST (before opening db), since you're rebuilding from scratch each run.
+  resetDbFiles();
 
-  if (!hasTable(db, "listing_images")) {
-    db.exec(`
-CREATE TABLE IF NOT EXISTS listing_images(
-  id TEXT PRIMARY KEY,
-  listing_id TEXT NOT NULL,
-  url TEXT NOT NULL,
-  thumb_url TEXT,
-  medium_url TEXT,
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS idx_listing_images_listing_id ON listing_images(listing_id);
-`);
-  } else {
-    if (!hasColumn(db, "listing_images", "thumb_url")) db.exec(`ALTER TABLE listing_images ADD COLUMN thumb_url TEXT`);
-    if (!hasColumn(db, "listing_images", "medium_url")) db.exec(`ALTER TABLE listing_images ADD COLUMN medium_url TEXT`);
-  }
+  const db = new Database(DB_PATH);
+  db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON");
 
-  // ---- users migration bits ----
-  // If you created users before this change, add the username column safely and backfill.
-  if (!hasColumn(db, "users", "username")) {
-    db.exec(`ALTER TABLE users ADD COLUMN username TEXT`);
-
-    // Backfill: if username missing, derive from email local-part + short suffix, then enforce uniqueness.
-    const rows = db.prepare(`SELECT id, email, username FROM users`).all() as Array<{
-      id: number;
-      email: string;
-      username: string | null;
-    }>;
-
-    const exists = db.prepare(`SELECT 1 FROM users WHERE lower(username) = lower(?) LIMIT 1`);
-    const upd = db.prepare(`UPDATE users SET username = ? WHERE id = ?`);
-
-    for (const r of rows) {
-      const cur = (r.username ?? "").trim();
-      if (cur) continue;
-
-      const local = String(r.email || "")
-        .split("@")[0]
-        .replace(/[^a-zA-Z0-9_]/g, "_")
-        .slice(0, 16)
-        .toLowerCase();
-
-      let candidate = local || "user";
-      let tries = 0;
-
-      while ((exists.get(candidate) as any) && tries < 20) {
-        candidate = `${(local || "user").slice(0, 12)}_${crypto.randomBytes(2).toString("hex")}`;
-        tries++;
-      }
-
-      upd.run(candidate, r.id);
-    }
-
-    // Now make it NOT NULL + UNIQUE via indexes/constraints.
-    db.exec(`UPDATE users SET username = COALESCE(NULLIF(username,''), 'user_' || hex(randomblob(3)))`);
-    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(lower(username))`);
-  } else {
-    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(lower(username))`);
-  }
-
-  // Normalize some listing fields / migrations you already had
-  db.exec(`
-UPDATE listings
-SET owner_token = COALESCE(NULLIF(owner_token,''),'')
-`);
-
-  const missingTokens = db
-    .prepare(`SELECT id FROM listings WHERE owner_token IS NULL OR owner_token = ''`)
-    .all() as { id: string }[];
-  const updTok = db.prepare(`UPDATE listings SET owner_token = ? WHERE id = ?`);
-  for (const r of missingTokens) updTok.run(crypto.randomUUID(), r.id);
-
-  db.exec(`
-UPDATE listings
-SET updated_at = COALESCE(NULLIF(updated_at,''),created_at)
-WHERE updated_at IS NULL OR updated_at = ''
-`);
-
-  db.exec(`
-UPDATE listings
-SET
-  resolution = 'sold',
-  resolved_at = COALESCE(resolved_at,updated_at),
-  status = 'active'
-WHERE lower(status)= 'sold'
-`);
-
-  db.exec(`
-UPDATE listings
-SET
-  resolution = 'sold',
-  resolved_at = COALESCE(resolved_at,updated_at)
-WHERE lower(resolution)= 'solved'
-`);
-
-  db.exec(`
-UPDATE listings
-SET status = COALESCE(NULLIF(status,''),'active')
-WHERE status IS NULL OR status = ''
-`);
-
-  db.exec(`
-UPDATE listings
-SET resolution = COALESCE(NULLIF(resolution,''),'none')
-WHERE resolution IS NULL OR resolution = ''
-`);
-
-  db.exec(`
-UPDATE listings
-SET resolution = 'none'
-WHERE lower(resolution) NOT IN ('none','sold')
-`);
-
-  db.exec(`
-UPDATE listings
-SET expires_at = COALESCE(expires_at,datetime(created_at,'+30 days'))
-WHERE expires_at IS NULL OR expires_at = ''
-`);
-
-  db.exec(`
-UPDATE listings
-SET deleted_at = NULL
-WHERE status <> 'deleted'
-`);
-
-  const listings = db.prepare(`SELECT id,image_url FROM listings`).all() as { id: string; image_url: string | null }[];
-  const countImgs = db.prepare(`SELECT COUNT(*) as c FROM listing_images WHERE listing_id = ?`);
-  const insImg = db.prepare(
-    `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order) VALUES(?,?,?,?,?,?)`
-  );
-
-  for (const l of listings) {
-    const c = (countImgs.get(l.id) as any).c as number;
-    if (c === 0 && l.image_url) {
-      insImg.run(crypto.randomUUID(), l.id, l.image_url, l.image_url, l.image_url, 0);
-    }
-  }
-
-  db.exec(`
-UPDATE listing_images
-SET
-  thumb_url = COALESCE(thumb_url,url),
-  medium_url = COALESCE(medium_url,url)
-`);
+  createSchema(db);
 
   return db;
 }

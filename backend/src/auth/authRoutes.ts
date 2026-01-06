@@ -3,10 +3,10 @@ import { Router } from "express";
 import { z } from "zod";
 import argon2 from "argon2";
 import crypto from "crypto";
-import { openDb } from "../db";
-import { sha256Hex, nowIso, addDaysIso } from "../security";
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from "./jwt";
-import { clearAuthCookies, setAuthCookies, COOKIE_REFRESH } from "./cookies";
+import { openDb } from "../db.js";
+import { sha256Hex, nowIso, addDaysIso } from "../security.js";
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from "./jwt.js";
+import { clearAuthCookies, setAuthCookies, COOKIE_REFRESH } from "./cookies.js";
 
 const router = Router();
 
@@ -16,7 +16,7 @@ const RegisterSchema = z.object({
     .string()
     .min(3)
     .max(20)
-    .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscore"),
+    .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters,numbers,and underscore"),
   password: z.string().min(10).max(200),
   displayName: z.string().min(1).max(80),
 });
@@ -39,20 +39,19 @@ router.post("/register", async (req: Request, res: Response) => {
   }
 
   const { email, username, password, displayName } = parsed.data;
-
   const normEmail = email.toLowerCase().trim();
   const normUsername = username.toLowerCase().trim();
 
   const db = openDb();
 
-  const existingEmail = db.prepare(`SELECT id FROM users WHERE lower(email) = lower(?)`).get(normEmail) as
-    | { id: number }
-    | undefined;
+  const existingEmail = db
+    .prepare(`SELECT id FROM users WHERE lower(email)= lower(?)`)
+    .get(normEmail) as { id: number } | undefined;
   if (existingEmail) return res.status(409).json({ error: "Email already in use" });
 
-  const existingUsername = db.prepare(`SELECT id FROM users WHERE lower(username) = lower(?)`).get(normUsername) as
-    | { id: number }
-    | undefined;
+  const existingUsername = db
+    .prepare(`SELECT id FROM users WHERE lower(username)= lower(?)`)
+    .get(normUsername) as { id: number } | undefined;
   if (existingUsername) return res.status(409).json({ error: "Username already in use" });
 
   const passwordHash = await argon2.hash(password, {
@@ -65,14 +64,13 @@ router.post("/register", async (req: Request, res: Response) => {
   const info = db
     .prepare(
       `
-INSERT INTO users(email,username,password_hash,display_name,created_at,updated_at)
-VALUES(?,?,?,?,?,?)
-`
+      INSERT INTO users(email,username,password_hash,display_name,created_at,updated_at)
+      VALUES(?,?,?,?,?,?)
+      `
     )
     .run(normEmail, normUsername, passwordHash, displayName, nowIso(), nowIso());
 
   const userId = Number(info.lastInsertRowid);
-
   return res.status(201).json({
     user: { id: userId, email: normEmail, displayName, username: normUsername },
   });
@@ -85,11 +83,11 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 
   const { email, password } = parsed.data;
-  const db = openDb();
 
-  const row = db.prepare(`SELECT * FROM users WHERE lower(email) = lower(?)`).get(email.toLowerCase().trim()) as
-    | any
-    | undefined;
+  const db = openDb();
+  const row = db
+    .prepare(`SELECT * FROM users WHERE lower(email)= lower(?)`)
+    .get(email.toLowerCase().trim()) as any | undefined;
 
   if (!row) return res.status(401).json({ error: "Invalid email or password" });
 
@@ -102,9 +100,9 @@ router.post("/login", async (req: Request, res: Response) => {
 
   db.prepare(
     `
-INSERT INTO sessions(id,user_id,refresh_token_hash,created_at,last_used_at,expires_at,revoked_at,user_agent,ip)
-VALUES(?,?,?,?,?,?,NULL,?,?)
-`
+    INSERT INTO sessions(id,user_id,refresh_token_hash,created_at,last_used_at,expires_at,revoked_at,user_agent,ip)
+    VALUES(?,?,?,?,?,?,NULL,?,?)
+    `
   ).run(
     sessionId,
     row.id,
@@ -141,17 +139,14 @@ router.post("/refresh", (req: Request, res: Response) => {
 
   const db = openDb();
   const session = db.prepare(`SELECT * FROM sessions WHERE id = ?`).get(payload.sid) as any | undefined;
-
   if (!session) {
     clearAuthCookies(res);
     return res.status(401).json({ error: "Session not found" });
   }
-
   if (session.revoked_at) {
     clearAuthCookies(res);
     return res.status(401).json({ error: "Session revoked" });
   }
-
   if (new Date(session.expires_at).getTime() <= Date.now()) {
     db.prepare(`UPDATE sessions SET revoked_at = ? WHERE id = ?`).run(nowIso(), session.id);
     clearAuthCookies(res);
@@ -180,10 +175,10 @@ router.post("/refresh", (req: Request, res: Response) => {
 
   db.prepare(
     `
-UPDATE sessions
-SET refresh_token_hash = ?, last_used_at = ?
-WHERE id = ?
-`
+    UPDATE sessions
+    SET refresh_token_hash = ?,last_used_at = ?
+    WHERE id = ?
+    `
   ).run(newHash, nowIso(), session.id);
 
   const newAccess = signAccessToken({ sub: String(user.id), email: user.email });

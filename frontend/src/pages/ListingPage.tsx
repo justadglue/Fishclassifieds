@@ -50,16 +50,16 @@ export default function ListingPage() {
   const hasMultiple = assets.length > 1;
 
   const hero =
-    assets[active]?.mediumUrl ??
-    assets[active]?.url ??
-    assets[0]?.mediumUrl ??
-    assets[0]?.url ??
+    assets[active]?.medUrl ??
+    assets[active]?.fullUrl ??
+    assets[0]?.medUrl ??
+    assets[0]?.fullUrl ??
     null;
 
   // Full-res for lightbox
   const fullRes =
-    assets[active]?.url ??
-    assets[0]?.url ??
+    assets[active]?.fullUrl ??
+    assets[0]?.fullUrl ??
     null;
 
   function prevImage() {
@@ -241,7 +241,7 @@ export default function ListingPage() {
                   <div className="flex gap-2 overflow-x-auto p-3">
                     {assets.map((a, i) => (
                       <button
-                        key={a.url + i}
+                        key={a.fullUrl + i}
                         type="button"
                         onClick={() => setActive(i)}
                         className={[
@@ -252,7 +252,7 @@ export default function ListingPage() {
                         aria-current={i === active ? "true" : undefined}
                       >
                         <img
-                          src={a.thumbUrl || a.url}
+                          src={a.thumbUrl || a.medUrl || a.fullUrl}
                           alt={`thumb-${i}`}
                           className="h-full w-full object-cover"
                           loading="lazy"
@@ -315,16 +315,13 @@ export default function ListingPage() {
         <div
           className="fixed inset-0 z-50 bg-black/80 backdrop-blur-[2px]"
           onMouseDown={(e) => {
-            // close when clicking the backdrop (but not when clicking the image/content)
             if (e.target === e.currentTarget) closeLightbox();
           }}
           aria-modal="true"
           role="dialog"
         >
           <div className="absolute inset-0 flex items-center justify-center p-4">
-            {/* Content */}
             <div className="relative w-full max-w-6xl">
-              {/* Close button */}
               <button
                 type="button"
                 onClick={closeLightbox}
@@ -345,14 +342,12 @@ export default function ListingPage() {
                 ✕
               </button>
 
-              {/* Counter */}
               {assets.length > 0 && (
                 <div className="absolute left-2 top-2 z-10 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur">
                   {active + 1} / {assets.length}
                 </div>
               )}
 
-              {/* Image */}
               <div className="relative overflow-hidden rounded-2xl">
                 <div className="flex items-center justify-center">
                   {fullRes ? (
@@ -369,7 +364,6 @@ export default function ListingPage() {
                   )}
                 </div>
 
-                {/* Arrows inside lightbox */}
                 {hasMultiple && (
                   <>
                     <button
@@ -415,7 +409,6 @@ export default function ListingPage() {
                 )}
               </div>
 
-              {/* Hint */}
               <div className="mt-3 text-center text-xs font-semibold text-white/70">
                 {hasMultiple ? "Use ← / → to navigate, Esc to close" : "Press Esc to close"}
               </div>

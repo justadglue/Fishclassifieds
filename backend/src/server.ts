@@ -2,7 +2,7 @@
 import express from "express";
 import cors from "cors";
 import { z } from "zod";
-import { openDb, type ListingRow, type ListingStatus, type ListingResolution } from "./db";
+import { openDb, type ListingRow, type ListingStatus, type ListingResolution } from "./db.js";
 import crypto from "crypto";
 import multer from "multer";
 import path from "path";
@@ -31,7 +31,29 @@ function extFromMimetype(mimetype: string) {
   return "";
 }
 
-type ImageAsset = { url: string; thumbUrl: string; mediumUrl: string };
+/**
+ * New canonical shape:
+ * - fullUrl: original (only used by enlarge modal)
+ * - medUrl: used for listing cards, my listings, main image on detail page
+ * - thumbUrl: used only for tiny preview strip under main image
+ */
+type ImageAsset = { fullUrl: string; thumbUrl: string; medUrl: string };
+
+function baseUrl(req: express.Request) {
+  return `${req.protocol}://${req.get("host")}`;
+}
+
+function toAbs(req: express.Request, maybePath: string) {
+  // If already absolute, leave it
+  if (/^https?:\/\//i.test(maybePath)) return maybePath;
+  // Ensure leading slash for relative paths we generate
+  const p = maybePath.startsWith("/") ? maybePath : `/${maybePath}`;
+  return `${baseUrl(req)}${p}`;
+}
+
+function toRelUploads(filename: string) {
+  return `/uploads/${filename}`;
+}
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -51,17 +73,55 @@ const upload = multer({
   },
 });
 
-async function makeDerivatives(absPath: string, baseNameNoExt: string): Promise<{ thumb: string; medium: string }> {
+async function makeDerivatives(absPath: string, baseNameNoExt: string): Promise<{ thumb: string; med: string }> {
   const thumbName = `${baseNameNoExt}_thumb.webp`;
-  const mediumName = `${baseNameNoExt}_med.webp`;
+  const medName = `${baseNameNoExt}_med.webp`;
 
   const thumbAbs = path.join(UPLOADS_DIR, thumbName);
-  const medAbs = path.join(UPLOADS_DIR, mediumName);
+  const medAbs = path.join(UPLOADS_DIR, medName);
 
-  await sharp(absPath).rotate().resize({ width: 320, withoutEnlargement: true }).webp({ quality: 72 }).toFile(thumbAbs);
-  await sharp(absPath).rotate().resize({ width: 960, withoutEnlargement: true }).webp({ quality: 82 }).toFile(medAbs);
+  // Tiny strip thumbnails under the main image
+  const THUMB_W = Number(process.env.IMG_THUMB_W ?? "440");
+  // General-purpose "display" image (cards, detail main image)
+  const MED_W = Number(process.env.IMG_MED_W ?? "1400");
 
-  return { thumb: `/uploads/${thumbName}`, medium: `/uploads/${mediumName}` };
+  const common = sharp(absPath, { failOn: "none" }).rotate().withMetadata();
+
+  await common
+    .clone()
+    .resize({
+      width: THUMB_W,
+      withoutEnlargement: true,
+      fit: "inside",
+      kernel: sharp.kernel.lanczos3,
+    })
+    .sharpen(0.6, 0.8, 1.2)
+    .webp({
+      quality: 80,
+      effort: 6,
+      smartSubsample: true,
+      alphaQuality: 85,
+    })
+    .toFile(thumbAbs);
+
+  await common
+    .clone()
+    .resize({
+      width: MED_W,
+      withoutEnlargement: true,
+      fit: "inside",
+      kernel: sharp.kernel.lanczos3,
+    })
+    .sharpen(0.4, 0.6, 1.0)
+    .webp({
+      quality: 85,
+      effort: 6,
+      smartSubsample: true,
+      alphaQuality: 85,
+    })
+    .toFile(medAbs);
+
+  return { thumb: toRelUploads(thumbName), med: toRelUploads(medName) };
 }
 
 // Upload endpoint
@@ -69,16 +129,16 @@ app.post("/api/uploads", upload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
 
-    const originalUrl = `/uploads/${req.file.filename}`;
+    const fullRel = toRelUploads(req.file.filename);
     const abs = path.join(UPLOADS_DIR, req.file.filename);
 
     const base = path.parse(req.file.filename).name;
     const d = await makeDerivatives(abs, base);
 
     const out: ImageAsset = {
-      url: originalUrl,
-      thumbUrl: d.thumb,
-      mediumUrl: d.medium,
+      fullUrl: toAbs(req, fullRel),
+      thumbUrl: toAbs(req, d.thumb),
+      medUrl: toAbs(req, d.med),
     };
 
     return res.status(201).json(out);
@@ -135,16 +195,20 @@ function runAutoExpirePass() {
 
 // ---------- Listings ----------
 const ImageAssetSchema = z.object({
-  url: z.string().min(1),
+  fullUrl: z.string().min(1),
   thumbUrl: z.string().min(1),
-  mediumUrl: z.string().min(1),
+  medUrl: z.string().min(1),
 });
 
 const ImagesInputSchema = z.array(z.union([z.string(), ImageAssetSchema])).max(6).optional().default([]);
 
 function normalizeImages(input: (string | ImageAsset)[]): ImageAsset[] {
   return (input ?? []).map((x) => {
-    if (typeof x === "string") return { url: x, thumbUrl: x, mediumUrl: x };
+    if (typeof x === "string") {
+      // If someone sends a plain URL, treat it as "full" and fall back for med/thumb.
+      // (Uploads should come from /api/uploads and will already be full/med/thumb.)
+      return { fullUrl: x, thumbUrl: x, medUrl: x };
+    }
     return x;
   });
 }
@@ -160,7 +224,7 @@ const CreateListingSchema = z.object({
 
   images: ImagesInputSchema,
 
-  // legacy optional single image
+  // legacy optional single image (kept, but you said legacy doesn't matter)
   imageUrl: z.string().optional().nullable(),
 
   // optional for future; if provided, must be draft or active
@@ -195,8 +259,6 @@ app.post("/api/listings", (req, res) => {
   const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
   const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
 
-  // Today: default to ACTIVE.
-  // Future: set REQUIRE_APPROVAL=1 to default to PENDING.
   const requireApproval = String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
 
   const { title, category, species, priceCents, location, description, contact, images, imageUrl } = parsed.data;
@@ -235,15 +297,15 @@ app.post("/api/listings", (req, res) => {
   );
 
   const normalized = normalizeImages(images ?? []);
-  const fallback = imageUrl ? [{ url: imageUrl, thumbUrl: imageUrl, mediumUrl: imageUrl }] : [];
+  const fallback = imageUrl ? [{ fullUrl: imageUrl, thumbUrl: imageUrl, medUrl: imageUrl }] : [];
   const finalImages = (normalized.length ? normalized : fallback).slice(0, 6);
 
   finalImages.forEach((img, idx) => {
-    insertImg.run(crypto.randomUUID(), id, img.url, img.thumbUrl, img.mediumUrl, idx);
+    insertImg.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx);
   });
 
   const row = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(id);
-  return res.status(201).json({ ...mapListing(row!), ownerToken });
+  return res.status(201).json({ ...mapListing(req, row!), ownerToken });
 });
 
 app.get("/api/listings", (req, res) => {
@@ -267,9 +329,6 @@ app.get("/api/listings", (req, res) => {
   const where: string[] = [];
   const params: any[] = [];
 
-  // Public browse:
-  // - lifecycle in active/pending
-  // - not resolved (sold hidden from browse)
   where.push(`status IN ('active','pending')`);
   where.push(`resolution = 'none'`);
 
@@ -314,7 +373,7 @@ app.get("/api/listings", (req, res) => {
   const rows = db.prepare(sql).all(...params, limit, offset) as (ListingRow & any)[];
 
   return res.json({
-    items: rows.map(mapListing),
+    items: rows.map((r) => mapListing(req, r)),
     total,
     limit,
     offset,
@@ -333,15 +392,12 @@ app.get("/api/listings/:id", (req, res) => {
   const status = String(row.status ?? "active") as ListingStatus;
   const resolution = String(row.resolution ?? "none") as ListingResolution;
 
-  // Deleted: never visible unless owner
   if (!isOwner && status === "deleted") return res.status(404).json({ error: "Not found" });
 
-  // Public if active/pending OR resolved (sold).
-  // (Paused/draft/expired remain owner-only)
   const isPublic = PUBLIC_LIFECYCLE.includes(status) || resolution !== "none";
   if (!isOwner && !isPublic) return res.status(404).json({ error: "Not found" });
 
-  return res.json(mapListing(row));
+  return res.json(mapListing(req, row));
 });
 
 app.patch("/api/listings/:id", (req, res) => {
@@ -361,7 +417,6 @@ app.patch("/api/listings/:id", (req, res) => {
 
   const currentStatus = String(row.status ?? "active") as ListingStatus;
 
-  // Disallow edits if deleted/expired (you can loosen this later if you want)
   if (currentStatus === "deleted") return res.status(400).json({ error: "Listing is deleted" });
   if (currentStatus === "expired") return res.status(400).json({ error: "Listing is expired" });
 
@@ -402,11 +457,11 @@ app.patch("/api/listings/:id", (req, res) => {
     );
 
     const normalized = normalizeImages(p.images ?? []).slice(0, 6);
-    normalized.forEach((img, idx) => ins.run(crypto.randomUUID(), id, img.url, img.thumbUrl, img.mediumUrl, idx));
+    normalized.forEach((img, idx) => ins.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx));
   }
 
   const updated = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(id);
-  return res.json(mapListing(updated!));
+  return res.json(mapListing(req, updated!));
 });
 
 app.delete("/api/listings/:id", (req, res) => {
@@ -424,7 +479,7 @@ app.delete("/api/listings/:id", (req, res) => {
   return res.json({ ok: true });
 });
 
-// ---------- Action endpoints (ergonomic UI calls) ----------
+// ---------- Action endpoints ----------
 function loadOwnedListing(req: express.Request, res: express.Response) {
   const id = req.params.id;
   const row = db.prepare<(ListingRow & any)>("SELECT * FROM listings WHERE id = ?").get(id);
@@ -459,13 +514,13 @@ app.post("/api/listings/:id/pause", (req, res) => {
 
   if (status === "deleted") return res.status(400).json({ error: "Listing is deleted" });
   if (status === "expired") return res.status(400).json({ error: "Listing is expired" });
-  if (status === "paused") return res.json(mapListing(row)); // idempotent
+  if (status === "paused") return res.json(mapListing(req, row));
   if (status === "draft") return res.status(400).json({ error: "Draft listings must be published first" });
   if (resolution !== "none") return res.status(400).json({ error: "Resolved listings cannot be paused" });
 
   setLifecycle(row.id, "paused");
   const updated = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(row.id);
-  return res.json(mapListing(updated!));
+  return res.json(mapListing(req, updated!));
 });
 
 app.post("/api/listings/:id/resume", (req, res) => {
@@ -480,12 +535,11 @@ app.post("/api/listings/:id/resume", (req, res) => {
   if (status === "expired") return res.status(400).json({ error: "Listing is expired" });
   if (resolution !== "none") return res.status(400).json({ error: "Resolved listings cannot be resumed" });
 
-  // Resume from paused -> active
   if (status !== "paused") return res.status(400).json({ error: "Only paused listings can be resumed" });
 
   setLifecycle(row.id, "active");
   const updated = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(row.id);
-  return res.json(mapListing(updated!));
+  return res.json(mapListing(req, updated!));
 });
 
 app.post("/api/listings/:id/mark-sold", (req, res) => {
@@ -502,11 +556,11 @@ app.post("/api/listings/:id/mark-sold", (req, res) => {
 
   setResolution(row.id, "sold");
   const updated = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(row.id);
-  return res.json(mapListing(updated!));
+  return res.json(mapListing(req, updated!));
 });
 
 // ---------- Images helpers ----------
-function getImagesForListing(listingId: string): ImageAsset[] {
+function getImagesForListing(req: express.Request, listingId: string): ImageAsset[] {
   const rows = db
     .prepare(
       `SELECT url, thumb_url, medium_url
@@ -516,15 +570,21 @@ function getImagesForListing(listingId: string): ImageAsset[] {
     )
     .all(listingId) as { url: string; thumb_url: string | null; medium_url: string | null }[];
 
-  return rows.map((r) => ({
-    url: r.url,
-    thumbUrl: r.thumb_url ?? r.url,
-    mediumUrl: r.medium_url ?? r.url,
-  }));
+  return rows.map((r) => {
+    const full = r.url;
+    const thumb = r.thumb_url ?? r.url;
+    const med = r.medium_url ?? r.url;
+
+    return {
+      fullUrl: toAbs(req, full),
+      thumbUrl: toAbs(req, thumb),
+      medUrl: toAbs(req, med),
+    };
+  });
 }
 
-function mapListing(row: ListingRow & any) {
-  const images = getImagesForListing(row.id);
+function mapListing(req: express.Request, row: ListingRow & any) {
+  const images = getImagesForListing(req, row.id);
 
   const status = String(row.status ?? "active") as ListingStatus;
   const resolution = String(row.resolution ?? "none") as ListingResolution;
@@ -538,7 +598,11 @@ function mapListing(row: ListingRow & any) {
     location: row.location,
     description: row.description,
     contact: row.contact ?? null,
+
+    // Legacy field kept (but you can stop using it)
     imageUrl: row.image_url ?? null,
+
+    // New field the frontend should use
     images,
 
     status,

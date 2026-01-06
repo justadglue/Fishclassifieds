@@ -256,7 +256,7 @@ export default function MyListingsPage() {
             }
 
             const assets = resolveAssets(l.images ?? []);
-            const hero = assets[0]?.thumbUrl ?? assets[0]?.url ?? null;
+            const hero = assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
 
             const canToggle = l.status !== "expired" && l.status !== "deleted" && l.status !== "draft" && l.resolution === "none";
             const canResolve = l.status !== "expired" && l.status !== "deleted" && l.resolution === "none";
@@ -291,7 +291,6 @@ export default function MyListingsPage() {
                     <div className="text-[11px] font-semibold text-slate-500">{new Date(l.createdAt).toLocaleDateString()}</div>
                   </div>
 
-                  {/* Icon action row: Edit, Delete, Pause/Resume, Sold */}
                   <div className="mt-4 flex items-center gap-2">
                     <Link to={`/edit/${l.id}`} className="inline-flex" aria-label="Edit">
                       <IconButton title="Edit" variant="default">

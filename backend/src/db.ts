@@ -151,7 +151,6 @@ export function openDb() {
   }
 
   // ---- backfills ----
-  // owner_token
   db.exec(`
     UPDATE listings
     SET owner_token = COALESCE(NULLIF(owner_token, ''), '')
@@ -164,14 +163,12 @@ export function openDb() {
   const updTok = db.prepare(`UPDATE listings SET owner_token = ? WHERE id = ?`);
   for (const r of missingTokens) updTok.run(crypto.randomUUID(), r.id);
 
-  // updated_at: default to created_at if missing/empty
   db.exec(`
     UPDATE listings
     SET updated_at = COALESCE(NULLIF(updated_at, ''), created_at)
     WHERE updated_at IS NULL OR updated_at = ''
   `);
 
-  // Normalize legacy statuses: if DB previously had 'sold' status, convert into resolution=sold + keep status active.
   db.exec(`
     UPDATE listings
     SET
@@ -181,7 +178,6 @@ export function openDb() {
     WHERE lower(status) = 'sold'
   `);
 
-  // If old DB had resolution='solved', map it to 'sold' (solved is removed from the product)
   db.exec(`
     UPDATE listings
     SET
@@ -190,14 +186,12 @@ export function openDb() {
     WHERE lower(resolution) = 'solved'
   `);
 
-  // status: default to active if empty (safety)
   db.exec(`
     UPDATE listings
     SET status = COALESCE(NULLIF(status, ''), 'active')
     WHERE status IS NULL OR status = ''
   `);
 
-  // resolution: default to none if empty (safety) and clamp unknowns to none
   db.exec(`
     UPDATE listings
     SET resolution = COALESCE(NULLIF(resolution, ''), 'none')
@@ -210,21 +204,18 @@ export function openDb() {
     WHERE lower(resolution) NOT IN ('none', 'sold')
   `);
 
-  // expires_at: backfill to created_at + 30 days if missing
   db.exec(`
     UPDATE listings
     SET expires_at = COALESCE(expires_at, datetime(created_at, '+30 days'))
     WHERE expires_at IS NULL OR expires_at = ''
   `);
 
-  // deleted_at: ensure NULL unless status=deleted
   db.exec(`
     UPDATE listings
     SET deleted_at = NULL
     WHERE status <> 'deleted'
   `);
 
-  // backfill listing_images from legacy image_url if no images exist
   const listings = db.prepare(`SELECT id, image_url FROM listings`).all() as { id: string; image_url: string | null }[];
 
   const countImgs = db.prepare(`SELECT COUNT(*) as c FROM listing_images WHERE listing_id = ?`);
@@ -240,7 +231,6 @@ export function openDb() {
     }
   }
 
-  // If existing rows in listing_images lack thumb/medium, backfill to url (safe fallback)
   db.exec(`
     UPDATE listing_images
     SET
@@ -248,7 +238,6 @@ export function openDb() {
       medium_url = COALESCE(medium_url, url)
   `);
 
-  // re-ensure indexes
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_listings_owner_token ON listings(owner_token);
     CREATE INDEX IF NOT EXISTS idx_listings_category ON listings(category);

@@ -88,13 +88,13 @@ export default function PostListingPage() {
   const previews = useMemo(() => {
     return imgs.map((img) => {
       const resolvedThumb = img.uploaded?.thumbUrl ? resolveImageUrl(img.uploaded.thumbUrl) : null;
-      const resolvedUrl = img.uploaded?.url ? resolveImageUrl(img.uploaded.url) : null;
+      const resolvedFull = img.uploaded?.fullUrl ? resolveImageUrl(img.uploaded.fullUrl) : null;
 
       return {
         id: img.id,
         status: img.status,
         error: img.error,
-        src: resolvedThumb || resolvedUrl || URL.createObjectURL(img.file),
+        src: resolvedThumb || resolvedFull || URL.createObjectURL(img.file),
         uploaded: !!img.uploaded,
         local: !img.uploaded,
       };

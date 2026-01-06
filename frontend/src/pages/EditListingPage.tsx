@@ -173,20 +173,20 @@ export default function EditListingPage() {
   const existingPreviews = useMemo(() => {
     const assets = resolveAssets(images ?? []);
     return assets
-      .map((a) => resolveImageUrl(a.thumbUrl || a.url))
+      .map((a) => resolveImageUrl(a.thumbUrl || a.fullUrl))
       .filter((x): x is string => !!x);
   }, [images]);
 
   const pendingPreviews = useMemo(() => {
     return pending.map((p) => {
       const resolvedThumb = p.uploaded?.thumbUrl ? resolveImageUrl(p.uploaded.thumbUrl) : null;
-      const resolvedUrl = p.uploaded?.url ? resolveImageUrl(p.uploaded.url) : null;
+      const resolvedFull = p.uploaded?.fullUrl ? resolveImageUrl(p.uploaded.fullUrl) : null;
 
       return {
         id: p.id,
         status: p.status,
         error: p.error,
-        src: resolvedThumb || resolvedUrl || URL.createObjectURL(p.file),
+        src: resolvedThumb || resolvedFull || URL.createObjectURL(p.file),
         uploaded: !!p.uploaded,
         local: !p.uploaded,
       };

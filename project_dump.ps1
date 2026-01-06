@@ -1,7 +1,7 @@
 param(
   [string]$Root=".",
   [string]$Out="project_dump_core.txt",
-  [int]$MaxBytes=1200000,
+  [int]$MaxBytes=12000000,
 
   # Core is default; pass -Mode Extended to include more
   [ValidateSet("Core","Extended")]
@@ -18,6 +18,13 @@ param(
 )
 
 $ErrorActionPreference="Stop"
+
+# Make console output UTF-8 too (helps if you print paths/content)
+try {
+  $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+  [Console]::OutputEncoding = $utf8NoBom
+  $OutputEncoding = $utf8NoBom
+} catch {}
 
 # Resolve paths (PS 5.1 compatible)
 $RootPath = (Resolve-Path $Root).Path
@@ -83,10 +90,7 @@ $coreAllow = @(
   "frontend/eslint.config.js",
   "frontend/postcss.config.js",
   "frontend/tailwind.config.*",
-  "frontend/src/main.*",
-  "frontend/src/App.*",
-  "frontend/src/api.*",
-  "frontend/src/index.css",
+  "frontend/src/**/*"
 
   # backend (typical TS layout)
   "backend/package.json",
@@ -114,10 +118,6 @@ function RelPath-MatchesWhitelist([string]$relPath, [string[]]$whitelist) {
   }
   return $false
 }
-
-$whitelist = @()
-$whitelist += $coreAllow
-if ($Mode -eq "Extended") { $whitelist += $extendedAllow }
 
 function Minify-Text([string]$s){
   if($null -eq $s){ return "" }
@@ -159,10 +159,35 @@ function Redact-Text([string]$s){
   return $s
 }
 
+function Read-TextFileSmart([string]$path) {
+  # Read raw bytes then decode in a way that avoids mojibake:
+  # - If BOM exists, respect it.
+  # - Else try UTF-8 strict; if it fails, fall back to Windows-1252.
+  $bytes = [System.IO.File]::ReadAllBytes($path)
+  if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+    return [System.Text.Encoding]::UTF8.GetString($bytes, 3, $bytes.Length - 3)
+  }
+  if ($bytes.Length -ge 2 -and $bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE) {
+    return [System.Text.Encoding]::Unicode.GetString($bytes, 2, $bytes.Length - 2) # UTF-16 LE
+  }
+  if ($bytes.Length -ge 2 -and $bytes[0] -eq 0xFE -and $bytes[1] -eq 0xFF) {
+    return [System.Text.Encoding]::BigEndianUnicode.GetString($bytes, 2, $bytes.Length - 2) # UTF-16 BE
+  }
 
-# Write output file with tight framing
-if(Test-Path $OutPath){ Remove-Item -LiteralPath $OutPath -Force }
-New-Item -ItemType File -Path $OutPath -Force | Out-Null
+  try {
+    $utf8Strict = [System.Text.UTF8Encoding]::new($false, $true) # throw on invalid bytes
+    return $utf8Strict.GetString($bytes)
+  } catch {
+    # Fallback for legacy-encoded files (common on Windows)
+    $cp1252 = [System.Text.Encoding]::GetEncoding(1252)
+    return $cp1252.GetString($bytes)
+  }
+}
+
+# Build whitelist
+$whitelist = @()
+$whitelist += $coreAllow
+if ($Mode -eq "Extended") { $whitelist += $extendedAllow }
 
 if(-not $Quiet){
   Write-Host "Root:   $RootPath"
@@ -170,37 +195,45 @@ if(-not $Quiet){
   Write-Host "Mode:   $Mode"
 }
 
-$whitelist = @()
-$whitelist += $coreAllow
-if ($Mode -eq "Extended") { $whitelist += $extendedAllow }
+# Write output file as UTF-8 (no BOM) via StreamWriter
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+$dir = Split-Path -Parent $OutPath
+if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
 
-Get-ChildItem -Path $RootPath -Recurse -File | ForEach-Object {
-  $file = $_
-  if ($file.FullName -eq $OutPath) { return }
+$sw = New-Object System.IO.StreamWriter($OutPath, $false, $utf8NoBom)
+try {
+  Get-ChildItem -Path $RootPath -Recurse -File | ForEach-Object {
+    $file = $_
+    if ($file.FullName -eq $OutPath) { return }
 
-  $relPath = $file.FullName.Substring($RootPath.Length).TrimStart('\','/')
-  if (Should-IgnorePath $relPath) { return }
+    $relPath = $file.FullName.Substring($RootPath.Length).TrimStart('\','/')
+    if (Should-IgnorePath $relPath) { return }
 
-  if ($file.Length -gt $MaxBytes) { return }
+    if ($file.Length -gt $MaxBytes) { return }
 
-  $ext = $file.Extension.ToLowerInvariant()
-  if (-not ($textExts -contains $ext)) { return }
+    $ext = $file.Extension.ToLowerInvariant()
+    if (-not ($textExts -contains $ext)) { return }
 
-  # Never dump name patterns
-  if (Name-MatchesAny $file.Name $neverDumpNameLike) { return }
+    # Never dump name patterns
+    if (Name-MatchesAny $file.Name $neverDumpNameLike) { return }
 
-  # Whitelist enforcement
-  if (-not (RelPath-MatchesWhitelist $relPath $whitelist)) { return }
+    # Whitelist enforcement
+    if (-not (RelPath-MatchesWhitelist $relPath $whitelist)) { return }
 
-  $content = Get-Content -LiteralPath $file.FullName -Raw
-  if ($MinifyContent) { $content = Minify-Text $content }
-  if ($RedactSecrets) { $content = Redact-Text $content }
+    $content = Read-TextFileSmart -path $file.FullName
+    if ($MinifyContent) { $content = Minify-Text $content }
+    if ($RedactSecrets) { $content = Redact-Text $content }
 
-  # Ultra-compact framing
-  # @@@path\n<content>\n@@@\n
-  Add-Content -LiteralPath $OutPath -Value ("@@@{0}`n{1}`n@@@`n" -f $relPath, $content) -Encoding utf8
+    # Ultra-compact framing
+    # @@@path\n<content>\n@@@\n
+    $sw.Write(("@@@{0}`n{1}`n@@@`n" -f $relPath, $content))
 
-  if(-not $Quiet){ Write-Host "Included: $relPath" }
+    if(-not $Quiet){ Write-Host "Included: $relPath" }
+  }
+}
+finally {
+  $sw.Flush()
+  $sw.Dispose()
 }
 
 if(-not $Quiet){ Write-Host "Wrote: $OutPath" }

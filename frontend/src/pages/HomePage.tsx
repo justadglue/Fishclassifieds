@@ -439,7 +439,7 @@ export default function HomePage() {
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((l) => {
                 const assets = resolveAssets(l.images ?? []);
-                const hero = assets[0]?.thumbUrl ?? assets[0]?.url ?? null;
+                const hero = assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
 
                 return (
                   <Link

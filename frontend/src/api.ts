@@ -4,9 +4,9 @@ export type ListingStatus = "draft" | "pending" | "active" | "paused" | "expired
 export type ListingResolution = "none" | "sold";
 
 export type ImageAsset = {
-  url: string;
-  thumbUrl?: string | null;
-  mediumUrl?: string | null;
+  fullUrl: string;
+  thumbUrl: string;
+  medUrl: string;
 };
 
 export type Listing = {
@@ -22,6 +22,7 @@ export type Listing = {
   // legacy (may exist; backend also returns it)
   imageUrl: string | null;
 
+  // canonical
   images: ImageAsset[];
 
   status: ListingStatus;
@@ -73,18 +74,14 @@ export function resolveAssets(images: Array<string | ImageAsset> | null | undefi
   return arr.map((x) => {
     if (typeof x === "string") {
       const ru = resolveImageUrl(x) ?? x;
-      return { url: ru, thumbUrl: ru, mediumUrl: ru };
+      return { fullUrl: ru, thumbUrl: ru, medUrl: ru };
     }
 
-    const url = resolveImageUrl(x.url) ?? x.url;
-    const thumb = resolveImageUrl(x.thumbUrl ?? x.url) ?? (x.thumbUrl ?? x.url);
-    const med = resolveImageUrl(x.mediumUrl ?? x.url) ?? (x.mediumUrl ?? x.url);
+    const full = resolveImageUrl(x.fullUrl) ?? x.fullUrl;
+    const thumb = resolveImageUrl(x.thumbUrl) ?? x.thumbUrl;
+    const med = resolveImageUrl(x.medUrl) ?? x.medUrl;
 
-    return {
-      url,
-      thumbUrl: thumb,
-      mediumUrl: med,
-    };
+    return { fullUrl: full, thumbUrl: thumb, medUrl: med };
   });
 }
 
@@ -270,6 +267,6 @@ export async function uploadImage(file: File): Promise<ImageAsset> {
     throw new Error(`Upload ${res.status}: ${text || res.statusText}`);
   }
 
-  const data = (await res.json()) as { url: string; thumbUrl: string; mediumUrl: string };
+  const data = (await res.json()) as ImageAsset;
   return data;
 }

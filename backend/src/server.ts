@@ -90,7 +90,8 @@ const upload = multer({
   },
   fileFilter: (_req, file, cb) => {
     const ok = ["image/jpeg", "image/png", "image/webp"].includes(file.mimetype);
-    cb(ok ? null : new Error("Only JPG/PNG/WebP images are allowed"), ok);
+    if (ok) return cb(null, true);
+    return cb(new Error("Only JPG/PNG/WebP images are allowed"));
   },
 });
 
@@ -398,8 +399,6 @@ VALUES(?,?,?,?,?,?)
   return res.json({ ok: true });
 });
 
-/* listings routes unchanged ... */
-
 app.post("/api/listings", (req, res) => {
   runAutoExpirePass();
   const parsed = CreateListingSchema.safeParse(req.body);
@@ -456,7 +455,7 @@ VALUES(?,?,?,?,?,?)`
     insertImg.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx);
   });
 
-  const row = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(id);
+  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
   return res.status(201).json({ ...mapListing(req, row!), ownerToken });
 });
 
@@ -528,7 +527,7 @@ LIMIT ? OFFSET ?
 app.get("/api/listings/:id", (req, res) => {
   runAutoExpirePass();
   const id = req.params.id;
-  const row = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(id);
+  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
 
   const isOwner = requireOwner(req, row);
@@ -546,7 +545,7 @@ app.get("/api/listings/:id", (req, res) => {
 app.patch("/api/listings/:id", (req, res) => {
   runAutoExpirePass();
   const id = req.params.id;
-  const row = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(id);
+  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
@@ -600,14 +599,14 @@ VALUES(?,?,?,?,?,?)`
     normalized.forEach((img, idx) => ins.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx));
   }
 
-  const updated = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(id);
+  const updated = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
   return res.json(mapListing(req, updated!));
 });
 
 app.delete("/api/listings/:id", (req, res) => {
   runAutoExpirePass();
   const id = req.params.id;
-  const row = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(id);
+  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
@@ -618,7 +617,7 @@ app.delete("/api/listings/:id", (req, res) => {
 
 function loadOwnedListing(req: express.Request, res: express.Response) {
   const id = req.params.id;
-  const row = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(id);
+  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
   if (!row) {
     res.status(404).json({ error: "Not found" });
     return null;
@@ -655,7 +654,7 @@ app.post("/api/listings/:id/pause", (req, res) => {
   if (resolution !== "none") return res.status(400).json({ error: "Resolved listings cannot be paused" });
 
   setLifecycle(row.id, "paused");
-  const updated = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(row.id);
+  const updated = db.prepare("SELECT * FROM listings WHERE id = ?").get(row.id) as (ListingRow & any) | undefined;
   return res.json(mapListing(req, updated!));
 });
 
@@ -673,7 +672,7 @@ app.post("/api/listings/:id/resume", (req, res) => {
   if (status !== "paused") return res.status(400).json({ error: "Only paused listings can be resumed" });
 
   setLifecycle(row.id, "active");
-  const updated = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(row.id);
+  const updated = db.prepare("SELECT * FROM listings WHERE id = ?").get(row.id) as (ListingRow & any) | undefined;
   return res.json(mapListing(req, updated!));
 });
 
@@ -690,7 +689,7 @@ app.post("/api/listings/:id/mark-sold", (req, res) => {
   if (resolution !== "none") return res.status(400).json({ error: "Listing is already resolved" });
 
   setResolution(row.id, "sold");
-  const updated = db.prepare<ListingRow & any>("SELECT * FROM listings WHERE id = ?").get(row.id);
+  const updated = db.prepare("SELECT * FROM listings WHERE id = ?").get(row.id) as (ListingRow & any) | undefined;
   return res.json(mapListing(req, updated!));
 });
 

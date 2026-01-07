@@ -1,5 +1,5 @@
 // frontend/src/pages/ListingPage.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { fetchListing, resolveAssets, type Listing } from "../api";
 import Header from "../components/Header";
@@ -63,22 +63,22 @@ export default function ListingPage() {
     assets[0]?.fullUrl ??
     null;
 
-  function prevImage() {
+  const prevImage = useCallback(() => {
     setActive((i) => (i <= 0 ? assets.length - 1 : i - 1));
-  }
+  }, [assets.length]);
 
-  function nextImage() {
+  const nextImage = useCallback(() => {
     setActive((i) => (i >= assets.length - 1 ? 0 : i + 1));
-  }
+  }, [assets.length]);
 
-  function openLightbox() {
+  const openLightbox = useCallback(() => {
     if (!assets.length) return;
     setLightboxOpen(true);
-  }
+  }, [assets.length]);
 
-  function closeLightbox() {
+  const closeLightbox = useCallback(() => {
     setLightboxOpen(false);
-  }
+  }, []);
 
   // Keyboard controls while lightbox is open
   useEffect(() => {
@@ -106,8 +106,7 @@ export default function ListingPage() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lightboxOpen, hasMultiple, assets.length]);
+  }, [closeLightbox, hasMultiple, lightboxOpen, nextImage, prevImage]);
 
   // Prevent background scroll while lightbox open
   useEffect(() => {
@@ -123,7 +122,7 @@ export default function ListingPage() {
     <div className="min-h-full">
       <Header maxWidth="5xl" />
       <main className="mx-auto max-w-5xl px-4 py-6">
-        <Link to="/" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+        <Link to="/browse" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
           ← Back to listings
         </Link>
 

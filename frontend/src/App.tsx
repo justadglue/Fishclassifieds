@@ -1,5 +1,6 @@
 import { Routes, Route } from "react-router-dom";
 import HomePage from "./pages/HomePage";
+import BrowseListings from "./pages/BrowseListings";
 import LoginPage from "./pages/LoginPage";
 import SignUpPage from "./pages/SignUpPage";
 import ListingPage from "./pages/ListingPage";
@@ -12,6 +13,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
+      <Route path="/browse" element={<BrowseListings />} />
       <Route path="/listing/:id" element={<ListingPage />} />
       <Route path="/post" element={<PostListingPage />} />
       <Route path="/me" element={<MyListingsPage />} />

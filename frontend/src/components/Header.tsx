@@ -61,6 +61,10 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
 
         <div className="flex-1" />
 
+        <Link to="/browse" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+          Browse
+        </Link>
+
         <Link to="/post" className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
           Post a listing
         </Link>

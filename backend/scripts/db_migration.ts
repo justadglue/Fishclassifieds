@@ -61,6 +61,29 @@ function main() {
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_featured ON listings(featured);`);
 
+  // Wanted posts (buyer requests)
+  db.exec(`
+CREATE TABLE IF NOT EXISTS wanted_posts(
+  id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'Fish',
+  species TEXT,
+  budget_min_cents INTEGER,
+  budget_max_cents INTEGER,
+  location TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_wanted_posts_created_at ON wanted_posts(created_at);`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_wanted_posts_status_created_at ON wanted_posts(status, created_at);`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_wanted_posts_user_id ON wanted_posts(user_id);`);
+  migrations.push("Ensured wanted_posts table + indexes");
+
   if (args.seedFeatured) {
     if (args.replaceFeatured) {
       db.exec(`UPDATE listings SET featured = 0;`);

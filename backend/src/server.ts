@@ -252,6 +252,28 @@ const UpdateListingSchema = z.object({
   imageUrl: z.string().nullable().optional(),
 });
 
+const WantedStatusSchema = z.enum(["open", "closed"]);
+
+const CreateWantedSchema = z.object({
+  title: z.string().min(3).max(80),
+  category: z.enum(["Fish", "Shrimp", "Snails", "Plants", "Equipment"]).default("Fish"),
+  species: z.string().min(2).max(60).optional().nullable(),
+  budgetMinCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
+  budgetMaxCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
+  location: z.string().min(2).max(80),
+  description: z.string().min(1).max(1000),
+});
+
+const UpdateWantedSchema = z.object({
+  title: z.string().min(3).max(80).optional(),
+  category: z.enum(["Fish", "Shrimp", "Snails", "Plants", "Equipment"]).optional(),
+  species: z.string().min(2).max(60).nullable().optional(),
+  budgetMinCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
+  budgetMaxCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
+  location: z.string().min(2).max(80).optional(),
+  description: z.string().min(1).max(1000).optional(),
+});
+
 app.use("/api/auth", authRoutes);
 
 app.get("/api/me", requireAuth, (req, res) => {
@@ -631,6 +653,305 @@ app.delete("/api/listings/:id", (req, res) => {
 
   const now = nowIso();
   db.prepare(`UPDATE listings SET status = 'deleted',deleted_at = ?,updated_at = ? WHERE id = ?`).run(now, now, id);
+  return res.json({ ok: true });
+});
+
+function mapWantedRow(row: any) {
+  return {
+    id: String(row.id),
+    userId: Number(row.user_id),
+    userDisplayName: row.user_display_name ? String(row.user_display_name) : null,
+    username: row.user_username ? String(row.user_username) : null,
+    title: String(row.title),
+    category: String(row.category),
+    species: row.species ? String(row.species) : null,
+    budgetMinCents: row.budget_min_cents != null ? Number(row.budget_min_cents) : null,
+    budgetMaxCents: row.budget_max_cents != null ? Number(row.budget_max_cents) : null,
+    location: String(row.location),
+    status: WantedStatusSchema.parse(String(row.status ?? "open")),
+    description: String(row.description),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+function requireWantedOwner(req: express.Request, row: any) {
+  const u = req.user;
+  if (!u) return false;
+  return Number(row?.user_id) === u.id;
+}
+
+app.get("/api/wanted", (req, res) => {
+  const q = String(req.query.q ?? "").trim().toLowerCase();
+  const species = String(req.query.species ?? "").trim().toLowerCase();
+  const category = String(req.query.category ?? "").trim();
+  const location = String(req.query.location ?? "").trim().toLowerCase();
+  const statusRaw = String(req.query.status ?? "open").trim();
+  const status = statusRaw ? WantedStatusSchema.safeParse(statusRaw) : { success: true as const, data: "open" as const };
+
+  if (!status.success) return res.status(400).json({ error: "Invalid status filter" });
+
+  const minRaw = req.query.minBudgetCents ?? req.query.min;
+  const maxRaw = req.query.maxBudgetCents ?? req.query.max;
+  const min = minRaw !== undefined ? Number(minRaw) : undefined;
+  const max = maxRaw !== undefined ? Number(maxRaw) : undefined;
+
+  const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 24;
+  const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
+  const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
+
+  const where: string[] = [];
+  const params: any[] = [];
+
+  if (status.data) {
+    where.push(`w.status = ?`);
+    params.push(status.data);
+  }
+
+  if (q) {
+    where.push("(lower(w.title)LIKE ? OR lower(w.description)LIKE ? OR lower(w.location)LIKE ? OR lower(w.species)LIKE ?)");
+    const pat = `%${q}%`;
+    params.push(pat, pat, pat, pat);
+  }
+
+  if (species) {
+    where.push("lower(w.species)= ?");
+    params.push(species);
+  }
+
+  if (category) {
+    where.push("w.category = ?");
+    params.push(category);
+  }
+
+  if (location) {
+    where.push("lower(w.location)LIKE ?");
+    params.push(`%${location}%`);
+  }
+
+  if (Number.isFinite(min)) {
+    where.push("(w.budget_max_cents IS NULL OR w.budget_max_cents >= ?)");
+    params.push(Math.floor(min!));
+  }
+
+  if (Number.isFinite(max)) {
+    where.push("(w.budget_min_cents IS NULL OR w.budget_min_cents <= ?)");
+    params.push(Math.floor(max!));
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const totalRow = db
+    .prepare(
+      `
+SELECT COUNT(*)as c
+FROM wanted_posts w
+${whereSql}
+`
+    )
+    .get(...params) as any;
+  const total = Number(totalRow?.c ?? 0);
+
+  const rows = db
+    .prepare(
+      `
+SELECT w.*, u.display_name as user_display_name, u.username as user_username
+FROM wanted_posts w
+JOIN users u ON u.id = w.user_id
+${whereSql}
+ORDER BY w.created_at DESC, w.id DESC
+LIMIT ? OFFSET ?
+`
+    )
+    .all(...params, limit, offset) as any[];
+
+  return res.json({
+    items: rows.map(mapWantedRow),
+    total,
+    limit,
+    offset,
+  });
+});
+
+app.get("/api/wanted/:id", (req, res) => {
+  const id = req.params.id;
+  const row = db
+    .prepare(
+      `
+SELECT w.*, u.display_name as user_display_name, u.username as user_username
+FROM wanted_posts w
+JOIN users u ON u.id = w.user_id
+WHERE w.id = ?
+`
+    )
+    .get(id) as any | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  return res.json(mapWantedRow(row));
+});
+
+app.post("/api/wanted", requireAuth, (req, res) => {
+  const parsed = CreateWantedSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+
+  const { title, category, location, description } = parsed.data;
+  const species = parsed.data.species ? String(parsed.data.species).trim() : "";
+  const budgetMinCents = parsed.data.budgetMinCents ?? null;
+  const budgetMaxCents = parsed.data.budgetMaxCents ?? null;
+
+  if (budgetMinCents != null && budgetMaxCents != null && budgetMinCents > budgetMaxCents) {
+    return res.status(400).json({ error: "Budget min cannot be greater than budget max" });
+  }
+
+  const id = crypto.randomUUID();
+  const now = nowIso();
+  const user = req.user!;
+
+  db.prepare(
+    `
+INSERT INTO wanted_posts(
+  id,user_id,title,description,category,species,budget_min_cents,budget_max_cents,location,status,created_at,updated_at
+) VALUES(?,?,?,?,?,?,?,?,?,'open',?,?)
+`
+  ).run(
+    id,
+    user.id,
+    title,
+    description,
+    category,
+    species ? species : null,
+    budgetMinCents,
+    budgetMaxCents,
+    location,
+    now,
+    now
+  );
+
+  const row = db
+    .prepare(
+      `
+SELECT w.*, u.display_name as user_display_name, u.username as user_username
+FROM wanted_posts w
+JOIN users u ON u.id = w.user_id
+WHERE w.id = ?
+`
+    )
+    .get(id) as any | undefined;
+
+  return res.status(201).json(mapWantedRow(row));
+});
+
+app.patch("/api/wanted/:id", requireAuth, (req, res) => {
+  const id = req.params.id;
+  const row = db.prepare(`SELECT * FROM wanted_posts WHERE id = ?`).get(id) as any | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
+
+  const parsed = UpdateWantedSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+
+  const p = parsed.data;
+
+  const nextMin = p.budgetMinCents !== undefined ? p.budgetMinCents : row.budget_min_cents ?? null;
+  const nextMax = p.budgetMaxCents !== undefined ? p.budgetMaxCents : row.budget_max_cents ?? null;
+  if (nextMin != null && nextMax != null && nextMin > nextMax) {
+    return res.status(400).json({ error: "Budget min cannot be greater than budget max" });
+  }
+
+  const sets: string[] = [];
+  const params: any[] = [];
+
+  const map: Record<string, any> = {
+    title: p.title,
+    category: p.category,
+    location: p.location,
+    description: p.description,
+    species: p.species === undefined ? undefined : p.species ? String(p.species).trim() : null,
+    budget_min_cents: p.budgetMinCents,
+    budget_max_cents: p.budgetMaxCents,
+  };
+
+  for (const [k, v] of Object.entries(map)) {
+    if (v !== undefined) {
+      sets.push(`${k}= ?`);
+      params.push(v);
+    }
+  }
+
+  const now = nowIso();
+  sets.push(`updated_at = ?`);
+  params.push(now);
+
+  if (sets.length) {
+    db.prepare(`UPDATE wanted_posts SET ${sets.join(",")} WHERE id = ?`).run(...params, id);
+  }
+
+  const updated = db
+    .prepare(
+      `
+SELECT w.*, u.display_name as user_display_name, u.username as user_username
+FROM wanted_posts w
+JOIN users u ON u.id = w.user_id
+WHERE w.id = ?
+`
+    )
+    .get(id) as any | undefined;
+
+  return res.json(mapWantedRow(updated));
+});
+
+app.post("/api/wanted/:id/close", requireAuth, (req, res) => {
+  const id = req.params.id;
+  const row = db.prepare(`SELECT * FROM wanted_posts WHERE id = ?`).get(id) as any | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
+
+  const now = nowIso();
+  db.prepare(`UPDATE wanted_posts SET status='closed',updated_at=? WHERE id = ?`).run(now, id);
+
+  const updated = db
+    .prepare(
+      `
+SELECT w.*, u.display_name as user_display_name, u.username as user_username
+FROM wanted_posts w
+JOIN users u ON u.id = w.user_id
+WHERE w.id = ?
+`
+    )
+    .get(id) as any | undefined;
+
+  return res.json(mapWantedRow(updated));
+});
+
+app.post("/api/wanted/:id/reopen", requireAuth, (req, res) => {
+  const id = req.params.id;
+  const row = db.prepare(`SELECT * FROM wanted_posts WHERE id = ?`).get(id) as any | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
+
+  const now = nowIso();
+  db.prepare(`UPDATE wanted_posts SET status='open',updated_at=? WHERE id = ?`).run(now, id);
+
+  const updated = db
+    .prepare(
+      `
+SELECT w.*, u.display_name as user_display_name, u.username as user_username
+FROM wanted_posts w
+JOIN users u ON u.id = w.user_id
+WHERE w.id = ?
+`
+    )
+    .get(id) as any | undefined;
+
+  return res.json(mapWantedRow(updated));
+});
+
+app.delete("/api/wanted/:id", requireAuth, (req, res) => {
+  const id = req.params.id;
+  const row = db.prepare(`SELECT * FROM wanted_posts WHERE id = ?`).get(id) as any | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
+
+  db.prepare(`DELETE FROM wanted_posts WHERE id = ?`).run(id);
   return res.json({ ok: true });
 });
 

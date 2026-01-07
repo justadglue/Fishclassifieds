@@ -12,6 +12,10 @@ import FaqPage from "./pages/FaqPage.tsx";
 import ContactPage from "./pages/ContactPage.tsx";
 import TermsPage from "./pages/TermsPage.tsx";
 import PrivacyPage from "./pages/PrivacyPage.tsx";
+import WantedBrowsePage from "./pages/WantedBrowsePage.tsx";
+import WantedPostPage from "./pages/WantedPostPage.tsx";
+import WantedDetailPage from "./pages/WantedDetailPage.tsx";
+import WantedEditPage from "./pages/WantedEditPage.tsx";
 
 export default function App() {
   return (
@@ -23,6 +27,10 @@ export default function App() {
       <Route path="/me" element={<MyListingsPage />} />
       <Route path="/edit/:id" element={<EditListingPage />} />
       <Route path="/profile" element={<ProfilePage />} />
+      <Route path="/wanted" element={<WantedBrowsePage />} />
+      <Route path="/wanted/post" element={<WantedPostPage />} />
+      <Route path="/wanted/:id" element={<WantedDetailPage />} />
+      <Route path="/wanted/edit/:id" element={<WantedEditPage />} />
       <Route path="/faq" element={<FaqPage />} />
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/terms" element={<TermsPage />} />

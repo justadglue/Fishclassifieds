@@ -29,6 +29,24 @@ export type Listing = {
 };
 
 export type SortMode = "newest" | "price_asc" | "price_desc";
+export type WantedStatus = "open" | "closed";
+
+export type WantedPost = {
+  id: string;
+  userId: number;
+  userDisplayName: string | null;
+  username: string | null;
+  title: string;
+  category: Category;
+  species: string | null;
+  budgetMinCents: number | null;
+  budgetMaxCents: number | null;
+  location: string;
+  status: WantedStatus;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 const API_BASE = (import.meta as any).env?.VITE_API_URL?.toString().trim() || "http://localhost:3001";
 
@@ -140,6 +158,84 @@ export async function fetchListings(params?: {
   if (params?.offset !== undefined) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return apiFetch<{ items: Listing[]; total: number; limit: number; offset: number }>(`/api/listings${suffix}`);
+}
+
+export async function fetchWanted(params?: {
+  q?: string;
+  category?: Category;
+  species?: string;
+  status?: WantedStatus;
+  minBudgetCents?: number;
+  maxBudgetCents?: number;
+  limit?: number;
+  offset?: number;
+}) {
+  const qs = new URLSearchParams();
+  if (params?.q) qs.set("q", params.q);
+  if (params?.category) qs.set("category", params.category);
+  if (params?.species) qs.set("species", params.species);
+  if (params?.status) qs.set("status", params.status);
+  if (params?.minBudgetCents !== undefined) qs.set("min", String(params.minBudgetCents));
+  if (params?.maxBudgetCents !== undefined) qs.set("max", String(params.maxBudgetCents));
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<{ items: WantedPost[]; total: number; limit: number; offset: number }>(`/api/wanted${suffix}`);
+}
+
+export async function fetchWantedPost(id: string) {
+  return apiFetch<WantedPost>(`/api/wanted/${encodeURIComponent(id)}`);
+}
+
+export async function createWantedPost(input: {
+  title: string;
+  category: Category;
+  species?: string | null;
+  budgetMinCents?: number | null;
+  budgetMaxCents?: number | null;
+  location: string;
+  description: string;
+}) {
+  return apiFetch<WantedPost>(`/api/wanted`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateWantedPost(
+  id: string,
+  input: {
+    title?: string;
+    category?: Category;
+    species?: string | null;
+    budgetMinCents?: number | null;
+    budgetMaxCents?: number | null;
+    location?: string;
+    description?: string;
+  }
+) {
+  return apiFetch<WantedPost>(`/api/wanted/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+async function postWantedAction(id: string, action: "close" | "reopen") {
+  return apiFetch<WantedPost>(`/api/wanted/${encodeURIComponent(id)}/${action}`, { method: "POST" });
+}
+
+export function closeWantedPost(id: string) {
+  return postWantedAction(id, "close");
+}
+
+export function reopenWantedPost(id: string) {
+  return postWantedAction(id, "reopen");
+}
+
+export async function deleteWantedPost(id: string) {
+  return apiFetch<{ ok: true }>(`/api/wanted/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export async function fetchListing(id: string) {

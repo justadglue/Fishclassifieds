@@ -59,6 +59,23 @@ export type UserProfileRow = {
   updated_at: string;
 };
 
+export type WantedStatus = "open" | "closed";
+
+export type WantedPostRow = {
+  id: string;
+  user_id: number;
+  title: string;
+  description: string;
+  category: string;
+  species: string | null;
+  budget_min_cents: number | null;
+  budget_max_cents: number | null;
+  location: string;
+  status: WantedStatus;
+  created_at: string;
+  updated_at: string;
+};
+
 function ensureDir(p: string) {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 }
@@ -166,6 +183,27 @@ CREATE TABLE IF NOT EXISTS deleted_accounts(
 CREATE INDEX IF NOT EXISTS idx_deleted_accounts_deleted_at ON deleted_accounts(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_deleted_accounts_email_hash ON deleted_accounts(email_hash);
 CREATE INDEX IF NOT EXISTS idx_deleted_accounts_username_hash ON deleted_accounts(username_hash);
+
+-- Buyer requests / wanted posts
+CREATE TABLE IF NOT EXISTS wanted_posts(
+  id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'Fish',
+  species TEXT,
+  budget_min_cents INTEGER,
+  budget_max_cents INTEGER,
+  location TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_wanted_posts_created_at ON wanted_posts(created_at);
+CREATE INDEX IF NOT EXISTS idx_wanted_posts_status_created_at ON wanted_posts(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_wanted_posts_user_id ON wanted_posts(user_id);
 `);
 }
 

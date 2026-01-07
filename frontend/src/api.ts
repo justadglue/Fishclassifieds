@@ -10,6 +10,7 @@ export type ImageAsset = {
 
 export type Listing = {
   id: string;
+  featured?: boolean;
   title: string;
   category: Category;
   species: string;
@@ -122,6 +123,7 @@ export async function fetchListings(params?: {
   species?: string;
   minPriceCents?: number;
   maxPriceCents?: number;
+  featured?: boolean;
   sort?: SortMode;
   limit?: number;
   offset?: number;
@@ -132,6 +134,7 @@ export async function fetchListings(params?: {
   if (params?.species) qs.set("species", params.species);
   if (params?.minPriceCents !== undefined) qs.set("minPriceCents", String(params.minPriceCents));
   if (params?.maxPriceCents !== undefined) qs.set("maxPriceCents", String(params.maxPriceCents));
+  if (params?.featured) qs.set("featured", "1");
   if (params?.sort) qs.set("sort", params.sort);
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
   if (params?.offset !== undefined) qs.set("offset", String(params.offset));

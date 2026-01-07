@@ -24,6 +24,15 @@ const app = express();
 const db = openDb();
 (app as any).locals.db = db;
 
+const HAS_LISTINGS_FEATURED = (() => {
+  try {
+    const rows = db.pragma("table_info(listings)") as Array<{ name: string }>;
+    return rows.some((r) => r.name === "featured");
+  } catch {
+    return false;
+  }
+})();
+
 app.set("trust proxy", 1);
 
 app.use(
@@ -464,6 +473,7 @@ app.get("/api/listings", (req, res) => {
   const q = String(req.query.q ?? "").trim().toLowerCase();
   const species = String(req.query.species ?? "").trim().toLowerCase();
   const category = String(req.query.category ?? "").trim();
+  const featured = String(req.query.featured ?? "").trim();
   const min = req.query.minPriceCents ? Number(req.query.minPriceCents) : undefined;
   const max = req.query.maxPriceCents ? Number(req.query.maxPriceCents) : undefined;
   const sort = String(req.query.sort ?? "newest");
@@ -476,6 +486,15 @@ app.get("/api/listings", (req, res) => {
   const params: any[] = [];
   where.push(`status IN('active','pending')`);
   where.push(`resolution = 'none'`);
+
+  if (featured === "1") {
+    if (!HAS_LISTINGS_FEATURED) {
+      return res.status(400).json({
+        error: "DB is missing listings.featured. Run: npm --prefix backend run db:migration -- --seed-featured",
+      });
+    }
+    where.push(`featured = 1`);
+  }
 
   if (q) {
     where.push("(lower(title)LIKE ? OR lower(description)LIKE ? OR lower(location)LIKE ? OR lower(species)LIKE ?)");
@@ -722,6 +741,7 @@ function mapListing(req: express.Request, row: ListingRow & any) {
 
   return {
     id: row.id,
+    featured: HAS_LISTINGS_FEATURED ? Boolean((row as any).featured) : false,
     title: row.title,
     category: row.category,
     species: row.species,

@@ -313,7 +313,7 @@ export default function HomePage() {
                 </div>
               </div>
               <button type="button" onClick={() => goBrowse()} className="text-sm font-extrabold text-white/80 hover:text-white">
-                View all →
+                View all listings→
               </button>
             </div>
 
@@ -486,6 +486,64 @@ export default function HomePage() {
             </div>
           </section>
         </main>
+
+        <footer className="border-t border-white/10">
+          <div className="mx-auto max-w-6xl px-4 py-10">
+            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="text-center">
+                <div className="text-xs font-bold uppercase tracking-wider text-white/60">Explore</div>
+                <div className="mt-3 flex flex-col items-center gap-2">
+                  <Link to="/browse" className="text-sm font-semibold text-white/75 hover:text-white">
+                    Browse listings
+                  </Link>
+                  <Link to="/post" className="text-sm font-semibold text-white/75 hover:text-white">
+                    Post a listing
+                  </Link>
+                  <Link to="/me" className="text-sm font-semibold text-white/75 hover:text-white">
+                    My listings
+                  </Link>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <div className="text-xs font-bold uppercase tracking-wider text-white/60">Account</div>
+                <div className="mt-3 flex flex-col items-center gap-2">
+                  <Link to="/profile" className="text-sm font-semibold text-white/75 hover:text-white">
+                    My profile
+                  </Link>
+                  <Link to="/login" className="text-sm font-semibold text-white/75 hover:text-white">
+                    Login
+                  </Link>
+                  <Link to="/signup" className="text-sm font-semibold text-white/75 hover:text-white">
+                    Sign up
+                  </Link>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <div className="text-xs font-bold uppercase tracking-wider text-white/60">Support</div>
+                <div className="mt-3 flex flex-col items-center gap-2">
+                  <Link to="/faq" className="text-sm font-semibold text-white/75 hover:text-white">
+                    FAQ
+                  </Link>
+                  <Link to="/contact" className="text-sm font-semibold text-white/75 hover:text-white">
+                    Contact
+                  </Link>
+                  <Link to="/terms" className="text-sm font-semibold text-white/75 hover:text-white">
+                    Terms
+                  </Link>
+                  <Link to="/privacy" className="text-sm font-semibold text-white/75 hover:text-white">
+                    Privacy
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 border-t border-white/10 pt-6 text-center text-sm font-semibold text-white/60">
+              © {new Date().getFullYear()} Fishclassifieds. All rights reserved.
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   );

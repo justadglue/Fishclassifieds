@@ -8,6 +8,10 @@ import PostListingPage from "./pages/PostListingPage";
 import MyListingsPage from "./pages/MyListingsPage";
 import EditListingPage from "./pages/EditListingPage";
 import ProfilePage from "./pages/ProfilePage";
+import FaqPage from "./pages/FaqPage.tsx";
+import ContactPage from "./pages/ContactPage.tsx";
+import TermsPage from "./pages/TermsPage.tsx";
+import PrivacyPage from "./pages/PrivacyPage.tsx";
 
 export default function App() {
   return (
@@ -19,6 +23,10 @@ export default function App() {
       <Route path="/me" element={<MyListingsPage />} />
       <Route path="/edit/:id" element={<EditListingPage />} />
       <Route path="/profile" element={<ProfilePage />} />
+      <Route path="/faq" element={<FaqPage />} />
+      <Route path="/contact" element={<ContactPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignUpPage />} />
     </Routes>

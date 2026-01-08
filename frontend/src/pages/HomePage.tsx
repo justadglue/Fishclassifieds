@@ -350,15 +350,26 @@ export default function HomePage() {
 
             <div className="mt-5">
               {(() => {
-                const VISIBLE = Math.max(1, featuredCols);
+                const ROWS = 2;
+                const VISIBLE_COLS = Math.max(1, featuredCols);
                 const n = featured.length;
-                const hasOverflow = n > VISIBLE;
-                const safeIndex = n > 0 ? ((featuredIndex % n) + n) % n : 0;
+                const colCount = Math.ceil(n / ROWS);
+                const hasOverflow = colCount > VISIBLE_COLS;
+
+                // featuredIndex is the column index of the leftmost visible column.
+                const safeColIndex = colCount > 0 ? ((featuredIndex % colCount) + colCount) % colCount : 0;
                 const isSliding = featuredSlideDir != null;
 
-                const windowItems = hasOverflow
-                  ? Array.from({ length: VISIBLE + 2 }, (_, i) => featured[(safeIndex + i - 1 + n) % n]!)
-                  : featured.slice(0, VISIBLE);
+                // Build "true" columns (2 rows per column) so wrapping never re-pairs items.
+                const cols: Array<Array<Listing | null>> = Array.from({ length: colCount }, (_, c) => [
+                  featured[c * ROWS] ?? null,
+                  featured[c * ROWS + 1] ?? null,
+                ]);
+
+                const windowColSlots = hasOverflow ? Math.min(colCount, VISIBLE_COLS + 2) : Math.min(colCount, VISIBLE_COLS);
+                const windowColIndices = hasOverflow
+                  ? Array.from({ length: windowColSlots }, (_, i) => (safeColIndex + i - 1 + colCount) % colCount)
+                  : Array.from({ length: windowColSlots }, (_, i) => i);
 
                 function shift(dir: -1 | 1) {
                   if (!hasOverflow) return;
@@ -386,7 +397,7 @@ export default function HomePage() {
                         setFeaturedIndex(0);
                       } else if (e.key === "End") {
                         e.preventDefault();
-                        setFeaturedIndex(Math.max(0, n - 1));
+                        setFeaturedIndex(Math.max(0, colCount - 1));
                       }
                     }}
                     onTouchStart={(e) => setTouchStartX(e.touches[0]?.clientX ?? null)}
@@ -403,70 +414,90 @@ export default function HomePage() {
                       else shift(-1);
                     }}
                   >
-                    {/* Overlay arrows (modulo looping) */}
-                    {hasOverflow && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => shift(-1)}
-                          className="absolute left-2 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900"
-                          aria-label="Previous promoted listing"
-                        >
-                          <span aria-hidden="true">←</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => shift(1)}
-                          className="absolute right-2 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900"
-                          aria-label="Next promoted listing"
-                        >
-                          <span aria-hidden="true">→</span>
-                        </button>
-                      </>
-                    )}
+                    <div className="relative">
+                      {/* Outside-edge arrows, vertically centered between the two rows */}
+                      {hasOverflow && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => shift(-1)}
+                            className="absolute left-0 top-1/2 z-20 inline-flex h-11 w-11 -translate-x-full -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900"
+                            aria-label="Previous promoted listing"
+                          >
+                            <span aria-hidden="true">←</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => shift(1)}
+                            className="absolute right-0 top-1/2 z-20 inline-flex h-11 w-11 translate-x-full -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900"
+                            aria-label="Next promoted listing"
+                          >
+                            <span aria-hidden="true">→</span>
+                          </button>
+                        </>
+                      )}
 
-                    {!hasOverflow ? (
-                      <div
-                        className="grid min-w-0 gap-4"
-                        style={{ gridTemplateColumns: `repeat(${Math.max(1, windowItems.length)}, minmax(0, 1fr))` }}
-                      >
-                        {windowItems.map((l) => (
-                          <Link key={l.id} to={`/listing/${l.id}`} className="block min-w-0">
-                            <FeaturedCard item={l} />
-                          </Link>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="overflow-hidden">
+                      {!hasOverflow ? (
                         <div
-                          className="-mx-2 flex will-change-transform"
-                          style={{
-                            transform: `translateX(-${(1 + (isSliding ? (featuredSlideDir as -1 | 1) : 0)) * (100 / VISIBLE)}%)`,
-                            transition: isSliding ? "transform 280ms ease" : "none",
-                          }}
-                          onTransitionEnd={(e) => {
-                            if (e.propertyName !== "transform") return;
-                            if (!featuredSlideDir) return;
-                            const dir = featuredSlideDir;
-                            setFeaturedIndex((i) => ((i + dir) % n + n) % n);
-                            setFeaturedSlideDir(null);
-                          }}
+                          className="grid min-w-0 gap-4"
+                          style={{ gridTemplateColumns: `repeat(${Math.max(1, windowColIndices.length)}, minmax(0, 1fr))` }}
                         >
-                          {windowItems.map((l) => (
-                            <div key={`${l.id}-${safeIndex}`} className="shrink-0 px-2" style={{ width: `${100 / VISIBLE}%` }}>
-                              <Link to={`/listing/${l.id}`} className="block min-w-0">
-                                <FeaturedCard item={l} />
-                              </Link>
+                          {windowColIndices.map((colIdx) => (
+                            <div key={`featured-col-static-${colIdx}`} className="min-w-0">
+                              <div className="flex flex-col gap-4">
+                                {cols[colIdx]?.map((l) =>
+                                  l ? (
+                                    <Link key={l.id} to={`/listing/${l.id}`} className="block min-w-0">
+                                      <FeaturedCard item={l} />
+                                    </Link>
+                                  ) : null
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="overflow-hidden">
+                          <div
+                            className="-mx-2 flex will-change-transform"
+                            style={{
+                              transform: `translateX(-${(1 + (isSliding ? (featuredSlideDir as -1 | 1) : 0)) * (100 / VISIBLE_COLS)}%)`,
+                              transition: isSliding ? "transform 280ms ease" : "none",
+                            }}
+                            onTransitionEnd={(e) => {
+                              if (e.propertyName !== "transform") return;
+                              if (!featuredSlideDir) return;
+                              const dir = featuredSlideDir;
+                              setFeaturedIndex((i) => ((i + dir) % colCount + colCount) % colCount);
+                              setFeaturedSlideDir(null);
+                            }}
+                          >
+                            {windowColIndices.map((colIdx) => (
+                              <div
+                                key={`featured-col-${colIdx}`}
+                                className="shrink-0 px-2"
+                                style={{ width: `${100 / VISIBLE_COLS}%` }}
+                              >
+                                <div className="flex flex-col gap-4">
+                                  {cols[colIdx]?.map((l) =>
+                                    l ? (
+                                      <Link key={l.id} to={`/listing/${l.id}`} className="block min-w-0">
+                                        <FeaturedCard item={l} />
+                                      </Link>
+                                    ) : null
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                     {hasOverflow && (
                       <div className="mt-4 flex flex-wrap items-center justify-center gap-2" role="tablist" aria-label="Promoted listing position">
-                        {Array.from({ length: n }, (_, i) => {
-                          const active = i === safeIndex;
+                        {Array.from({ length: colCount }, (_, i) => {
+                          const active = i === safeColIndex;
                           return (
                             <button
                               key={`featured-dot-${i}`}
@@ -478,7 +509,7 @@ export default function HomePage() {
                                   ? "border-slate-900 bg-slate-900"
                                   : "border-slate-300 bg-slate-200 hover:bg-slate-300",
                               ].join(" ")}
-                              aria-label={`Go to featured listing ${i + 1} of ${n}`}
+                              aria-label={`Go to featured column ${i + 1} of ${colCount}`}
                               aria-current={active ? "true" : undefined}
                             />
                           );

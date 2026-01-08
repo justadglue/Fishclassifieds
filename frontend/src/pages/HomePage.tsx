@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { fetchListings, resolveAssets, type Listing } from "../api";
 import Header from "../components/Header";
+import homepageBackground from "../assets/homepage_background_1.jpg";
 
 const CATEGORIES = ["", "Fish", "Shrimp", "Snails", "Plants", "Equipment"] as const;
 
@@ -22,28 +23,28 @@ function featuredHeroUrl(listing: Listing) {
 function FeaturedCard({ item }: { item: Listing }) {
   const hero = featuredHeroUrl(item);
   return (
-    <div className="group min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur hover:bg-white/10">
-      <div className="relative aspect-4/3 w-full bg-black/20">
+    <div className="group min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+      <div className="relative aspect-4/3 w-full bg-slate-100">
         <img
           src={hero}
           alt={item.title}
-          className="h-full w-full object-cover opacity-85 transition-transform duration-300 group-hover:scale-[1.02]"
+          className="h-full w-full object-cover opacity-90 transition-transform duration-300 group-hover:scale-[1.02]"
           loading="lazy"
           decoding="async"
         />
-        <div className="absolute left-3 top-3 rounded-full bg-black/55 px-2 py-1 text-[11px] font-bold text-white backdrop-blur">
+        <div className="absolute left-3 top-3 rounded-full bg-slate-900 px-2 py-1 text-[11px] font-bold text-white">
           Featured
         </div>
       </div>
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="truncate text-sm font-extrabold text-white">{item.title}</div>
-            <div className="mt-1 truncate text-xs font-semibold text-white/75">
+            <div className="truncate text-sm font-extrabold text-slate-900">{item.title}</div>
+            <div className="mt-1 truncate text-xs font-semibold text-slate-600">
               {item.category} • {item.species} • {item.location}
             </div>
           </div>
-          <div className="shrink-0 rounded-xl bg-white px-3 py-1 text-xs font-extrabold text-slate-900">
+          <div className="shrink-0 rounded-xl bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">
             {centsToDollars(item.priceCents)}
           </div>
         </div>
@@ -105,8 +106,6 @@ export default function HomePage() {
     nav(`/browse${suffix}`);
   }
 
-  const heroImg =
-    "https://images.unsplash.com/photo-1520301255226-bf5f144451e1?auto=format&fit=crop&w=2200&q=80";
 
   useEffect(() => {
     let cancelled = false;
@@ -163,45 +162,46 @@ export default function HomePage() {
     <div className="min-h-full">
       <Header maxWidth="6xl" />
 
+      {/* Search and Browse Section with Background Image */}
       <div className="relative">
         <div className="absolute inset-0 -z-10">
-          <img src={heroImg} alt="" className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-linear-to-b from-slate-950/70 via-slate-950/70 to-slate-950" />
+          <img src={homepageBackground} alt="" className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-linear-to-b from-slate-950/40 via-slate-950/50 to-slate-950/70" />
         </div>
 
         <main className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
           <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80 backdrop-blur">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold text-white/90 backdrop-blur">
               Find fish, plants, shrimp, snails, and equipment near you
             </div>
 
             <h1 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">
               Search local aquarium listings.
             </h1>
-            <p className="mt-4 text-base leading-relaxed text-white/80">
+            <p className="mt-4 text-base leading-relaxed text-white/90">
               Use search and filters to find the right stock fast — then message the seller or post your own.
             </p>
           </div>
 
-          <div className="mt-8 overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur">
+          <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
             <div className="p-5 sm:p-6">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <label className="block lg:col-span-2">
-                  <div className="mb-1 text-xs font-semibold text-white/70">Search</div>
+                  <div className="mb-1 text-xs font-semibold text-slate-700">Search</div>
                   <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
                     placeholder="e.g. guppy, brisbane, breeder..."
-                    className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white placeholder:text-white/45 outline-none focus:border-white/25"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-400"
                   />
                 </label>
 
                 <label className="block">
-                  <div className="mb-1 text-xs font-semibold text-white/70">Category</div>
+                  <div className="mb-1 text-xs font-semibold text-slate-700">Category</div>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value as any)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white outline-none focus:border-white/25"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-slate-400"
                   >
                     {CATEGORIES.map((c) => (
                       <option key={c || "Any"} value={c} className="text-slate-900">
@@ -212,35 +212,35 @@ export default function HomePage() {
                 </label>
 
                 <label className="block">
-                  <div className="mb-1 text-xs font-semibold text-white/70">Species</div>
+                  <div className="mb-1 text-xs font-semibold text-slate-700">Species</div>
                   <input
                     value={species}
                     onChange={(e) => setSpecies(e.target.value)}
                     placeholder="e.g. betta"
-                    className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white placeholder:text-white/45 outline-none focus:border-white/25"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-400"
                   />
                 </label>
 
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">
-                    <div className="mb-1 text-xs font-semibold text-white/70">Min ($)</div>
+                    <div className="mb-1 text-xs font-semibold text-slate-700">Min ($)</div>
                     <input
                       value={min}
                       onChange={(e) => setMin(e.target.value)}
                       inputMode="decimal"
                       placeholder="0"
-                      className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white placeholder:text-white/45 outline-none focus:border-white/25"
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-400"
                     />
                   </label>
 
                   <label className="block">
-                    <div className="mb-1 text-xs font-semibold text-white/70">Max ($)</div>
+                    <div className="mb-1 text-xs font-semibold text-slate-700">Max ($)</div>
                     <input
                       value={max}
                       onChange={(e) => setMax(e.target.value)}
                       inputMode="decimal"
                       placeholder="200"
-                      className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white placeholder:text-white/45 outline-none focus:border-white/25"
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-400"
                     />
                   </label>
                 </div>
@@ -253,7 +253,7 @@ export default function HomePage() {
                       key={c.label}
                       type="button"
                       onClick={() => goBrowse(c.params)}
-                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-white/85 hover:bg-white/10"
+                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
                     >
                       {c.label}
                     </button>
@@ -264,14 +264,14 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={() => goBrowse()}
-                    className="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-extrabold text-slate-900 hover:bg-slate-100"
+                    className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-extrabold text-white hover:bg-slate-800"
                   >
                     Browse
                   </button>
                   <button
                     type="button"
                     onClick={() => nav("/post")}
-                    className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-extrabold text-white hover:bg-white/10"
+                    className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-900 hover:bg-slate-50"
                   >
                     Post a listing
                   </button>
@@ -281,7 +281,7 @@ export default function HomePage() {
           </div>
 
           <section className="mt-10">
-            <div className="text-xs font-bold uppercase tracking-wider text-white/60">Browse by category</div>
+            <div className="text-xs font-bold uppercase tracking-wider text-white/70">Browse by category</div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               {[
                 { label: "Fish", params: { category: "Fish" } },
@@ -294,37 +294,42 @@ export default function HomePage() {
                   key={t.label}
                   type="button"
                   onClick={() => goBrowse(t.params)}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-4 text-left backdrop-blur hover:bg-white/10"
+                  className="rounded-2xl border border-white/20 bg-white/10 p-4 text-left backdrop-blur hover:bg-white/20"
                 >
                   <div className="text-sm font-extrabold text-white">{t.label}</div>
-                  <div className="mt-1 text-xs font-semibold text-white/70">Explore</div>
+                  <div className="mt-1 text-xs font-semibold text-white/80">Explore</div>
                 </button>
               ))}
             </div>
           </section>
+        </main>
+      </div>
 
-          <section className="mt-10">
+      {/* Featured Listings Section with Gradient Background */}
+      <div className="relative bg-slate-50">
+        <main className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
+          <section>
             <div className="flex items-end justify-between gap-4">
               <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-white/60">Featured listings</div>
-                <h2 className="mt-2 text-2xl font-black text-white">Promoted listings</h2>
-                <div className="mt-1 text-sm font-semibold text-white/70">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Featured listings</div>
+                <h2 className="mt-2 text-2xl font-black text-slate-900">Promoted listings</h2>
+                <div className="mt-1 text-sm font-semibold text-slate-600">
                   These are paid placements. (Placeholder cards for now — we can hook this to real listings later.)
                 </div>
               </div>
-              <button type="button" onClick={() => goBrowse()} className="text-sm font-extrabold text-white/80 hover:text-white">
+              <button type="button" onClick={() => goBrowse()} className="text-sm font-extrabold text-slate-700 hover:text-slate-900">
                 View all listings→
               </button>
             </div>
 
-            {featuredLoading && <div className="mt-5 text-sm font-semibold text-white/70">Loading featured…</div>}
+            {featuredLoading && <div className="mt-5 text-sm font-semibold text-slate-600">Loading featured…</div>}
 
             {featuredErr && (
-              <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm font-semibold text-white/80 backdrop-blur">
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-800 shadow-sm">
                 {featuredErr}
-                <div className="mt-2 text-xs font-semibold text-white/65">
+                <div className="mt-2 text-xs font-semibold text-slate-600">
                   If this is your first time enabling featured listings, run:
-                  <div className="mt-1 font-mono text-[11px] text-white/70">
+                  <div className="mt-1 font-mono text-[11px] text-slate-500">
                     npm --prefix backend run db:migration -- --seed-featured
                   </div>
                 </div>
@@ -332,11 +337,11 @@ export default function HomePage() {
             )}
 
             {!featuredLoading && !featuredErr && featured.length === 0 && (
-              <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm font-semibold text-white/80 backdrop-blur">
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-800 shadow-sm">
                 No featured listings yet.
-                <div className="mt-2 text-xs font-semibold text-white/65">
+                <div className="mt-2 text-xs font-semibold text-slate-600">
                   To demo this, run:
-                  <div className="mt-1 font-mono text-[11px] text-white/70">
+                  <div className="mt-1 font-mono text-[11px] text-slate-500">
                     npm --prefix backend run db:migration -- --seed-featured
                   </div>
                 </div>
@@ -404,7 +409,7 @@ export default function HomePage() {
                         <button
                           type="button"
                           onClick={() => shift(-1)}
-                          className="absolute left-2 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-white/10 bg-black/35 text-white backdrop-blur hover:bg-black/45"
+                          className="absolute left-2 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900"
                           aria-label="Previous promoted listing"
                         >
                           <span aria-hidden="true">←</span>
@@ -412,7 +417,7 @@ export default function HomePage() {
                         <button
                           type="button"
                           onClick={() => shift(1)}
-                          className="absolute right-2 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-white/10 bg-black/35 text-white backdrop-blur hover:bg-black/45"
+                          className="absolute right-2 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900"
                           aria-label="Next promoted listing"
                         >
                           <span aria-hidden="true">→</span>
@@ -470,8 +475,8 @@ export default function HomePage() {
                               className={[
                                 "h-2.5 w-2.5 rounded-full border transition",
                                 active
-                                  ? "border-white/60 bg-white/80"
-                                  : "border-white/25 bg-white/15 hover:bg-white/25",
+                                  ? "border-slate-900 bg-slate-900"
+                                  : "border-slate-300 bg-slate-200 hover:bg-slate-300",
                               ].join(" ")}
                               aria-label={`Go to featured listing ${i + 1} of ${n}`}
                               aria-current={active ? "true" : undefined}
@@ -487,59 +492,59 @@ export default function HomePage() {
           </section>
         </main>
 
-        <footer className="border-t border-white/10">
+        <footer className="border-t border-slate-200">
           <div className="mx-auto max-w-6xl px-4 py-10">
             <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
               <div className="text-center">
-                <div className="text-xs font-bold uppercase tracking-wider text-white/60">Explore</div>
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Explore</div>
                 <div className="mt-3 flex flex-col items-center gap-2">
-                  <Link to="/browse" className="text-sm font-semibold text-white/75 hover:text-white">
+                  <Link to="/browse" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
                     Browse listings
                   </Link>
-                  <Link to="/post" className="text-sm font-semibold text-white/75 hover:text-white">
+                  <Link to="/post" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
                     Post a listing
                   </Link>
-                  <Link to="/me" className="text-sm font-semibold text-white/75 hover:text-white">
+                  <Link to="/me" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
                     My listings
                   </Link>
                 </div>
               </div>
 
               <div className="text-center">
-                <div className="text-xs font-bold uppercase tracking-wider text-white/60">Account</div>
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Account</div>
                 <div className="mt-3 flex flex-col items-center gap-2">
-                  <Link to="/profile" className="text-sm font-semibold text-white/75 hover:text-white">
+                  <Link to="/profile" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
                     My profile
                   </Link>
-                  <Link to="/login" className="text-sm font-semibold text-white/75 hover:text-white">
+                  <Link to="/login" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
                     Login
                   </Link>
-                  <Link to="/signup" className="text-sm font-semibold text-white/75 hover:text-white">
+                  <Link to="/signup" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
                     Sign up
                   </Link>
                 </div>
               </div>
 
               <div className="text-center">
-                <div className="text-xs font-bold uppercase tracking-wider text-white/60">Support</div>
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Support</div>
                 <div className="mt-3 flex flex-col items-center gap-2">
-                  <Link to="/faq" className="text-sm font-semibold text-white/75 hover:text-white">
+                  <Link to="/faq" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
                     FAQ
                   </Link>
-                  <Link to="/contact" className="text-sm font-semibold text-white/75 hover:text-white">
+                  <Link to="/contact" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
                     Contact
                   </Link>
-                  <Link to="/terms" className="text-sm font-semibold text-white/75 hover:text-white">
+                  <Link to="/terms" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
                     Terms
                   </Link>
-                  <Link to="/privacy" className="text-sm font-semibold text-white/75 hover:text-white">
+                  <Link to="/privacy" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
                     Privacy
                   </Link>
                 </div>
               </div>
             </div>
 
-            <div className="mt-8 border-t border-white/10 pt-6 text-center text-sm font-semibold text-white/60">
+            <div className="mt-8 border-t border-slate-200 pt-6 text-center text-sm font-semibold text-slate-500">
               © {new Date().getFullYear()} Fishclassifieds. All rights reserved.
             </div>
           </div>

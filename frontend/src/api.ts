@@ -305,6 +305,10 @@ export async function setListingFeaturingForDays(id: string, days: number) {
   return updateListing(id, { featured: true, featuredUntil: Date.now() + ms });
 }
 
+export async function setListingFeaturingUntilMs(id: string, featuredUntilMs: number) {
+  return updateListing(id, { featured: true, featuredUntil: featuredUntilMs });
+}
+
 export async function clearListingFeaturing(id: string) {
   return updateListing(id, { featured: false, featuredUntil: null });
 }

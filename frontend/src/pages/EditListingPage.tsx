@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { CheckIcon, PauseIcon, PlayIcon, TrashIcon } from "@heroicons/react/20/solid";
+import { Check, Pause, Play, Trash2 } from "lucide-react";
 import {
   deleteListing,
   fetchListing,
@@ -72,8 +72,8 @@ function IconButton(props: {
     variant === "danger"
       ? "border-red-200 bg-white text-red-700 hover:bg-red-50 focus-visible:ring-red-300 disabled:opacity-60"
       : variant === "primary"
-      ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800 focus-visible:ring-slate-400 disabled:opacity-60"
-      : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50 focus-visible:ring-slate-300 disabled:opacity-60";
+        ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800 focus-visible:ring-slate-400 disabled:opacity-60"
+        : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50 focus-visible:ring-slate-300 disabled:opacity-60";
 
   return (
     <button type="button" title={title} aria-label={title} onClick={onClick} disabled={disabled} className={`${base} ${cls}`}>
@@ -240,7 +240,7 @@ export default function EditListingPage() {
     try {
       for (const p of pending) {
         if (p.status === "uploaded" && p.uploaded) continue;
-        await uploadOne(p).catch(() => {});
+        await uploadOne(p).catch(() => { });
       }
     } finally {
       setUploading(false);
@@ -425,24 +425,24 @@ export default function EditListingPage() {
                 <IconButton title={toggleLabel} onClick={doTogglePauseResume} disabled={!canTogglePause || loading} variant="default">
                   {orig.status === "paused" ? (
                     <>
-                      <PlayIcon aria-hidden="true" className="h-5 w-5" />
+                      <Play aria-hidden="true" className="h-5 w-5" />
                       <span className="ml-2">Resume Ad</span>
                     </>
                   ) : (
                     <>
-                      <PauseIcon aria-hidden="true" className="h-5 w-5" />
+                      <Pause aria-hidden="true" className="h-5 w-5" />
                       <span className="ml-2">Pause Ad</span>
                     </>
                   )}
                 </IconButton>
 
                 <IconButton title="Mark as sold" onClick={doSold} disabled={!canResolve || loading} variant="primary">
-                  <CheckIcon aria-hidden="true" className="h-5 w-5" />
+                  <Check aria-hidden="true" className="h-5 w-5" />
                   <span className="ml-2">Mark as Sold</span>
                 </IconButton>
 
                 <IconButton title="Delete listing" onClick={onDelete} disabled={loading || uploading || !ownerToken} variant="danger">
-                  <TrashIcon aria-hidden="true" className="h-5 w-5" />
+                  <Trash2 aria-hidden="true" className="h-5 w-5" />
                   <span className="ml-2">Delete</span>
                 </IconButton>
               </div>
@@ -589,10 +589,10 @@ export default function EditListingPage() {
                             {p.status === "uploading"
                               ? "Uploading..."
                               : p.status === "uploaded"
-                              ? "Uploaded"
-                              : p.status === "error"
-                              ? "Error"
-                              : "Ready"}
+                                ? "Uploaded"
+                                : p.status === "error"
+                                  ? "Error"
+                                  : "Ready"}
                           </div>
                         </div>
 

@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  CheckIcon,
-  ClockIcon,
-  ExclamationTriangleIcon,
-  PauseIcon,
-  PencilSquareIcon,
-  PlayIcon,
-  TrashIcon,
-} from "@heroicons/react/20/solid";
+  Check,
+  CircleCheck,
+  CircleX,
+  Hourglass,
+  Pause,
+  Pencil,
+  Play,
+  Trash2,
+} from "lucide-react";
 import {
   deleteListing,
   fetchListing,
@@ -57,16 +58,16 @@ function Badge({ l }: { l: Listing }) {
     r !== "none"
       ? "bg-slate-100 text-slate-800 border-slate-200"
       : s === "active"
-      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-      : s === "pending"
-      ? "bg-amber-50 text-amber-900 border-amber-200"
-      : s === "paused"
-      ? "bg-violet-50 text-violet-900 border-violet-200"
-      : s === "expired"
-      ? "bg-slate-50 text-slate-700 border-slate-200"
-      : s === "draft"
-      ? "bg-sky-50 text-sky-900 border-sky-200"
-      : "bg-slate-50 text-slate-700 border-slate-200";
+        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+        : s === "pending"
+          ? "bg-amber-50 text-amber-900 border-amber-200"
+          : s === "paused"
+            ? "bg-violet-50 text-violet-900 border-violet-200"
+            : s === "expired"
+              ? "bg-slate-50 text-slate-700 border-slate-200"
+              : s === "draft"
+                ? "bg-sky-50 text-sky-900 border-sky-200"
+                : "bg-slate-50 text-slate-700 border-slate-200";
 
   return <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-bold ${cls}`}>{badgeText(l)}</span>;
 }
@@ -172,7 +173,7 @@ export default function MyListingsPage() {
     if (until === null) {
       return (
         <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
-          <CheckIcon aria-hidden="true" className="h-4 w-4" />
+          <CircleCheck aria-hidden="true" className="h-4 w-4" />
           <span>Featured</span>
         </div>
       );
@@ -185,7 +186,7 @@ export default function MyListingsPage() {
     if (diffMs <= 0) {
       return (
         <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-red-700">
-          <ExclamationTriangleIcon aria-hidden="true" className="h-4 w-4" />
+          <CircleX aria-hidden="true" className="h-4 w-4" />
           <span>Feature expired</span>
         </div>
       );
@@ -194,9 +195,9 @@ export default function MyListingsPage() {
     if (diffMs < dayMs) {
       const hrs = Math.max(1, Math.ceil(diffMs / hourMs));
       return (
-        <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-amber-800">
-          <ClockIcon aria-hidden="true" className="h-4 w-4" />
-          <span>Featured for {hrs}h</span>
+        <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-amber-700">
+          <Hourglass aria-hidden="true" className="h-4 w-4" />
+          <span>Featured ({hrs}h left)</span>
         </div>
       );
     }
@@ -204,9 +205,9 @@ export default function MyListingsPage() {
     const days = Math.max(1, Math.ceil(diffMs / dayMs));
     return (
       <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
-        <CheckIcon aria-hidden="true" className="h-4 w-4" />
+        <CircleCheck aria-hidden="true" className="h-4 w-4" />
         <span>
-          Featured for {days} {days === 1 ? "day" : "days"}
+          Featured ({days}d left)
         </span>
       </div>
     );
@@ -414,17 +415,17 @@ export default function MyListingsPage() {
                             variant="feature"
                             disabled={!canFeature}
                             onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
-                            icon={l.featured ? <CheckIcon aria-hidden="true" className="h-4 w-4" /> : undefined}
+                            icon={l.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
                           />
 
-                          <ActionLink to={`/edit/${l.id}`} label="Edit" icon={<PencilSquareIcon aria-hidden="true" className="h-4 w-4" />} />
+                          <ActionLink to={`/edit/${l.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
 
                           <ActionButton
                             label={toggleTitle}
                             title={toggleTitle}
                             disabled={!canToggle}
                             onClick={() => doTogglePauseResume(l)}
-                            icon={l.status === "paused" ? <PlayIcon aria-hidden="true" className="h-4 w-4" /> : <PauseIcon aria-hidden="true" className="h-4 w-4" />}
+                            icon={l.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
                           />
 
                           <ActionButton
@@ -433,7 +434,7 @@ export default function MyListingsPage() {
                             variant="primary"
                             disabled={!canResolve}
                             onClick={() => doSold(l.id)}
-                            icon={<CheckIcon aria-hidden="true" className="h-4 w-4" />}
+                            icon={<Check aria-hidden="true" className="h-4 w-4" />}
                           />
 
                           <ActionButton
@@ -441,7 +442,7 @@ export default function MyListingsPage() {
                             title="Delete"
                             variant="danger"
                             onClick={() => onDelete(l.id)}
-                            icon={<TrashIcon aria-hidden="true" className="h-4 w-4" />}
+                            icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
                           />
                         </div>
                       </td>

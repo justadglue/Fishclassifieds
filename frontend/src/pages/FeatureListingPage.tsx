@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
-import { clearListingFeaturing, fetchListing, setListingFeaturingForDays, type Listing } from "../api";
+import { clearListingFeaturing, fetchListing, setListingFeaturingForDays, setListingFeaturingUntilMs, type Listing } from "../api";
 
 export default function FeatureListingPage() {
   const { id } = useParams();
@@ -13,7 +13,7 @@ export default function FeatureListingPage() {
   const [err, setErr] = useState<string | null>(null);
 
   // Placeholder selection for the "featuring pipeline".
-  const [plan, setPlan] = useState<"7d" | "30d">("7d");
+  const [plan, setPlan] = useState<"7d" | "30d" | "15h" | "10h_ago">("7d");
 
   useEffect(() => {
     let cancelled = false;
@@ -54,7 +54,10 @@ export default function FeatureListingPage() {
     setBusy(true);
     try {
       if (featured) {
-        await setListingFeaturingForDays(id, plan === "7d" ? 7 : 30);
+        if (plan === "7d") await setListingFeaturingForDays(id, 7);
+        else if (plan === "30d") await setListingFeaturingForDays(id, 30);
+        else if (plan === "15h") await setListingFeaturingUntilMs(id, Date.now() + 15 * 60 * 60 * 1000);
+        else await setListingFeaturingUntilMs(id, Date.now() - 10 * 60 * 60 * 1000); // expired dev option
       } else {
         await clearListingFeaturing(id);
       }
@@ -128,6 +131,24 @@ export default function FeatureListingPage() {
                     <div className="text-xs font-semibold text-slate-600">Best value</div>
                   </div>
                 </label>
+
+                <div className="pt-2 text-xs font-bold uppercase tracking-wider text-slate-400">Dev</div>
+
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 hover:bg-slate-50">
+                  <input type="radio" name="plan" checked={plan === "15h"} onChange={() => setPlan("15h")} />
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-slate-900">15 hours</div>
+                    <div className="text-xs font-semibold text-slate-600">Temporary test: “running out” state</div>
+                  </div>
+                </label>
+
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 hover:bg-slate-50">
+                  <input type="radio" name="plan" checked={plan === "10h_ago"} onChange={() => setPlan("10h_ago")} />
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-slate-900">Expired (10 hours ago)</div>
+                    <div className="text-xs font-semibold text-slate-600">Temporary test: expired state</div>
+                  </div>
+                </label>
               </div>
 
               {!canBeFeatured && (
@@ -144,7 +165,17 @@ export default function FeatureListingPage() {
                     onClick={() => onConfirm(true)}
                     className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-60"
                   >
-                    {busy ? "Processing…" : `Confirm featuring (${plan === "7d" ? "7 days" : "30 days"})`}
+                    {busy
+                      ? "Processing…"
+                      : `Confirm featuring (${
+                          plan === "7d"
+                            ? "7 days"
+                            : plan === "30d"
+                              ? "30 days"
+                              : plan === "15h"
+                                ? "15 hours"
+                                : "expired (10 hours ago)"
+                        })`}
                   </button>
                 ) : (
                   <button

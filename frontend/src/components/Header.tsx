@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
-import { ChevronDownIcon, MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/20/solid";
+import { ChevronDown, Search, X } from "lucide-react";
 
 function Chevron({ open }: { open: boolean }) {
   return (
-    <ChevronDownIcon aria-hidden="true" className={open ? "h-5 w-5 rotate-180 transition" : "h-5 w-5 transition"} />
+    <ChevronDown aria-hidden="true" className={open ? "h-5 w-5 rotate-180 transition" : "h-5 w-5 transition"} />
   );
 }
 
@@ -97,7 +97,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
               className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900"
               aria-label="Search listings"
             >
-              <MagnifyingGlassIcon aria-hidden="true" className="h-5 w-5" />
+              <Search aria-hidden="true" className="h-5 w-5" />
             </button>
           ) : (
             <form
@@ -115,7 +115,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
             >
               <div className="flex w-72 items-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="pl-3 text-slate-500">
-                  <MagnifyingGlassIcon aria-hidden="true" className="h-4 w-4" />
+                  <Search aria-hidden="true" className="h-4 w-4" />
                 </div>
                 <input
                   ref={searchInputRef}
@@ -131,7 +131,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
                   className="shrink-0 px-3 py-2 text-sm font-extrabold text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                   aria-label="Close search"
                 >
-                  <XMarkIcon aria-hidden="true" className="h-5 w-5" />
+                  <X aria-hidden="true" className="h-5 w-5" />
                 </button>
               </div>
             </form>

@@ -121,12 +121,20 @@ export default function HomePage() {
   const [featuredSlideDir, setFeaturedSlideDir] = useState<null | (-1 | 1)>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
+  const [heroSearch, setHeroSearch] = useState("");
 
-  function goBrowse(extra?: Record<string, string | undefined>) {
+  function navWithParams(path: string, params?: Record<string, string | undefined>) {
     const sp = new URLSearchParams();
-    if (extra?.category) sp.set("category", extra.category);
+    for (const [k, v] of Object.entries(params ?? {})) {
+      const val = String(v ?? "").trim();
+      if (val) sp.set(k, val);
+    }
     const suffix = sp.toString() ? `?${sp.toString()}` : "";
-    nav(`/browse${suffix}`);
+    nav(`${path}${suffix}`);
+  }
+
+  function goBrowse(extra?: { q?: string; category?: string; species?: string; min?: string; max?: string }) {
+    navWithParams("/browse", extra);
   }
 
   useEffect(() => {
@@ -210,110 +218,103 @@ export default function HomePage() {
 
         <main className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
           <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold text-white/90 backdrop-blur">
-              Explore fish, plants, shrimp, snails, and equipment 
-            </div>
 
             <h1 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">
-              Your local aquarium marketplace.
+              Your aquarium marketplace.
             </h1>
             <p className="mt-4 text-base leading-relaxed text-white/90">
               Browse listings, post what you're selling, or find what you're looking for.
             </p>
           </div>
 
-          {/* Quick Action Buttons */}
-          <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
-            <div className="p-6 sm:p-8">
-              <div className="text-center mb-6">
-                <h2 className="text-lg font-black text-slate-900">What would you like to do?</h2>
-                <p className="mt-1 text-sm font-semibold text-slate-500">Jump straight to where you need to go</p>
-              </div>
+          {/* Quick actions (translucent / glass) */}
+          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <button
+              type="button"
+              onClick={() => nav("/browse")}
+              className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
+            >
+              <div className="text-sm font-extrabold text-white">Explore listings →</div>
+              <div className="mt-1 text-xs font-semibold text-white/75">Fish, plants, shrimp, snails, equipment and more</div>
+            </button>
 
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {/* Browse Listings */}
-                <button
-                  type="button"
-                  onClick={() => nav("/browse")}
-                  className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-slate-900 bg-slate-900 p-6 text-center transition hover:bg-slate-800"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-2xl">
-                    🔍
-                  </div>
-                  <div>
-                    <div className="text-sm font-extrabold text-white">Browse Listings</div>
-                    <div className="mt-1 text-xs font-semibold text-white/70">Find fish, plants & more</div>
-                  </div>
-                </button>
+            <button
+              type="button"
+              onClick={() => nav("/post")}
+              className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
+            >
+              <div className="text-sm font-extrabold text-white">Create a listing →</div>
+              <div className="mt-1 text-xs font-semibold text-white/75">Post a listing and connect with buyers</div>
+            </button>
 
-                {/* Browse Wanted */}
-                <button
-                  type="button"
-                  onClick={() => nav("/wanted")}
-                  className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-slate-200 bg-white p-6 text-center transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-2xl">
-                    📋
-                  </div>
-                  <div>
-                    <div className="text-sm font-extrabold text-slate-900">Browse Wanted</div>
-                    <div className="mt-1 text-xs font-semibold text-slate-500">See what people need</div>
-                  </div>
-                </button>
+            <button
+              type="button"
+              onClick={() => nav("/wanted")}
+              className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
+            >
+              <div className="text-sm font-extrabold text-white">Browse wanted →</div>
+              <div className="mt-1 text-xs font-semibold text-white/75">Are you a seller? See what buyers are actively looking for</div>
+            </button>
 
-                {/* Sell Something */}
-                <button
-                  type="button"
-                  onClick={() => nav("/post")}
-                  className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-slate-200 bg-white p-6 text-center transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-2xl">
-                    💰
-                  </div>
-                  <div>
-                    <div className="text-sm font-extrabold text-slate-900">Sell Something</div>
-                    <div className="mt-1 text-xs font-semibold text-slate-500">Post a listing for sale</div>
-                  </div>
-                </button>
-
-                {/* Post Wanted */}
-                <button
-                  type="button"
-                  onClick={() => nav("/wanted/post")}
-                  className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-slate-200 bg-white p-6 text-center transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-2xl">
-                    ✋
-                  </div>
-                  <div>
-                    <div className="text-sm font-extrabold text-slate-900">Post Wanted</div>
-                    <div className="mt-1 text-xs font-semibold text-slate-500">Tell sellers what you need</div>
-                  </div>
-                </button>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => nav("/wanted/post")}
+              className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
+            >
+              <div className="text-sm font-extrabold text-white">Post a wanted →</div>
+              <div className="mt-1 text-xs font-semibold text-white/75">Have something specific in mind? Post a wanted listing</div>
+            </button>
           </div>
 
-          {/* Browse by Category */}
+          {/* Simple keyword search */}
+          <form
+            className="mt-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              goBrowse({ q: heroSearch });
+            }}
+          >
+            <div className="flex overflow-hidden rounded-2xl border border-white/25 bg-white/15 shadow-lg shadow-black/25 backdrop-blur-xl focus-within:ring-2 focus-within:ring-white/40">
+              <input
+                value={heroSearch}
+                onChange={(e) => setHeroSearch(e.target.value)}
+                placeholder='Search listings'
+                className="min-w-0 flex-1 bg-transparent px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-white/70"
+              />
+              <button
+                type="submit"
+                className="shrink-0 border-l border-white/20 bg-white/20 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-white/25"
+              >
+                Search →
+              </button>
+            </div>
+          </form>
+
+          {/* Popular searches (placeholder list; can be swapped for real analytics later) */}
           <section className="mt-10">
-            <div className="text-xs font-bold uppercase tracking-wider text-white/70">Browse by category</div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="text-xs font-bold uppercase tracking-wider text-white/70">Popular searches</div>
+            </div>
+
+            {/* One-row, subtle “generated” chips. Scrolls horizontally on small screens. */}
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {[
-                { label: "Fish", emoji: "🐠", params: { category: "Fish" } },
-                { label: "Shrimp", emoji: "🦐", params: { category: "Shrimp" } },
-                { label: "Snails", emoji: "🐌", params: { category: "Snails" } },
-                { label: "Plants", emoji: "🌿", params: { category: "Plants" } },
-                { label: "Equipment", emoji: "⚙️", params: { category: "Equipment" } },
+                { label: "Guppies", params: { category: "Fish", species: "guppy" } },
+                { label: "Betta", params: { category: "Fish", species: "betta" } },
+                { label: "Goldfish", params: { category: "Fish", species: "goldfish" } },
+                { label: "Cherry shrimp", params: { category: "Shrimp", q: "neocaridina" } },
+                { label: "Live plants", params: { category: "Plants", q: "live plants" } },
+                { label: "Canister filter", params: { category: "Equipment", q: "canister filter" } },
+                { label: "CO2 kit", params: { category: "Equipment", q: "co2" } },
+                { label: "Breeding pair", params: { q: "breeding pair" } },
               ].map((t) => (
                 <button
                   key={t.label}
                   type="button"
                   onClick={() => goBrowse(t.params)}
-                  className="rounded-2xl border border-white/20 bg-white/10 p-4 text-left backdrop-blur hover:bg-white/20 transition"
+                  className="shrink-0 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/85 backdrop-blur transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/25"
                 >
-                  <div className="text-2xl mb-2">{t.emoji}</div>
-                  <div className="text-sm font-extrabold text-white">{t.label}</div>
-                  <div className="mt-1 text-xs font-semibold text-white/80">Explore →</div>
+                  {t.label} →
                 </button>
               ))}
             </div>

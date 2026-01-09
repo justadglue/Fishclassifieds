@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { CheckIcon, PauseIcon, PlayIcon, TrashIcon } from "@heroicons/react/20/solid";
 import {
   deleteListing,
   fetchListing,
@@ -78,41 +79,6 @@ function IconButton(props: {
     <button type="button" title={title} aria-label={title} onClick={onClick} disabled={disabled} className={`${base} ${cls}`}>
       {children}
     </button>
-  );
-}
-
-function IconPause() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M7 5h3v14H7V5zm7 0h3v14h-3V5z" fill="currentColor" />
-    </svg>
-  );
-}
-function IconPlay() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M8 5v14l11-7L8 5z" fill="currentColor" />
-    </svg>
-  );
-}
-function IconCheck() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M9.2 16.2 4.8 11.8l1.4-1.4 3 3 8.6-8.6 1.4 1.4-10 10z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-function IconTrash() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M9 3h6l1 2h5v2H3V5h5l1-2zm1 6h2v10h-2V9zm4 0h2v10h-2V9z"
-        fill="currentColor"
-      />
-    </svg>
   );
 }
 
@@ -459,24 +425,24 @@ export default function EditListingPage() {
                 <IconButton title={toggleLabel} onClick={doTogglePauseResume} disabled={!canTogglePause || loading} variant="default">
                   {orig.status === "paused" ? (
                     <>
-                      <IconPlay />
+                      <PlayIcon aria-hidden="true" className="h-5 w-5" />
                       <span className="ml-2">Resume Ad</span>
                     </>
                   ) : (
                     <>
-                      <IconPause />
+                      <PauseIcon aria-hidden="true" className="h-5 w-5" />
                       <span className="ml-2">Pause Ad</span>
                     </>
                   )}
                 </IconButton>
 
                 <IconButton title="Mark as sold" onClick={doSold} disabled={!canResolve || loading} variant="primary">
-                  <IconCheck />
+                  <CheckIcon aria-hidden="true" className="h-5 w-5" />
                   <span className="ml-2">Mark as Sold</span>
                 </IconButton>
 
                 <IconButton title="Delete listing" onClick={onDelete} disabled={loading || uploading || !ownerToken} variant="danger">
-                  <IconTrash />
+                  <TrashIcon aria-hidden="true" className="h-5 w-5" />
                   <span className="ml-2">Delete</span>
                 </IconButton>
               </div>

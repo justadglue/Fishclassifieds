@@ -1,19 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
+import { ChevronDownIcon, MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/20/solid";
 
 function Chevron({ open }: { open: boolean }) {
   return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      className={open ? "rotate-180 transition" : "transition"}
-    >
-      <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <ChevronDownIcon aria-hidden="true" className={open ? "h-5 w-5 rotate-180 transition" : "h-5 w-5 transition"} />
   );
 }
 
@@ -105,14 +97,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
               className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900"
               aria-label="Search listings"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path
-                  d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                />
-                <path d="M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
+              <MagnifyingGlassIcon aria-hidden="true" className="h-5 w-5" />
             </button>
           ) : (
             <form
@@ -130,14 +115,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
             >
               <div className="flex w-72 items-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="pl-3 text-slate-500">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path
-                      d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    />
-                    <path d="M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
+                  <MagnifyingGlassIcon aria-hidden="true" className="h-4 w-4" />
                 </div>
                 <input
                   ref={searchInputRef}
@@ -153,7 +131,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
                   className="shrink-0 px-3 py-2 text-sm font-extrabold text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                   aria-label="Close search"
                 >
-                  ×
+                  <XMarkIcon aria-hidden="true" className="h-5 w-5" />
                 </button>
               </div>
             </form>

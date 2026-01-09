@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
+  CheckIcon,
+  ClockIcon,
+  ExclamationTriangleIcon,
+  PauseIcon,
+  PencilSquareIcon,
+  PlayIcon,
+  TrashIcon,
+} from "@heroicons/react/20/solid";
+import {
   deleteListing,
   fetchListing,
   listOwnedIds,
@@ -15,6 +24,20 @@ import Header from "../components/Header";
 
 function centsToDollars(cents: number) {
   return (cents / 100).toLocaleString(undefined, { style: "currency", currency: "AUD" });
+}
+
+function relativeTime(iso: string) {
+  const d = new Date(iso).getTime();
+  if (!Number.isFinite(d)) return iso;
+  const now = Date.now();
+  const s = Math.max(0, Math.floor((now - d) / 1000));
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h ago`;
+  const days = Math.floor(h / 24);
+  return `${days}d ago`;
 }
 
 type Row = { id: string; listing?: Listing; error?: string };
@@ -92,88 +115,6 @@ function ActionLink(props: { to: string; label: string; icon?: React.ReactNode }
   );
 }
 
-function IconPencil() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25zm2.92 2.83H5v-.92l11.06-11.06.92.92L5.92 20.08zM20.71 6.04a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75 1.13-1.13z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function IconTrash() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M9 3h6l1 2h5v2H3V5h5l1-2zm1 6h2v10h-2V9zm4 0h2v10h-2V9z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function IconPause() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M7 5h3v14H7V5zm7 0h3v14h-3V5z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function IconPlay() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M8 5v14l11-7L8 5z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function IconCheck() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M9.2 16.2 4.8 11.8l1.4-1.4 3 3 8.6-8.6 1.4 1.4-10 10z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function IconTick() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M9.2 16.2 4.8 11.8l1.4-1.4 3 3 8.6-8.6 1.4 1.4-10 10z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function IconHourglass() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M6 2h12v4a6 6 0 0 1-3.2 5.3L13.3 12l1.5.7A6 6 0 0 1 18 18v4H6v-4a6 6 0 0 1 3.2-5.3l1.5-.7-1.5-.7A6 6 0 0 1 6 6V2zm2 4a4 4 0 0 0 2.1 3.5L12 10.4l1.9-.9A4 4 0 0 0 16 6V4H8v2zm8 16v-2a4 4 0 0 0-2.1-3.5L12 13.6l-1.9.9A4 4 0 0 0 8 20v2h8z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function IconExpired() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 5h2v6h-2V7zm0 8h2v2h-2v-2z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
 export default function MyListingsPage() {
   const nav = useNavigate();
   const [rows, setRows] = useState<Row[]>([]);
@@ -231,7 +172,7 @@ export default function MyListingsPage() {
     if (until === null) {
       return (
         <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
-          <IconTick />
+          <CheckIcon aria-hidden="true" className="h-4 w-4" />
           <span>Featured</span>
         </div>
       );
@@ -244,7 +185,7 @@ export default function MyListingsPage() {
     if (diffMs <= 0) {
       return (
         <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-red-700">
-          <IconExpired />
+          <ExclamationTriangleIcon aria-hidden="true" className="h-4 w-4" />
           <span>Feature expired</span>
         </div>
       );
@@ -254,7 +195,7 @@ export default function MyListingsPage() {
       const hrs = Math.max(1, Math.ceil(diffMs / hourMs));
       return (
         <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-amber-800">
-          <IconHourglass />
+          <ClockIcon aria-hidden="true" className="h-4 w-4" />
           <span>Featured for {hrs}h</span>
         </div>
       );
@@ -263,7 +204,7 @@ export default function MyListingsPage() {
     const days = Math.max(1, Math.ceil(diffMs / dayMs));
     return (
       <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
-        <IconTick />
+        <CheckIcon aria-hidden="true" className="h-4 w-4" />
         <span>
           Featured for {days} {days === 1 ? "day" : "days"}
         </span>
@@ -437,7 +378,9 @@ export default function MyListingsPage() {
                     </td>
 
                     <td className="px-4 py-4 align-top">
-                      <div className="text-sm font-semibold text-slate-700">{new Date(l.updatedAt).toLocaleString()}</div>
+                      <div className="text-sm font-semibold text-slate-700" title={new Date(l.updatedAt).toLocaleString()}>
+                        {relativeTime(l.updatedAt)}
+                      </div>
                     </td>
 
                     <td className="px-4 py-4 align-top">
@@ -471,17 +414,17 @@ export default function MyListingsPage() {
                             variant="feature"
                             disabled={!canFeature}
                             onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
-                            icon={l.featured ? <IconTick /> : undefined}
+                            icon={l.featured ? <CheckIcon aria-hidden="true" className="h-4 w-4" /> : undefined}
                           />
 
-                          <ActionLink to={`/edit/${l.id}`} label="Edit" icon={<IconPencil />} />
+                          <ActionLink to={`/edit/${l.id}`} label="Edit" icon={<PencilSquareIcon aria-hidden="true" className="h-4 w-4" />} />
 
                           <ActionButton
                             label={toggleTitle}
                             title={toggleTitle}
                             disabled={!canToggle}
                             onClick={() => doTogglePauseResume(l)}
-                            icon={l.status === "paused" ? <IconPlay /> : <IconPause />}
+                            icon={l.status === "paused" ? <PlayIcon aria-hidden="true" className="h-4 w-4" /> : <PauseIcon aria-hidden="true" className="h-4 w-4" />}
                           />
 
                           <ActionButton
@@ -490,7 +433,7 @@ export default function MyListingsPage() {
                             variant="primary"
                             disabled={!canResolve}
                             onClick={() => doSold(l.id)}
-                            icon={<IconCheck />}
+                            icon={<CheckIcon aria-hidden="true" className="h-4 w-4" />}
                           />
 
                           <ActionButton
@@ -498,7 +441,7 @@ export default function MyListingsPage() {
                             title="Delete"
                             variant="danger"
                             onClick={() => onDelete(l.id)}
-                            icon={<IconTrash />}
+                            icon={<TrashIcon aria-hidden="true" className="h-4 w-4" />}
                           />
                         </div>
                       </td>

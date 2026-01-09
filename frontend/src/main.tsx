@@ -8,6 +8,12 @@ import { initImageFadeIn } from "./imageFade";
 
 initImageFadeIn();
 
+// In an SPA, browsers often restore scroll on refresh/back/forward.
+// We handle scroll position ourselves on route changes.
+if ("scrollRestoration" in window.history) {
+  window.history.scrollRestoration = "manual";
+}
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <AuthProvider>

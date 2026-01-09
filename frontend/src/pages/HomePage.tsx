@@ -140,7 +140,7 @@ export default function HomePage() {
 
     heroImgDecodingRef.current = true;
     const p = typeof img.decode === "function" ? img.decode() : Promise.resolve();
-    p.catch(() => {})
+    p.catch(() => { })
       .then(() => {
         window.requestAnimationFrame(() => setHeroImgLoaded(true));
       })
@@ -155,7 +155,7 @@ export default function HomePage() {
     heroImgDecodingRef.current = true;
 
     const p = typeof img.decode === "function" ? img.decode() : Promise.resolve();
-    p.catch(() => {})
+    p.catch(() => { })
       .then(() => {
         window.requestAnimationFrame(() => setHeroImgLoaded(true));
       })

@@ -1,4 +1,5 @@
-import { Routes, Route } from "react-router-dom";
+import { useEffect } from "react";
+import { Routes, Route, useLocation } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import BrowseListings from "./pages/BrowseListings";
 import LoginPage from "./pages/LoginPage";
@@ -18,27 +19,38 @@ import WantedPostPage from "./pages/WantedPostPage.tsx";
 import WantedDetailPage from "./pages/WantedDetailPage.tsx";
 import WantedEditPage from "./pages/WantedEditPage.tsx";
 
+function ScrollToTopOnRouteChange() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [pathname]);
+  return null;
+}
+
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/browse" element={<BrowseListings />} />
-      <Route path="/listing/:id" element={<ListingPage />} />
-      <Route path="/post" element={<PostListingPage />} />
-      <Route path="/me" element={<MyListingsPage />} />
-      <Route path="/edit/:id" element={<EditListingPage />} />
-      <Route path="/profile" element={<ProfilePage />} />
-      <Route path="/wanted" element={<WantedBrowsePage />} />
-      <Route path="/wanted/post" element={<WantedPostPage />} />
-      <Route path="/wanted/:id" element={<WantedDetailPage />} />
-      <Route path="/wanted/edit/:id" element={<WantedEditPage />} />
-      <Route path="/faq" element={<FaqPage />} />
-      <Route path="/contact" element={<ContactPage />} />
-      <Route path="/terms" element={<TermsPage />} />
-      <Route path="/privacy" element={<PrivacyPage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/signup" element={<SignUpPage />} />
-      <Route path="/auth" element={<AuthGatePage />} />
-    </Routes>
+    <>
+      <ScrollToTopOnRouteChange />
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/browse" element={<BrowseListings />} />
+        <Route path="/listing/:id" element={<ListingPage />} />
+        <Route path="/post" element={<PostListingPage />} />
+        <Route path="/me" element={<MyListingsPage />} />
+        <Route path="/edit/:id" element={<EditListingPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/wanted" element={<WantedBrowsePage />} />
+        <Route path="/wanted/post" element={<WantedPostPage />} />
+        <Route path="/wanted/:id" element={<WantedDetailPage />} />
+        <Route path="/wanted/edit/:id" element={<WantedEditPage />} />
+        <Route path="/faq" element={<FaqPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignUpPage />} />
+        <Route path="/auth" element={<AuthGatePage />} />
+      </Routes>
+    </>
   );
 }

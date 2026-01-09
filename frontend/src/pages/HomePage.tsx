@@ -125,6 +125,9 @@ export default function HomePage() {
   const [featuredSlideDir, setFeaturedSlideDir] = useState<null | (-1 | 1)>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
+  type SearchTab = "buy" | "wanted";
+  const [searchTab, setSearchTab] = useState<SearchTab>("buy");
+
   const [q, setQ] = useState("");
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("");
 
@@ -149,7 +152,7 @@ export default function HomePage() {
     []
   );
 
-  function goBrowse(extra?: Record<string, string | undefined>) {
+  function goBrowse(extra?: Record<string, string | undefined>, mode: SearchTab = "buy") {
     const sp = new URLSearchParams();
 
     const qq = (extra?.q ?? q).trim();
@@ -165,7 +168,7 @@ export default function HomePage() {
     if (mx) sp.set("max", mx);
 
     const suffix = sp.toString() ? `?${sp.toString()}` : "";
-    nav(`/browse${suffix}`);
+    nav(`${mode === "wanted" ? "/wanted" : "/browse"}${suffix}`);
   }
 
 
@@ -220,6 +223,22 @@ export default function HomePage() {
     setFeaturedSlideDir(null);
   }, [featuredCols]);
 
+  // Auto-advance carousel every 4 seconds (only when there's overflow and not actively sliding)
+  useEffect(() => {
+    if (featured.length === 0) return;
+    const ROWS = 2;
+    const colCount = Math.ceil((featured.length + 1) / ROWS); // +1 for promo tile
+    const hasOverflow = colCount > featuredCols;
+    if (!hasOverflow) return;
+
+    const timer = setInterval(() => {
+      // Only auto-advance if not currently sliding
+      setFeaturedSlideDir((prev) => (prev === null ? 1 : prev));
+    }, 4000);
+
+    return () => clearInterval(timer);
+  }, [featured.length, featuredCols]);
+
   return (
     <div className="min-h-full">
       <Header maxWidth="6xl" />
@@ -247,6 +266,37 @@ export default function HomePage() {
 
           <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
             <div className="p-5 sm:p-6">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="inline-flex rounded-2xl bg-slate-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setSearchTab("buy")}
+                    className={[
+                      "rounded-xl px-4 py-2 text-xs font-extrabold transition",
+                      searchTab === "buy" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900",
+                    ].join(" ")}
+                    aria-pressed={searchTab === "buy"}
+                  >
+                    Buy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSearchTab("wanted")}
+                    className={[
+                      "rounded-xl px-4 py-2 text-xs font-extrabold transition",
+                      searchTab === "wanted" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900",
+                    ].join(" ")}
+                    aria-pressed={searchTab === "wanted"}
+                  >
+                    Wanted
+                  </button>
+                </div>
+
+                <div className="text-xs font-semibold text-slate-500">
+                  {searchTab === "buy" ? "Browse listings for sale" : "Browse what people are looking for"}
+                </div>
+              </div>
+
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <label className="block lg:col-span-2">
                   <div className="mb-1 text-xs font-semibold text-slate-700">Search</div>
@@ -314,7 +364,7 @@ export default function HomePage() {
                     <button
                       key={c.label}
                       type="button"
-                      onClick={() => goBrowse(c.params)}
+                      onClick={() => goBrowse(c.params, searchTab)}
                       className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
                     >
                       {c.label}
@@ -322,20 +372,30 @@ export default function HomePage() {
                   ))}
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => goBrowse()}
+                    onClick={() => goBrowse(undefined, searchTab)}
                     className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-extrabold text-white hover:bg-slate-800"
                   >
-                    Browse
+                    Browse {searchTab === "wanted" ? "wanted" : "listings"}
                   </button>
+
+                  <span className="hidden text-xs font-semibold text-slate-400 sm:inline">or</span>
+
                   <button
                     type="button"
                     onClick={() => nav("/post")}
-                    className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-900 hover:bg-slate-50"
+                    className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 hover:bg-slate-50"
                   >
-                    Post a listing
+                    Sell something
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => nav("/wanted/post")}
+                    className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 hover:bg-slate-50"
+                  >
+                    Post wanted
                   </button>
                 </div>
               </div>
@@ -536,7 +596,7 @@ export default function HomePage() {
                             className="flex will-change-transform"
                             style={{
                               transform: `translateX(-${(1 + (isSliding ? (featuredSlideDir as -1 | 1) : 0)) * (100 / VISIBLE_COLS)}%)`,
-                              transition: isSliding ? "transform 280ms ease" : "none",
+                              transition: isSliding ? "transform 450ms ease" : "none",
                             }}
                             onTransitionEnd={(e) => {
                               if (e.propertyName !== "transform") return;
@@ -582,10 +642,10 @@ export default function HomePage() {
                               type="button"
                               onClick={() => setFeaturedIndex(i)}
                               className={[
-                                "h-2.5 w-2.5 rounded-full border transition",
+                                "h-2 rounded-full transition-all duration-300",
                                 active
-                                  ? "border-slate-900 bg-slate-900"
-                                  : "border-slate-300 bg-slate-200 hover:bg-slate-300",
+                                  ? "w-6 bg-slate-900"
+                                  : "w-2 bg-slate-300 hover:bg-slate-400",
                               ].join(" ")}
                               aria-label={`Go to featured column ${i + 1} of ${colCount}`}
                               aria-current={active ? "true" : undefined}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { fetchListings, resolveAssets, type Category, type Listing } from "../api";
 import Header from "../components/Header";
@@ -130,6 +130,7 @@ function StatusPill({ l }: { l: Listing }) {
 
 export default function HomePage() {
   const [sp, setSp] = useSearchParams();
+  const topRef = useRef<HTMLDivElement | null>(null);
 
   const q = sp.get("q") ?? "";
   const category = (sp.get("category") ?? "") as "" | Category;
@@ -232,10 +233,36 @@ export default function HomePage() {
     setSp(new URLSearchParams(), { replace: true });
   }
 
+  function scrollToTop() {
+    const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    const behavior: ScrollBehavior = prefersReducedMotion ? "auto" : "smooth";
+
+    // Prefer scrolling a real element into view so this works even if the page is inside a nested scroll container.
+    if (topRef.current) {
+      topRef.current.scrollIntoView({ behavior, block: "start" });
+      return;
+    }
+
+    window.scrollTo({ top: 0, left: 0, behavior });
+  }
+
   function goPage(p: number) {
+    if (p === page) return;
     const next = new URLSearchParams(sp);
     next.set("page", String(Math.max(1, Math.min(totalPages, p))));
     setSp(next, { replace: true });
+  }
+
+  function goPageFromBottom(p: number) {
+    if (p === page) return;
+    goPage(p);
+
+    // Defer to avoid any scroll restoration / layout shifts immediately after the URL change.
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        scrollToTop();
+      });
+    });
   }
 
   const showingFrom = total === 0 ? 0 : (page - 1) * per + 1;
@@ -247,6 +274,7 @@ export default function HomePage() {
     <div className="min-h-full">
       <Header maxWidth="6xl" />
       <main className="mx-auto max-w-6xl px-4 py-6">
+        <div ref={topRef} />
         <div className="grid gap-6 md:grid-cols-[280px_1fr]">
           <aside className="rounded-2xl border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between">
@@ -440,9 +468,9 @@ export default function HomePage() {
               canPrev={canPrev}
               canNext={canNext}
               pageButtons={pageButtons}
-              onPrev={() => goPage(page - 1)}
-              onNext={() => goPage(page + 1)}
-              onGoPage={goPage}
+              onPrev={() => goPageFromBottom(page - 1)}
+              onNext={() => goPageFromBottom(page + 1)}
+              onGoPage={goPageFromBottom}
             />
           </section>
         </div>

@@ -11,3 +11,19 @@ body {
   background: #f8fafc; /* slate-50 */
   color: #0f172a;      /* slate-900 */
 }
+
+:root {
+  /* Keep image placeholder aligned with site background. */
+  --img-fade-bg: #f8fafc; /* slate-50 */
+}
+
+/* Global image fade-in (opt out with data-no-fade). */
+img.img-fade {
+  background: var(--img-fade-bg);
+  opacity: 0;
+  transition: opacity 500ms ease-out;
+}
+
+img.img-fade.img-fade--loaded {
+  opacity: 1;
+}

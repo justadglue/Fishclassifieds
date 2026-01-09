@@ -271,6 +271,7 @@ export default function HomePage() {
             src={homepageBackground}
             alt=""
             ref={heroImgRef}
+            data-no-fade
             className="absolute inset-0 h-full w-full object-cover"
             loading="eager"
             decoding="async"

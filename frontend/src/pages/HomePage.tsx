@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { fetchListings, resolveAssets, type Listing } from "../api";
 import Header from "../components/Header";
 import homepageBackground from "../assets/homepage_background_1.jpg";
+import featuredArowana from "../assets/featured_arowana.jpg";
 
 const CATEGORIES = ["", "Fish", "Shrimp", "Snails", "Plants", "Equipment"] as const;
 
@@ -47,6 +48,67 @@ function FeaturedCard({ item }: { item: Listing }) {
           <div className="shrink-0 rounded-xl bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">
             {centsToDollars(item.priceCents)}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type FeaturedTile = { kind: "listing"; listing: Listing } | { kind: "promo" };
+
+function FeaturedPromoCard() {
+  return (
+    <div className="group min-w-0 overflow-hidden rounded-2xl border border-indigo-300/70 bg-white shadow-sm ring-1 ring-indigo-200/40 transition-shadow hover:shadow-md focus-within:ring-4 focus-within:ring-indigo-200/60">
+      {/* Keep overall geometry consistent, but show the image uncropped and shorter */}
+      <div className="relative aspect-4/3 w-full bg-slate-100">
+        <div className="flex h-full flex-col">
+          <div className="relative h-[74%] w-full overflow-hidden bg-slate-100">
+            {/* Background layer fills the width (no blank sides) */}
+            <img
+              src={featuredArowana}
+              alt=""
+              className="absolute inset-0 h-full w-full scale-110 object-cover object-center blur-sm opacity-60"
+              aria-hidden="true"
+              loading="lazy"
+              decoding="async"
+            />
+            <div className="absolute inset-0 bg-white/35" aria-hidden="true" />
+
+            {/* Foreground layer fills width; crop happens upward (bottom anchored) */}
+            <img
+              src={featuredArowana}
+              alt="Arowana"
+              className="relative h-full w-full object-cover object-bottom"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+
+          {/* Use the extra space under the image for the message */}
+          <div className="flex-1 p-4">
+            <div className="text-sm font-black leading-tight text-slate-900">Boost your listing’s visibility</div>
+            <div className="mt-1 text-sm font-semibold text-slate-700">More eyes • Faster results</div>
+            <div className="mt-1 text-xs font-semibold text-slate-600">
+              Many sellers choose featuring to increase interest in their listing.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Visibly: button only. Height matches other cards by reserving the same footer space invisibly. */}
+      <div className="relative p-4">
+        <div className="invisible select-none">
+          <div className="truncate text-sm font-extrabold text-slate-900">Feature a listing</div>
+          <div className="mt-1 truncate text-xs font-semibold text-slate-600">Reserved space</div>
+        </div>
+
+        <div className="absolute inset-0 flex items-center justify-center p-4">
+          <Link
+            to="/me"
+            className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-xs font-extrabold text-white hover:bg-slate-800"
+          >
+            Feature a listing →
+          </Link>
         </div>
       </div>
     </div>
@@ -157,6 +219,8 @@ export default function HomePage() {
     // If the responsive column count changes mid-transition, cancel the slide cleanly.
     setFeaturedSlideDir(null);
   }, [featuredCols]);
+
+  const showFeaturedPromoTile = featured.length < 3 || featured.length % 2 === 1;
 
   return (
     <div className="min-h-full">
@@ -352,7 +416,13 @@ export default function HomePage() {
               {(() => {
                 const ROWS = 2;
                 const VISIBLE_COLS = Math.max(1, featuredCols);
-                const n = featured.length;
+
+                const tiles: FeaturedTile[] = [
+                  ...featured.map((l) => ({ kind: "listing" as const, listing: l })),
+                  ...(showFeaturedPromoTile ? [{ kind: "promo" as const }] : []),
+                ];
+
+                const n = tiles.length;
                 const colCount = Math.ceil(n / ROWS);
                 const hasOverflow = colCount > VISIBLE_COLS;
 
@@ -361,11 +431,12 @@ export default function HomePage() {
                 const isSliding = featuredSlideDir != null;
 
                 // Build "true" columns (2 rows per column) so wrapping never re-pairs items.
-                const cols: Array<Array<Listing | null>> = Array.from({ length: colCount }, (_, c) => [
-                  featured[c * ROWS] ?? null,
-                  featured[c * ROWS + 1] ?? null,
+                const cols: Array<Array<FeaturedTile | null>> = Array.from({ length: colCount }, (_, c) => [
+                  tiles[c * ROWS] ?? null,
+                  tiles[c * ROWS + 1] ?? null,
                 ]);
 
+                // Keep the window indices unique to avoid reconciliation jumps.
                 const windowColSlots = hasOverflow ? Math.min(colCount, VISIBLE_COLS + 2) : Math.min(colCount, VISIBLE_COLS);
                 const windowColIndices = hasOverflow
                   ? Array.from({ length: windowColSlots }, (_, i) => (safeColIndex + i - 1 + colCount) % colCount)
@@ -445,13 +516,17 @@ export default function HomePage() {
                           {windowColIndices.map((colIdx) => (
                             <div key={`featured-col-static-${colIdx}`} className="min-w-0">
                               <div className="flex flex-col gap-4">
-                                {cols[colIdx]?.map((l) =>
-                                  l ? (
-                                    <Link key={l.id} to={`/listing/${l.id}`} className="block min-w-0">
-                                      <FeaturedCard item={l} />
-                                    </Link>
-                                  ) : null
-                                )}
+                                {cols[colIdx]?.map((t, r) => {
+                                  if (!t) return null;
+                                  if (t.kind === "listing") {
+                                    return (
+                                      <Link key={t.listing.id} to={`/listing/${t.listing.id}`} className="block min-w-0">
+                                        <FeaturedCard item={t.listing} />
+                                      </Link>
+                                    );
+                                  }
+                                  return <FeaturedPromoCard key={`featured-promo-tile-static-${colIdx}-${r}`} />;
+                                })}
                               </div>
                             </div>
                           ))}
@@ -479,13 +554,17 @@ export default function HomePage() {
                                 style={{ width: `${100 / VISIBLE_COLS}%` }}
                               >
                                 <div className="flex flex-col gap-4">
-                                  {cols[colIdx]?.map((l) =>
-                                    l ? (
-                                      <Link key={l.id} to={`/listing/${l.id}`} className="block min-w-0">
-                                        <FeaturedCard item={l} />
-                                      </Link>
-                                    ) : null
-                                  )}
+                                  {cols[colIdx]?.map((t, r) => {
+                                    if (!t) return null;
+                                    if (t.kind === "listing") {
+                                      return (
+                                        <Link key={t.listing.id} to={`/listing/${t.listing.id}`} className="block min-w-0">
+                                          <FeaturedCard item={t.listing} />
+                                        </Link>
+                                      );
+                                    }
+                                    return <FeaturedPromoCard key={`featured-promo-tile-${colIdx}-${r}`} />;
+                                  })}
                                 </div>
                               </div>
                             ))}

@@ -1,13 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { fetchListings, resolveAssets, type Listing } from "../api";
 import Header from "../components/Header";
 import homepageBackground from "../assets/homepage_background_1.jpg";
 import featuredArowana from "../assets/featured_arowana.jpg";
-
-const CATEGORIES = ["", "Fish", "Shrimp", "Snails", "Plants", "Equipment"] as const;
-
-type Chip = { label: string; params: Record<string, string | undefined> };
 
 function centsToDollars(cents: number) {
   return (cents / 100).toLocaleString(undefined, { style: "currency", currency: "AUD" });
@@ -86,7 +82,7 @@ function FeaturedPromoCard() {
 
           {/* Use the extra space under the image for the message */}
           <div className="flex-1 p-4">
-            <div className="text-sm font-black leading-tight text-slate-900">Boost your listing’s visibility</div>
+            <div className="text-sm font-black leading-tight text-slate-900">Boost your listing's visibility</div>
             <div className="mt-1 text-sm font-semibold text-slate-700">More eyes • Faster results</div>
             <div className="mt-1 text-xs font-semibold text-slate-600">
               Many sellers choose featuring to increase interest in their listing.
@@ -124,53 +120,14 @@ export default function HomePage() {
   const [featuredCols, setFeaturedCols] = useState(1);
   const [featuredSlideDir, setFeaturedSlideDir] = useState<null | (-1 | 1)>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
 
-  type SearchTab = "buy" | "wanted";
-  const [searchTab, setSearchTab] = useState<SearchTab>("buy");
-
-  const [q, setQ] = useState("");
-  const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("");
-
-  // “Species” is a dedicated param your /browse page already supports.
-  const [species, setSpecies] = useState("");
-
-  // /browse supports min/max in dollars via min/max params (it converts to cents internally).
-  const [min, setMin] = useState("");
-  const [max, setMax] = useState("");
-
-  const chips: Chip[] = useMemo(
-    () => [
-      { label: "Guppy", params: { species: "guppy" } },
-      { label: "Betta", params: { species: "betta" } },
-      { label: "Shrimp", params: { category: "Shrimp" } },
-      { label: "Plants", params: { category: "Plants" } },
-      { label: "Equipment", params: { category: "Equipment" } },
-      // location is searchable via q (your browse backend searches location)
-      { label: "Brisbane", params: { q: "brisbane" } },
-      { label: "Under $50", params: { max: "50" } },
-    ],
-    []
-  );
-
-  function goBrowse(extra?: Record<string, string | undefined>, mode: SearchTab = "buy") {
+  function goBrowse(extra?: Record<string, string | undefined>) {
     const sp = new URLSearchParams();
-
-    const qq = (extra?.q ?? q).trim();
-    const cc = extra?.category ?? category;
-    const ss = (extra?.species ?? species).trim();
-    const mn = (extra?.min ?? min).trim();
-    const mx = (extra?.max ?? max).trim();
-
-    if (qq) sp.set("q", qq);
-    if (cc) sp.set("category", cc);
-    if (ss) sp.set("species", ss);
-    if (mn) sp.set("min", mn);
-    if (mx) sp.set("max", mx);
-
+    if (extra?.category) sp.set("category", extra.category);
     const suffix = sp.toString() ? `?${sp.toString()}` : "";
-    nav(`${mode === "wanted" ? "/wanted" : "/browse"}${suffix}`);
+    nav(`/browse${suffix}`);
   }
-
 
   useEffect(() => {
     let cancelled = false;
@@ -223,9 +180,10 @@ export default function HomePage() {
     setFeaturedSlideDir(null);
   }, [featuredCols]);
 
-  // Auto-advance carousel every 4 seconds (only when there's overflow and not actively sliding)
+  // Auto-advance carousel every 4 seconds (only when there's overflow and not paused by user interaction)
   useEffect(() => {
     if (featured.length === 0) return;
+    if (isCarouselPaused) return;
     const ROWS = 2;
     const colCount = Math.ceil((featured.length + 1) / ROWS); // +1 for promo tile
     const hasOverflow = colCount > featuredCols;
@@ -237,13 +195,13 @@ export default function HomePage() {
     }, 4000);
 
     return () => clearInterval(timer);
-  }, [featured.length, featuredCols]);
+  }, [featured.length, featuredCols, isCarouselPaused]);
 
   return (
     <div className="min-h-full">
       <Header maxWidth="6xl" />
 
-      {/* Search and Browse Section with Background Image */}
+      {/* Hero Section with Quick Actions */}
       <div className="relative">
         <div className="absolute inset-0 -z-10">
           <img src={homepageBackground} alt="" className="h-full w-full object-cover" />
@@ -253,173 +211,109 @@ export default function HomePage() {
         <main className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold text-white/90 backdrop-blur">
-              Find fish, plants, shrimp, snails, and equipment near you
+              Explore fish, plants, shrimp, snails, and equipment 
             </div>
 
             <h1 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">
-              Search local aquarium listings.
+              Your local aquarium marketplace.
             </h1>
             <p className="mt-4 text-base leading-relaxed text-white/90">
-              Use search and filters to find the right stock fast — then message the seller or post your own.
+              Browse listings, post what you're selling, or find what you're looking for.
             </p>
           </div>
 
+          {/* Quick Action Buttons */}
           <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
-            <div className="p-5 sm:p-6">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="inline-flex rounded-2xl bg-slate-100 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setSearchTab("buy")}
-                    className={[
-                      "rounded-xl px-4 py-2 text-xs font-extrabold transition",
-                      searchTab === "buy" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900",
-                    ].join(" ")}
-                    aria-pressed={searchTab === "buy"}
-                  >
-                    Buy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSearchTab("wanted")}
-                    className={[
-                      "rounded-xl px-4 py-2 text-xs font-extrabold transition",
-                      searchTab === "wanted" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900",
-                    ].join(" ")}
-                    aria-pressed={searchTab === "wanted"}
-                  >
-                    Wanted
-                  </button>
-                </div>
-
-                <div className="text-xs font-semibold text-slate-500">
-                  {searchTab === "buy" ? "Browse listings for sale" : "Browse what people are looking for"}
-                </div>
+            <div className="p-6 sm:p-8">
+              <div className="text-center mb-6">
+                <h2 className="text-lg font-black text-slate-900">What would you like to do?</h2>
+                <p className="mt-1 text-sm font-semibold text-slate-500">Jump straight to where you need to go</p>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <label className="block lg:col-span-2">
-                  <div className="mb-1 text-xs font-semibold text-slate-700">Search</div>
-                  <input
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    placeholder="e.g. guppy, brisbane, breeder..."
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-400"
-                  />
-                </label>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {/* Browse Listings */}
+                <button
+                  type="button"
+                  onClick={() => nav("/browse")}
+                  className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-slate-900 bg-slate-900 p-6 text-center transition hover:bg-slate-800"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-2xl">
+                    🔍
+                  </div>
+                  <div>
+                    <div className="text-sm font-extrabold text-white">Browse Listings</div>
+                    <div className="mt-1 text-xs font-semibold text-white/70">Find fish, plants & more</div>
+                  </div>
+                </button>
 
-                <label className="block">
-                  <div className="mb-1 text-xs font-semibold text-slate-700">Category</div>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value as any)}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-slate-400"
-                  >
-                    {CATEGORIES.map((c) => (
-                      <option key={c || "Any"} value={c} className="text-slate-900">
-                        {c ? c : "Any"}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {/* Browse Wanted */}
+                <button
+                  type="button"
+                  onClick={() => nav("/wanted")}
+                  className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-slate-200 bg-white p-6 text-center transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-2xl">
+                    📋
+                  </div>
+                  <div>
+                    <div className="text-sm font-extrabold text-slate-900">Browse Wanted</div>
+                    <div className="mt-1 text-xs font-semibold text-slate-500">See what people need</div>
+                  </div>
+                </button>
 
-                <label className="block">
-                  <div className="mb-1 text-xs font-semibold text-slate-700">Species</div>
-                  <input
-                    value={species}
-                    onChange={(e) => setSpecies(e.target.value)}
-                    placeholder="e.g. betta"
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-400"
-                  />
-                </label>
+                {/* Sell Something */}
+                <button
+                  type="button"
+                  onClick={() => nav("/post")}
+                  className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-slate-200 bg-white p-6 text-center transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-2xl">
+                    💰
+                  </div>
+                  <div>
+                    <div className="text-sm font-extrabold text-slate-900">Sell Something</div>
+                    <div className="mt-1 text-xs font-semibold text-slate-500">Post a listing for sale</div>
+                  </div>
+                </button>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="block">
-                    <div className="mb-1 text-xs font-semibold text-slate-700">Min ($)</div>
-                    <input
-                      value={min}
-                      onChange={(e) => setMin(e.target.value)}
-                      inputMode="decimal"
-                      placeholder="0"
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-400"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <div className="mb-1 text-xs font-semibold text-slate-700">Max ($)</div>
-                    <input
-                      value={max}
-                      onChange={(e) => setMax(e.target.value)}
-                      inputMode="decimal"
-                      placeholder="200"
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-400"
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap gap-2">
-                  {chips.map((c) => (
-                    <button
-                      key={c.label}
-                      type="button"
-                      onClick={() => goBrowse(c.params, searchTab)}
-                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => goBrowse(undefined, searchTab)}
-                    className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-extrabold text-white hover:bg-slate-800"
-                  >
-                    Browse {searchTab === "wanted" ? "wanted" : "listings"}
-                  </button>
-
-                  <span className="hidden text-xs font-semibold text-slate-400 sm:inline">or</span>
-
-                  <button
-                    type="button"
-                    onClick={() => nav("/post")}
-                    className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 hover:bg-slate-50"
-                  >
-                    Sell something
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => nav("/wanted/post")}
-                    className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 hover:bg-slate-50"
-                  >
-                    Post wanted
-                  </button>
-                </div>
+                {/* Post Wanted */}
+                <button
+                  type="button"
+                  onClick={() => nav("/wanted/post")}
+                  className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-slate-200 bg-white p-6 text-center transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-2xl">
+                    ✋
+                  </div>
+                  <div>
+                    <div className="text-sm font-extrabold text-slate-900">Post Wanted</div>
+                    <div className="mt-1 text-xs font-semibold text-slate-500">Tell sellers what you need</div>
+                  </div>
+                </button>
               </div>
             </div>
           </div>
 
+          {/* Browse by Category */}
           <section className="mt-10">
             <div className="text-xs font-bold uppercase tracking-wider text-white/70">Browse by category</div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               {[
-                { label: "Fish", params: { category: "Fish" } },
-                { label: "Shrimp", params: { category: "Shrimp" } },
-                { label: "Snails", params: { category: "Snails" } },
-                { label: "Plants", params: { category: "Plants" } },
-                { label: "Equipment", params: { category: "Equipment" } },
+                { label: "Fish", emoji: "🐠", params: { category: "Fish" } },
+                { label: "Shrimp", emoji: "🦐", params: { category: "Shrimp" } },
+                { label: "Snails", emoji: "🐌", params: { category: "Snails" } },
+                { label: "Plants", emoji: "🌿", params: { category: "Plants" } },
+                { label: "Equipment", emoji: "⚙️", params: { category: "Equipment" } },
               ].map((t) => (
                 <button
                   key={t.label}
                   type="button"
                   onClick={() => goBrowse(t.params)}
-                  className="rounded-2xl border border-white/20 bg-white/10 p-4 text-left backdrop-blur hover:bg-white/20"
+                  className="rounded-2xl border border-white/20 bg-white/10 p-4 text-left backdrop-blur hover:bg-white/20 transition"
                 >
+                  <div className="text-2xl mb-2">{t.emoji}</div>
                   <div className="text-sm font-extrabold text-white">{t.label}</div>
-                  <div className="mt-1 text-xs font-semibold text-white/80">Explore</div>
+                  <div className="mt-1 text-xs font-semibold text-white/80">Explore →</div>
                 </button>
               ))}
             </div>
@@ -514,6 +408,14 @@ export default function HomePage() {
                     aria-roledescription="carousel"
                     aria-label="Promoted listings"
                     tabIndex={0}
+                    onMouseEnter={() => setIsCarouselPaused(true)}
+                    onMouseLeave={() => setIsCarouselPaused(false)}
+                    onFocusCapture={() => setIsCarouselPaused(true)}
+                    onBlurCapture={(e) => {
+                      const next = e.relatedTarget as Node | null;
+                      if (next && e.currentTarget.contains(next)) return;
+                      setIsCarouselPaused(false);
+                    }}
                     onKeyDown={(e) => {
                       if (!hasOverflow) return;
                       if (e.key === "ArrowLeft") {
@@ -633,7 +535,11 @@ export default function HomePage() {
                     </div>
 
                     {hasOverflow && (
-                      <div className="mt-4 flex flex-wrap items-center justify-center gap-2" role="tablist" aria-label="Promoted listing position">
+                      <div
+                        className="relative z-10 mt-4 flex flex-wrap items-center justify-center gap-1"
+                        role="tablist"
+                        aria-label="Promoted listing position"
+                      >
                         {Array.from({ length: colCount }, (_, i) => {
                           const active = i === safeColIndex;
                           return (
@@ -641,15 +547,17 @@ export default function HomePage() {
                               key={`featured-dot-${i}`}
                               type="button"
                               onClick={() => setFeaturedIndex(i)}
-                              className={[
-                                "h-2 rounded-full transition-all duration-300",
-                                active
-                                  ? "w-6 bg-slate-900"
-                                  : "w-2 bg-slate-300 hover:bg-slate-400",
-                              ].join(" ")}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-full cursor-pointer"
                               aria-label={`Go to featured column ${i + 1} of ${colCount}`}
                               aria-current={active ? "true" : undefined}
-                            />
+                            >
+                              <span
+                                className={[
+                                  "h-2 rounded-full transition-all duration-300",
+                                  active ? "w-6 bg-slate-900" : "w-2 bg-slate-300 hover:bg-slate-400",
+                                ].join(" ")}
+                              />
+                            </button>
                           );
                         })}
                       </div>
@@ -722,4 +630,3 @@ export default function HomePage() {
     </div>
   );
 }
-

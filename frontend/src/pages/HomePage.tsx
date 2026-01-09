@@ -220,8 +220,6 @@ export default function HomePage() {
     setFeaturedSlideDir(null);
   }, [featuredCols]);
 
-  const showFeaturedPromoTile = featured.length < 3 || featured.length % 2 === 1;
-
   return (
     <div className="min-h-full">
       <Header maxWidth="6xl" />
@@ -419,7 +417,8 @@ export default function HomePage() {
 
                 const tiles: FeaturedTile[] = [
                   ...featured.map((l) => ({ kind: "listing" as const, listing: l })),
-                  ...(showFeaturedPromoTile ? [{ kind: "promo" as const }] : []),
+                  // Always show the promo tile as the final item.
+                  { kind: "promo" as const },
                 ];
 
                 const n = tiles.length;

@@ -407,9 +407,18 @@ export default function HomePage() {
                     role="region"
                     aria-roledescription="carousel"
                     aria-label="Promoted listings"
-                    tabIndex={0}
+                    tabIndex={-1}
                     onMouseEnter={() => setIsCarouselPaused(true)}
                     onMouseLeave={() => setIsCarouselPaused(false)}
+                    onMouseDownCapture={(e) => {
+                      // Prevent the focusable wrapper from showing a blinking text caret
+                      // when users click "empty" space around the dots/cards.
+                      const target = e.target as HTMLElement | null;
+                      const isInteractive = !!target?.closest?.(
+                        'button, a, input, select, textarea, [role="button"], [role="tab"]'
+                      );
+                      if (!isInteractive) e.preventDefault();
+                    }}
                     onFocusCapture={() => setIsCarouselPaused(true)}
                     onBlurCapture={(e) => {
                       const next = e.relatedTarget as Node | null;
@@ -536,7 +545,7 @@ export default function HomePage() {
 
                     {hasOverflow && (
                       <div
-                        className="relative z-10 mt-4 flex flex-wrap items-center justify-center gap-1"
+                        className="relative z-10 mt-4 flex flex-wrap items-center justify-center gap-1 select-none"
                         role="tablist"
                         aria-label="Promoted listing position"
                       >
@@ -546,8 +555,13 @@ export default function HomePage() {
                             <button
                               key={`featured-dot-${i}`}
                               type="button"
+                              onMouseDown={(e) => {
+                                // Prevent a blinking text caret when clicking the "empty"
+                                // part of the dot hit area (keeps keyboard accessibility).
+                                e.preventDefault();
+                              }}
                               onClick={() => setFeaturedIndex(i)}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-full cursor-pointer"
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-full cursor-pointer caret-transparent"
                               aria-label={`Go to featured column ${i + 1} of ${colCount}`}
                               aria-current={active ? "true" : undefined}
                             >

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   deleteListing,
   fetchListing,
@@ -48,28 +48,45 @@ function Badge({ l }: { l: Listing }) {
   return <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-bold ${cls}`}>{badgeText(l)}</span>;
 }
 
-function IconButton(props: {
-  title: string;
+function ActionButton(props: {
+  label: string;
+  title?: string;
   onClick?: () => void;
   disabled?: boolean;
-  variant?: "default" | "danger" | "primary";
-  children: React.ReactNode;
+  variant?: "default" | "primary" | "danger";
+  icon?: React.ReactNode;
 }) {
-  const { title, onClick, disabled, variant = "default", children } = props;
+  const { label, title, onClick, disabled, variant = "default", icon } = props;
 
   const base =
-    "inline-flex items-center justify-center rounded-xl border p-2 transition focus:outline-none focus-visible:ring-2";
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2";
+
   const cls =
-    variant === "danger"
-      ? "border-red-200 bg-white text-red-700 hover:bg-red-50 focus-visible:ring-red-300 disabled:opacity-60"
-      : variant === "primary"
-      ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800 focus-visible:ring-slate-400 disabled:opacity-60"
-      : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50 focus-visible:ring-slate-300 disabled:opacity-60";
+    variant === "primary"
+      ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800 focus-visible:ring-slate-400 focus-visible:ring-offset-slate-50 disabled:opacity-60"
+      : variant === "danger"
+        ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100 focus-visible:ring-red-200 focus-visible:ring-offset-slate-50 disabled:opacity-60"
+        : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50 focus-visible:ring-slate-300 focus-visible:ring-offset-slate-50 disabled:opacity-60";
 
   return (
-    <button type="button" title={title} aria-label={title} onClick={onClick} disabled={disabled} className={`${base} ${cls}`}>
-      {children}
+    <button type="button" title={title ?? label} aria-label={label} onClick={onClick} disabled={disabled} className={`${base} ${cls}`}>
+      {icon}
+      <span>{label}</span>
     </button>
+  );
+}
+
+function ActionLink(props: { to: string; label: string; icon?: React.ReactNode }) {
+  const { to, label, icon } = props;
+  return (
+    <Link
+      to={to}
+      className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
+      aria-label={label}
+    >
+      {icon}
+      <span>{label}</span>
+    </Link>
   );
 }
 
@@ -122,10 +139,23 @@ function IconCheck() {
   );
 }
 
+function IconTick() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M9.2 16.2 4.8 11.8l1.4-1.4 3 3 8.6-8.6 1.4 1.4-10 10z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export default function MyListingsPage() {
+  const nav = useNavigate();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const ownedIds = useMemo(() => listOwnedIds(), []);
 
@@ -197,6 +227,10 @@ export default function MyListingsPage() {
     }
   }
 
+  function toggleExpanded(id: string) {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }
+
   return (
     <div className="min-h-full">
       <Header maxWidth="5xl" />
@@ -217,98 +251,186 @@ export default function MyListingsPage() {
           </div>
         )}
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {rows.map((r) => {
-            const l = r.listing;
-            if (!l) {
+        <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+          <table className="w-full min-w-[980px]">
+            <thead className="bg-slate-50">
+              <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                <th className="px-4 py-3">Listing</th>
+                <th className="px-4 py-3">Price</th>
+                <th className="px-4 py-3">Views</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Created</th>
+                <th className="px-4 py-3">Updated</th>
+                <th className="px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            {rows.map((r, idx) => {
+              const l = r.listing;
+              const rowBorder = idx === 0 ? "" : "border-t border-slate-200";
+
+              if (!l) {
+                return (
+                  <tbody key={r.id}>
+                    <tr className={["text-sm", rowBorder].join(" ")}>
+                      <td className="px-4 py-4" colSpan={7}>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-extrabold text-slate-900">Listing {r.id}</div>
+                            <div className="mt-1 text-sm text-slate-700">{r.error ?? "Unavailable"}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              removeOwnerToken(r.id);
+                              setRows((prev) => prev.filter((x) => x.id !== r.id));
+                            }}
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+                          >
+                            Remove from My Listings
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                );
+              }
+
+              const assets = resolveAssets(l.images ?? []);
+              const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+
+              const canToggle = l.status !== "expired" && l.status !== "deleted" && l.status !== "draft" && l.resolution === "none";
+              const canResolve = l.status !== "expired" && l.status !== "deleted" && l.resolution === "none";
+
+              const toggleTitle = l.status === "paused" ? "Resume" : "Pause";
+              const canFeature = l.status === "active" && l.resolution === "none";
+              const isExpanded = expandedId === l.id;
+
               return (
-                <div key={r.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="text-sm font-bold text-slate-900">Listing {r.id}</div>
-                  <div className="mt-1 text-sm text-slate-700">{r.error ?? "Unavailable"}</div>
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        removeOwnerToken(r.id);
-                        setRows((prev) => prev.filter((x) => x.id !== r.id));
-                      }}
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
-                    >
-                      Remove from My Listings
-                    </button>
-                  </div>
-                </div>
-              );
-            }
+                <tbody key={l.id} className="group">
+                  <tr
+                    className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")}
+                    onClick={() => toggleExpanded(l.id)}
+                  >
+                    <td className="px-4 py-4 align-top">
+                      <div className="flex items-start gap-3">
+                        <Link
+                          to={`/listing/${l.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-14 w-20 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+                        >
+                          {hero ? (
+                            <img src={hero} alt={l.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                          ) : null}
+                        </Link>
 
-            const assets = resolveAssets(l.images ?? []);
-            const hero = assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
-
-            const canToggle = l.status !== "expired" && l.status !== "deleted" && l.status !== "draft" && l.resolution === "none";
-            const canResolve = l.status !== "expired" && l.status !== "deleted" && l.resolution === "none";
-
-            const toggleTitle = l.status === "paused" ? "Resume" : "Pause";
-
-            return (
-              <div key={l.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                <Link to={`/listing/${l.id}`} className="block">
-                  <div className="aspect-[4/3] w-full bg-slate-100">
-                    {hero ? (
-                      <img src={hero} alt={l.title} className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">No image</div>
-                    )}
-                  </div>
-                </Link>
-
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-extrabold text-slate-900">{l.title}</div>
-                      <div className="mt-1 truncate text-xs font-semibold text-slate-600">
-                        {l.category} • {l.species} • {l.location}
+                        <div className="min-w-0">
+                          <Link
+                            to={`/listing/${l.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
+                          >
+                            {l.title}
+                          </Link>
+                          <div className="mt-1 truncate text-xs font-semibold text-slate-600">
+                            {l.category} • {l.species} • {l.location}
+                          </div>
+                          {l.featured && (
+                            <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-400 bg-transparent px-2 py-1 text-[11px] font-bold text-emerald-700">
+                              <IconTick />
+                              Featured
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <Badge l={l} />
-                  </div>
+                    </td>
 
-                  <div className="mt-3 flex items-center justify-between">
-                    <div className="text-sm font-extrabold text-slate-900">{centsToDollars(l.priceCents)}</div>
-                    <div className="text-[11px] font-semibold text-slate-500">{new Date(l.createdAt).toLocaleDateString()}</div>
-                  </div>
+                    <td className="px-4 py-4 align-top">
+                      <div className="text-sm font-extrabold text-slate-900">{centsToDollars(l.priceCents)}</div>
+                    </td>
 
-                  <div className="mt-4 flex items-center gap-2">
-                    <Link to={`/edit/${l.id}`} className="inline-flex" aria-label="Edit">
-                      <IconButton title="Edit" variant="default">
-                        <IconPencil />
-                      </IconButton>
-                    </Link>
+                    <td className="px-4 py-4 align-top">
+                      <div className="text-sm font-semibold text-slate-700">{Number(l.views ?? 0).toLocaleString()}</div>
+                    </td>
 
-                    <IconButton title="Delete" variant="danger" onClick={() => onDelete(l.id)}>
-                      <IconTrash />
-                    </IconButton>
+                    <td className="px-4 py-4 align-top">
+                      <Badge l={l} />
+                    </td>
 
-                    <IconButton
-                      title={toggleTitle}
-                      variant="default"
-                      disabled={!canToggle}
-                      onClick={() => doTogglePauseResume(l)}
-                    >
-                      {l.status === "paused" ? <IconPlay /> : <IconPause />}
-                    </IconButton>
+                    <td className="px-4 py-4 align-top">
+                      <div className="text-sm font-semibold text-slate-700">{new Date(l.createdAt).toLocaleDateString()}</div>
+                    </td>
 
-                    <IconButton title="Mark as Sold" variant="primary" disabled={!canResolve} onClick={() => doSold(l.id)}>
-                      <IconCheck />
-                    </IconButton>
-                  </div>
+                    <td className="px-4 py-4 align-top">
+                      <div className="text-sm font-semibold text-slate-700">{new Date(l.updatedAt).toLocaleString()}</div>
+                    </td>
 
-                  <div className="mt-3 text-[11px] font-semibold text-slate-500">
-                    Updated: {new Date(l.updatedAt).toLocaleString()}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                    <td className="px-4 py-4 align-top">
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleExpanded(l.id);
+                        }}
+                      >
+                        <ActionButton label={isExpanded ? "Hide" : "Actions"} title={isExpanded ? "Hide actions" : "Show actions"} />
+                      </div>
+                    </td>
+                  </tr>
+
+                  {isExpanded && (
+                    <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(l.id)}>
+                      <td colSpan={7} className="px-4 pb-4 pt-0">
+                        <div
+                          className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ActionButton
+                            label={l.featured ? "Manage featuring" : "Feature this listing"}
+                            title={
+                              !canFeature
+                                ? "Only active, unsold listings can be featured."
+                                : l.featured
+                                  ? "Manage featuring"
+                                  : "Feature this listing"
+                            }
+                            variant={l.featured ? "default" : "primary"}
+                            disabled={!canFeature}
+                            onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
+                          />
+
+                          <ActionLink to={`/edit/${l.id}`} label="Edit" icon={<IconPencil />} />
+
+                          <ActionButton
+                            label={toggleTitle}
+                            title={toggleTitle}
+                            disabled={!canToggle}
+                            onClick={() => doTogglePauseResume(l)}
+                            icon={l.status === "paused" ? <IconPlay /> : <IconPause />}
+                          />
+
+                          <ActionButton
+                            label="Mark sold"
+                            title="Mark as sold"
+                            variant="primary"
+                            disabled={!canResolve}
+                            onClick={() => doSold(l.id)}
+                            icon={<IconCheck />}
+                          />
+
+                          <ActionButton
+                            label="Delete"
+                            title="Delete"
+                            variant="danger"
+                            onClick={() => onDelete(l.id)}
+                            icon={<IconTrash />}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              );
+            })}
+          </table>
         </div>
       </main>
     </div>

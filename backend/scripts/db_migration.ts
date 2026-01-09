@@ -61,6 +61,15 @@ function main() {
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_featured ON listings(featured);`);
 
+  if (!hasColumn(db, "listings", "views")) {
+    db.exec(`ALTER TABLE listings ADD COLUMN views INTEGER NOT NULL DEFAULT 0;`);
+    migrations.push("Added listings.views");
+  } else {
+    migrations.push("listings.views already exists");
+  }
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_views ON listings(views);`);
+
   // Wanted posts (buyer requests)
   db.exec(`
 CREATE TABLE IF NOT EXISTS wanted_posts(

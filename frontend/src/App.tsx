@@ -9,6 +9,7 @@ import ListingPage from "./pages/ListingPage";
 import PostListingPage from "./pages/PostListingPage";
 import MyListingsPage from "./pages/MyListingsPage";
 import EditListingPage from "./pages/EditListingPage";
+import FeatureListingPage from "./pages/FeatureListingPage";
 import ProfilePage from "./pages/ProfilePage";
 import FaqPage from "./pages/FaqPage.tsx";
 import ContactPage from "./pages/ContactPage.tsx";
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/post" element={<PostListingPage />} />
         <Route path="/me" element={<MyListingsPage />} />
         <Route path="/edit/:id" element={<EditListingPage />} />
+        <Route path="/feature/:id" element={<FeatureListingPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/wanted" element={<Navigate to="/browse?type=wanted" replace />} />
         <Route path="/wanted/post" element={<WantedPostPage />} />

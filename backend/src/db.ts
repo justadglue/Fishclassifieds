@@ -12,6 +12,7 @@ export type ListingRow = {
   id: string;
   owner_token: string;
   featured?: number;
+  views?: number;
   title: string;
   category: string;
   species: string;
@@ -86,6 +87,7 @@ CREATE TABLE IF NOT EXISTS listings(
   id TEXT PRIMARY KEY,
   owner_token TEXT NOT NULL,
   featured INTEGER NOT NULL DEFAULT 0,
+  views INTEGER NOT NULL DEFAULT 0,
   title TEXT NOT NULL,
   category TEXT NOT NULL DEFAULT 'Fish',
   species TEXT NOT NULL,
@@ -120,6 +122,7 @@ CREATE INDEX IF NOT EXISTS idx_listings_price ON listings(price_cents);
 CREATE INDEX IF NOT EXISTS idx_listings_category ON listings(category);
 CREATE INDEX IF NOT EXISTS idx_listings_owner_token ON listings(owner_token);
 CREATE INDEX IF NOT EXISTS idx_listings_featured ON listings(featured);
+CREATE INDEX IF NOT EXISTS idx_listings_views ON listings(views);
 CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);
 CREATE INDEX IF NOT EXISTS idx_listings_resolution ON listings(resolution);
 CREATE INDEX IF NOT EXISTS idx_listings_expires_at ON listings(expires_at);

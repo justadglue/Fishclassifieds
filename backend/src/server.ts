@@ -33,6 +33,15 @@ const HAS_LISTINGS_FEATURED = (() => {
   }
 })();
 
+const HAS_LISTINGS_VIEWS = (() => {
+  try {
+    const rows = db.pragma("table_info(listings)") as Array<{ name: string }>;
+    return rows.some((r) => r.name === "views");
+  } catch {
+    return false;
+  }
+})();
+
 app.set("trust proxy", 1);
 
 app.use(
@@ -250,6 +259,7 @@ const UpdateListingSchema = z.object({
   contact: z.string().max(200).nullable().optional(),
   images: ImagesInputSchema.optional(),
   imageUrl: z.string().nullable().optional(),
+  featured: z.boolean().optional(),
 });
 
 const WantedStatusSchema = z.enum(["open", "closed"]);
@@ -568,7 +578,7 @@ LIMIT ? OFFSET ?
 app.get("/api/listings/:id", (req, res) => {
   runAutoExpirePass();
   const id = req.params.id;
-  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
+  let row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
 
   const isOwner = requireOwner(req, row);
@@ -579,6 +589,12 @@ app.get("/api/listings/:id", (req, res) => {
 
   const isPublic = PUBLIC_LIFECYCLE.includes(status) || resolution !== "none";
   if (!isOwner && !isPublic) return res.status(404).json({ error: "Not found" });
+
+  // Track views for public (non-owner) listing detail views.
+  if (HAS_LISTINGS_VIEWS && !isOwner && isPublic) {
+    db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ?`).run(id);
+    row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
+  }
 
   return res.json(mapListing(req, row));
 });
@@ -612,6 +628,15 @@ app.patch("/api/listings/:id", (req, res) => {
     contact: p.contact,
     image_url: p.imageUrl,
   };
+
+  if (p.featured !== undefined) {
+    if (!HAS_LISTINGS_FEATURED) {
+      return res.status(400).json({
+        error: "DB is missing listings.featured. Run: npm --prefix backend run db:migration -- --seed-featured",
+      });
+    }
+    map.featured = p.featured ? 1 : 0;
+  }
 
   for (const [k, v] of Object.entries(map)) {
     if (v !== undefined) {
@@ -1063,6 +1088,7 @@ function mapListing(req: express.Request, row: ListingRow & any) {
   return {
     id: row.id,
     featured: HAS_LISTINGS_FEATURED ? Boolean((row as any).featured) : false,
+    views: HAS_LISTINGS_VIEWS ? Number((row as any).views ?? 0) : 0,
     title: row.title,
     category: row.category,
     species: row.species,

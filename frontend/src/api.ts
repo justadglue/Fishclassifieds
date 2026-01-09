@@ -11,6 +11,7 @@ export type ImageAsset = {
 export type Listing = {
   id: string;
   featured?: boolean;
+  views?: number;
   title: string;
   category: Category;
   species: string;
@@ -239,7 +240,10 @@ export async function deleteWantedPost(id: string) {
 }
 
 export async function fetchListing(id: string) {
-  return apiFetch<Listing>(`/api/listings/${encodeURIComponent(id)}`);
+  // Include owner token when available so owners can see non-public lifecycle states.
+  const token = getOwnerToken(id);
+  const headers = token ? { "x-owner-token": token } : undefined;
+  return apiFetch<Listing>(`/api/listings/${encodeURIComponent(id)}`, headers ? { headers } : undefined);
 }
 
 export async function createListing(input: {
@@ -275,6 +279,7 @@ export async function updateListing(
     contact?: string | null;
     images?: Array<string | ImageAsset>;
     imageUrl?: string | null;
+    featured?: boolean;
   }
 ) {
   const token = getOwnerToken(id);
@@ -287,6 +292,10 @@ export async function updateListing(
     },
     body: JSON.stringify(input),
   });
+}
+
+export async function setListingFeatured(id: string, featured: boolean) {
+  return updateListing(id, { featured });
 }
 
 export async function deleteListing(id: string) {

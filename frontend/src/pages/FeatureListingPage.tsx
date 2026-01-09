@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
-import { fetchListing, setListingFeatured, type Listing } from "../api";
+import { clearListingFeaturing, fetchListing, setListingFeaturingForDays, type Listing } from "../api";
 
 export default function FeatureListingPage() {
   const { id } = useParams();
@@ -41,12 +41,23 @@ export default function FeatureListingPage() {
     return item.status === "active" && item.resolution === "none";
   }, [item]);
 
+  const featuringState = useMemo<"none" | "active" | "expired">(() => {
+    if (!item) return "none";
+    const until = item.featuredUntil ?? null;
+    if (until !== null) return until > Date.now() ? "active" : "expired";
+    return item.featured ? "active" : "none";
+  }, [item]);
+
   async function onConfirm(featured: boolean) {
     if (!id) return;
     setErr(null);
     setBusy(true);
     try {
-      await setListingFeatured(id, featured);
+      if (featured) {
+        await setListingFeaturingForDays(id, plan === "7d" ? 7 : 30);
+      } else {
+        await clearListingFeaturing(id);
+      }
       nav("/me");
     } catch (e: any) {
       setErr(e?.message ?? "Failed to update featured status");
@@ -84,9 +95,13 @@ export default function FeatureListingPage() {
                 {item.category} • {item.species} • {item.location}
               </div>
 
-              {item.featured ? (
+              {featuringState === "active" ? (
                 <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">
                   This listing is currently featured.
+                </div>
+              ) : featuringState === "expired" ? (
+                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">
+                  Featuring for this listing has expired.
                 </div>
               ) : (
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
@@ -122,7 +137,7 @@ export default function FeatureListingPage() {
               )}
 
               <div className="mt-4 space-y-2">
-                {!item.featured ? (
+                {featuringState !== "active" ? (
                   <button
                     type="button"
                     disabled={!canBeFeatured || busy}

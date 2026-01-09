@@ -42,6 +42,15 @@ const HAS_LISTINGS_VIEWS = (() => {
   }
 })();
 
+const HAS_LISTINGS_FEATURED_UNTIL = (() => {
+  try {
+    const rows = db.pragma("table_info(listings)") as Array<{ name: string }>;
+    return rows.some((r) => r.name === "featured_until");
+  } catch {
+    return false;
+  }
+})();
+
 app.set("trust proxy", 1);
 
 app.use(
@@ -260,6 +269,7 @@ const UpdateListingSchema = z.object({
   images: ImagesInputSchema.optional(),
   imageUrl: z.string().nullable().optional(),
   featured: z.boolean().optional(),
+  featuredUntil: z.number().int().min(0).nullable().optional(),
 });
 
 const WantedStatusSchema = z.enum(["open", "closed"]);
@@ -526,6 +536,11 @@ app.get("/api/listings", (req, res) => {
       });
     }
     where.push(`featured = 1`);
+    // Only show currently-featured items to the public “featured carousel”.
+    if (HAS_LISTINGS_FEATURED_UNTIL) {
+      where.push(`(featured_until IS NULL OR featured_until > ?)`);
+      params.push(Date.now());
+    }
   }
 
   if (q) {
@@ -629,6 +644,19 @@ app.patch("/api/listings/:id", (req, res) => {
     image_url: p.imageUrl,
   };
 
+  if (p.featuredUntil !== undefined) {
+    if (!HAS_LISTINGS_FEATURED_UNTIL) {
+      return res.status(400).json({
+        error: "DB is missing listings.featured_until. Run: npm --prefix backend run db:migration",
+      });
+    }
+    map.featured_until = p.featuredUntil;
+    // If client sets/clears featured_until but doesn't explicitly set featured, keep them in sync.
+    if (p.featured === undefined && HAS_LISTINGS_FEATURED) {
+      map.featured = p.featuredUntil === null ? 0 : 1;
+    }
+  }
+
   if (p.featured !== undefined) {
     if (!HAS_LISTINGS_FEATURED) {
       return res.status(400).json({
@@ -636,6 +664,10 @@ app.patch("/api/listings/:id", (req, res) => {
       });
     }
     map.featured = p.featured ? 1 : 0;
+    // Turning off featuring clears the timer unless explicitly provided.
+    if (!p.featured && p.featuredUntil === undefined && HAS_LISTINGS_FEATURED_UNTIL) {
+      map.featured_until = null;
+    }
   }
 
   for (const [k, v] of Object.entries(map)) {
@@ -1088,6 +1120,7 @@ function mapListing(req: express.Request, row: ListingRow & any) {
   return {
     id: row.id,
     featured: HAS_LISTINGS_FEATURED ? Boolean((row as any).featured) : false,
+    featuredUntil: HAS_LISTINGS_FEATURED_UNTIL ? (row as any).featured_until ?? null : null,
     views: HAS_LISTINGS_VIEWS ? Number((row as any).views ?? 0) : 0,
     title: row.title,
     category: row.category,

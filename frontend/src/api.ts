@@ -11,6 +11,7 @@ export type ImageAsset = {
 export type Listing = {
   id: string;
   featured?: boolean;
+  featuredUntil?: number | null;
   views?: number;
   title: string;
   category: Category;
@@ -280,6 +281,7 @@ export async function updateListing(
     images?: Array<string | ImageAsset>;
     imageUrl?: string | null;
     featured?: boolean;
+    featuredUntil?: number | null;
   }
 ) {
   const token = getOwnerToken(id);
@@ -296,6 +298,15 @@ export async function updateListing(
 
 export async function setListingFeatured(id: string, featured: boolean) {
   return updateListing(id, { featured });
+}
+
+export async function setListingFeaturingForDays(id: string, days: number) {
+  const ms = Math.max(1, Math.floor(days)) * 24 * 60 * 60 * 1000;
+  return updateListing(id, { featured: true, featuredUntil: Date.now() + ms });
+}
+
+export async function clearListingFeaturing(id: string) {
+  return updateListing(id, { featured: false, featuredUntil: null });
 }
 
 export async function deleteListing(id: string) {

@@ -53,20 +53,22 @@ function ActionButton(props: {
   title?: string;
   onClick?: () => void;
   disabled?: boolean;
-  variant?: "default" | "primary" | "danger";
+  variant?: "default" | "primary" | "danger" | "feature";
   icon?: React.ReactNode;
 }) {
   const { label, title, onClick, disabled, variant = "default", icon } = props;
 
   const base =
-    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2";
+    "inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 text-xs font-bold leading-none transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2";
 
   const cls =
     variant === "primary"
       ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800 focus-visible:ring-slate-400 focus-visible:ring-offset-slate-50 disabled:opacity-60"
       : variant === "danger"
         ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100 focus-visible:ring-red-200 focus-visible:ring-offset-slate-50 disabled:opacity-60"
-        : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50 focus-visible:ring-slate-300 focus-visible:ring-offset-slate-50 disabled:opacity-60";
+        : variant === "feature"
+          ? "border-indigo-200 bg-indigo-50 text-indigo-950 shadow-sm hover:bg-indigo-100 focus-visible:ring-indigo-200 focus-visible:ring-offset-slate-50 disabled:opacity-60"
+          : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50 focus-visible:ring-slate-300 focus-visible:ring-offset-slate-50 disabled:opacity-60";
 
   return (
     <button type="button" title={title ?? label} aria-label={label} onClick={onClick} disabled={disabled} className={`${base} ${cls}`}>
@@ -81,7 +83,7 @@ function ActionLink(props: { to: string; label: string; icon?: React.ReactNode }
   return (
     <Link
       to={to}
-      className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
+      className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold leading-none text-slate-900 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
       aria-label={label}
     >
       {icon}
@@ -150,12 +152,35 @@ function IconTick() {
   );
 }
 
+function IconHourglass() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M6 2h12v4a6 6 0 0 1-3.2 5.3L13.3 12l1.5.7A6 6 0 0 1 18 18v4H6v-4a6 6 0 0 1 3.2-5.3l1.5-.7-1.5-.7A6 6 0 0 1 6 6V2zm2 4a4 4 0 0 0 2.1 3.5L12 10.4l1.9-.9A4 4 0 0 0 16 6V4H8v2zm8 16v-2a4 4 0 0 0-2.1-3.5L12 13.6l-1.9.9A4 4 0 0 0 8 20v2h8z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function IconExpired() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 5h2v6h-2V7zm0 8h2v2h-2v-2z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export default function MyListingsPage() {
   const nav = useNavigate();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const ownedIds = useMemo(() => listOwnedIds(), []);
 
@@ -189,6 +214,62 @@ export default function MyListingsPage() {
       cancelled = true;
     };
   }, []);
+
+  // Keep “Featured for Xd/Xh” pills fresh over time.
+  useEffect(() => {
+    const t = window.setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  function renderFeaturedText(l: Listing) {
+    // We show this line if there is an active/expired featuring timer, or if the legacy `featured` flag is set.
+    const until = l.featuredUntil ?? null;
+    const shouldShow = Boolean(l.featured) || until !== null;
+    if (!shouldShow) return null;
+
+    // Legacy fallback (no timer set)
+    if (until === null) {
+      return (
+        <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
+          <IconTick />
+          <span>Featured</span>
+        </div>
+      );
+    }
+
+    const diffMs = until - nowMs;
+    const hourMs = 60 * 60 * 1000;
+    const dayMs = 24 * hourMs;
+
+    if (diffMs <= 0) {
+      return (
+        <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-red-700">
+          <IconExpired />
+          <span>Feature expired</span>
+        </div>
+      );
+    }
+
+    if (diffMs < dayMs) {
+      const hrs = Math.max(1, Math.ceil(diffMs / hourMs));
+      return (
+        <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-amber-800">
+          <IconHourglass />
+          <span>Featured for {hrs}h</span>
+        </div>
+      );
+    }
+
+    const days = Math.max(1, Math.ceil(diffMs / dayMs));
+    return (
+      <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
+        <IconTick />
+        <span>
+          Featured for {days} {days === 1 ? "day" : "days"}
+        </span>
+      </div>
+    );
+  }
 
   async function onDelete(id: string) {
     setErr(null);
@@ -334,12 +415,7 @@ export default function MyListingsPage() {
                           <div className="mt-1 truncate text-xs font-semibold text-slate-600">
                             {l.category} • {l.species} • {l.location}
                           </div>
-                          {l.featured && (
-                            <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-400 bg-transparent px-2 py-1 text-[11px] font-bold text-emerald-700">
-                              <IconTick />
-                              Featured
-                            </div>
-                          )}
+                          {renderFeaturedText(l)}
                         </div>
                       </div>
                     </td>
@@ -392,9 +468,10 @@ export default function MyListingsPage() {
                                   ? "Manage featuring"
                                   : "Feature this listing"
                             }
-                            variant={l.featured ? "default" : "primary"}
+                            variant="feature"
                             disabled={!canFeature}
                             onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
+                            icon={l.featured ? <IconTick /> : undefined}
                           />
 
                           <ActionLink to={`/edit/${l.id}`} label="Edit" icon={<IconPencil />} />

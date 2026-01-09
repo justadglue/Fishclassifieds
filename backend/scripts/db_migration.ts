@@ -61,6 +61,15 @@ function main() {
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_featured ON listings(featured);`);
 
+  if (!hasColumn(db, "listings", "featured_until")) {
+    db.exec(`ALTER TABLE listings ADD COLUMN featured_until INTEGER;`);
+    migrations.push("Added listings.featured_until");
+  } else {
+    migrations.push("listings.featured_until already exists");
+  }
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_featured_until ON listings(featured_until);`);
+
   if (!hasColumn(db, "listings", "views")) {
     db.exec(`ALTER TABLE listings ADD COLUMN views INTEGER NOT NULL DEFAULT 0;`);
     migrations.push("Added listings.views");
@@ -95,8 +104,8 @@ CREATE TABLE IF NOT EXISTS wanted_posts(
 
   if (args.seedFeatured) {
     if (args.replaceFeatured) {
-      db.exec(`UPDATE listings SET featured = 0;`);
-      migrations.push("Cleared featured flags");
+      db.exec(`UPDATE listings SET featured = 0, featured_until = NULL;`);
+      migrations.push("Cleared featured flags + timers");
     }
 
     const ids = db
@@ -113,10 +122,12 @@ LIMIT 6
       )
       .all() as Array<{ id: string }>;
 
-    const stmt = db.prepare(`UPDATE listings SET featured = 1 WHERE id = ?`);
+    const now = Date.now();
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    const stmt = db.prepare(`UPDATE listings SET featured = 1, featured_until = ? WHERE id = ?`);
     let marked = 0;
     for (const r of ids) {
-      stmt.run(r.id);
+      stmt.run(now + sevenDaysMs, r.id);
       marked++;
     }
     migrations.push(`Seeded featured=true for ${marked} listing(s)`);

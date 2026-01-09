@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { fetchListings, resolveAssets, type Listing } from "../api";
 import { useAuth } from "../auth";
@@ -124,6 +124,44 @@ export default function HomePage() {
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const [heroSearch, setHeroSearch] = useState("");
+  const [heroImgLoaded, setHeroImgLoaded] = useState(false);
+  const heroImgRef = useRef<HTMLImageElement | null>(null);
+  const heroImgDecodingRef = useRef(false);
+
+  useEffect(() => {
+    // In dev StrictMode, components can mount twice and an already-cached image
+    // may not fire onLoad the second time. If it's already in cache, decode it
+    // and then flip the state on the next frame so opacity can animate.
+    const img = heroImgRef.current;
+    if (!img) return;
+    if (!img.complete || img.naturalWidth === 0) return;
+    if (heroImgDecodingRef.current) return;
+
+    heroImgDecodingRef.current = true;
+    const p = typeof img.decode === "function" ? img.decode() : Promise.resolve();
+    p.catch(() => {})
+      .then(() => {
+        window.requestAnimationFrame(() => setHeroImgLoaded(true));
+      })
+      .finally(() => {
+        heroImgDecodingRef.current = false;
+      });
+  }, []);
+
+  function markHeroReady(img: HTMLImageElement) {
+    if (!img || img.naturalWidth === 0) return;
+    if (heroImgDecodingRef.current) return;
+    heroImgDecodingRef.current = true;
+
+    const p = typeof img.decode === "function" ? img.decode() : Promise.resolve();
+    p.catch(() => {})
+      .then(() => {
+        window.requestAnimationFrame(() => setHeroImgLoaded(true));
+      })
+      .finally(() => {
+        heroImgDecodingRef.current = false;
+      });
+  }
 
   function navWithParams(path: string, params?: Record<string, string | undefined>) {
     const sp = new URLSearchParams();
@@ -225,15 +263,37 @@ export default function HomePage() {
       {/* Hero Section with Quick Actions */}
       <div className="relative">
         <div className="absolute inset-0 -z-10">
-          <img src={homepageBackground} alt="" className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-linear-to-b from-slate-950/40 via-slate-950/50 to-slate-950/70" />
+          {/* Instant fallback background (match site theme) */}
+          <div className="absolute inset-0 bg-slate-50" aria-hidden="true" />
+
+          {/* Hero image (revealed by overlay fade) */}
+          <img
+            src={homepageBackground}
+            alt=""
+            ref={heroImgRef}
+            className="absolute inset-0 h-full w-full object-cover"
+            loading="eager"
+            decoding="async"
+            onLoad={(e) => markHeroReady(e.currentTarget)}
+            onError={() => setHeroImgLoaded(true)}
+          />
+
+          {/* Overlay is always present; the white cover hides it until ready */}
+          <div className="absolute inset-0 bg-linear-to-b from-slate-950/40 via-slate-950/50 to-slate-950/70" aria-hidden="true" />
         </div>
+
+        {/* One single white cover that fades away once hero is ready */}
+        <div
+          className={[
+            "pointer-events-auto absolute inset-0 z-10 bg-slate-50 transition-opacity duration-1000 ease-out",
+            heroImgLoaded ? "pointer-events-none opacity-0" : "opacity-100",
+          ].join(" ")}
+          aria-hidden="true"
+        />
 
         <main className="mx-auto max-w-6xl px-4 py-14 sm:py-20">
           <div className="max-w-3xl">
-            <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
-              Australia's aquarium marketplace
-            </h1>
+            <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl">Australia's aquarium marketplace</h1>
           </div>
 
           {/* Quick actions (translucent / glass) */}
@@ -287,7 +347,7 @@ export default function HomePage() {
               <input
                 value={heroSearch}
                 onChange={(e) => setHeroSearch(e.target.value)}
-                placeholder='Search listings'
+                placeholder="Search all listings"
                 className="min-w-0 flex-1 bg-transparent px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-white/70"
               />
               <button

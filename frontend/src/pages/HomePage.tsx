@@ -58,7 +58,7 @@ type FeaturedTile = { kind: "listing"; listing: Listing } | { kind: "promo" };
 
 function FeaturedPromoCard() {
   return (
-    <div className="group min-w-0 overflow-hidden rounded-2xl border border-indigo-300/70 bg-white shadow-sm ring-1 ring-indigo-200/40 transition-shadow hover:shadow-md focus-within:ring-4 focus-within:ring-indigo-200/60">
+    <div className="group min-w-0 overflow-hidden rounded-2xl border border-indigo-300/70 bg-white shadow-sm ring-1 ring-indigo-200/40 transition-[transform,box-shadow,border-color,ring-color] hover:scale-[1.01] hover:shadow-lg hover:shadow-indigo-500/10 hover:ring-indigo-300/60 focus-within:ring-4 focus-within:ring-indigo-200/60">
       {/* Keep overall geometry consistent, but show the image uncropped and shorter */}
       <div className="relative aspect-4/3 w-full bg-slate-100">
         <div className="flex h-full flex-col">
@@ -67,7 +67,7 @@ function FeaturedPromoCard() {
             <img
               src={featuredArowana}
               alt=""
-              className="absolute inset-0 h-full w-full scale-110 object-cover object-center blur-sm opacity-60"
+              className="absolute inset-0 h-full w-full scale-110 object-cover object-center blur-sm opacity-60 transition-transform duration-300 group-hover:scale-[1.12]"
               aria-hidden="true"
               loading="lazy"
               decoding="async"
@@ -78,7 +78,7 @@ function FeaturedPromoCard() {
             <img
               src={featuredArowana}
               alt="Arowana"
-              className="relative h-full w-full object-cover object-bottom"
+              className="relative h-full w-full object-cover object-bottom transition-transform duration-300 group-hover:scale-[1.02]"
               loading="lazy"
               decoding="async"
             />
@@ -532,9 +532,9 @@ export default function HomePage() {
                           ))}
                         </div>
                       ) : (
-                        <div className="overflow-hidden">
+                        <div className="overflow-x-hidden overflow-y-visible pb-2">
                           <div
-                            className="-mx-2 flex will-change-transform"
+                            className="flex will-change-transform"
                             style={{
                               transform: `translateX(-${(1 + (isSliding ? (featuredSlideDir as -1 | 1) : 0)) * (100 / VISIBLE_COLS)}%)`,
                               transition: isSliding ? "transform 280ms ease" : "none",

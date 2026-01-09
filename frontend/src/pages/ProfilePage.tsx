@@ -42,7 +42,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      nav("/login");
+      nav(`/auth?next=${encodeURIComponent("/profile")}`);
       return;
     }
 

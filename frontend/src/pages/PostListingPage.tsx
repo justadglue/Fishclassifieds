@@ -10,6 +10,7 @@ import {
   type ImageAsset,
 } from "../api";
 import Header from "../components/Header";
+import { useAuth } from "../auth";
 
 function dollarsToCents(v: string) {
   const n = Number(v);
@@ -33,6 +34,12 @@ function uid() {
 
 export default function PostListingPage() {
   const nav = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) nav(`/auth?next=${encodeURIComponent("/post")}`);
+  }, [authLoading, user, nav]);
 
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<Category>("Fish");

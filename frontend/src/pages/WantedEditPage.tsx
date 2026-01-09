@@ -38,8 +38,11 @@ export default function WantedEditPage() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user) nav("/login");
-  }, [loading, user, nav]);
+    if (!user) {
+      const target = id ? `/wanted/edit/${id}` : "/wanted";
+      nav(`/auth?next=${encodeURIComponent(target)}`);
+    }
+  }, [loading, user, nav, id]);
 
   useEffect(() => {
     let cancelled = false;

@@ -82,7 +82,10 @@ export default function WantedDetailPage() {
   function onMessageBuyer() {
     setMsgSoon(false);
     if (loading) return;
-    if (!user) return nav("/login");
+    if (!user) {
+      const target = id ? `/wanted/${id}` : "/wanted";
+      return nav(`/auth?next=${encodeURIComponent(target)}`);
+    }
     setMsgSoon(true);
   }
 

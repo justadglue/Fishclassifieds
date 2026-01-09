@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { fetchListings, resolveAssets, type Listing } from "../api";
+import { useAuth } from "../auth";
 import Header from "../components/Header";
 import homepageBackground from "../assets/homepage_background_1.jpg";
 import featuredArowana from "../assets/featured_arowana.jpg";
@@ -113,6 +114,7 @@ function FeaturedPromoCard() {
 
 export default function HomePage() {
   const nav = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [featured, setFeatured] = useState<Listing[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
   const [featuredErr, setFeaturedErr] = useState<string | null>(null);
@@ -135,6 +137,17 @@ export default function HomePage() {
 
   function goBrowse(extra?: { q?: string; category?: string; species?: string; min?: string; max?: string }) {
     navWithParams("/browse", extra);
+  }
+
+  function goRequireAuth(targetPath: string) {
+    // If auth is still resolving, don't bounce the user unexpectedly.
+    // They can click again once state is loaded.
+    if (authLoading) return;
+    if (!user) {
+      navWithParams("/auth", { next: targetPath });
+      return;
+    }
+    nav(targetPath);
   }
 
   useEffect(() => {
@@ -216,19 +229,15 @@ export default function HomePage() {
           <div className="absolute inset-0 bg-linear-to-b from-slate-950/40 via-slate-950/50 to-slate-950/70" />
         </div>
 
-        <main className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
+        <main className="mx-auto max-w-6xl px-4 py-14 sm:py-20">
           <div className="max-w-3xl">
-
-            <h1 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">
-              Your aquarium marketplace.
+            <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
+              Australia's aquarium marketplace
             </h1>
-            <p className="mt-4 text-base leading-relaxed text-white/90">
-              Browse listings, post what you're selling, or find what you're looking for.
-            </p>
           </div>
 
           {/* Quick actions (translucent / glass) */}
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-16 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <button
               type="button"
               onClick={() => nav("/browse")}
@@ -240,7 +249,7 @@ export default function HomePage() {
 
             <button
               type="button"
-              onClick={() => nav("/post")}
+              onClick={() => goRequireAuth("/post")}
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
               <div className="text-sm font-extrabold text-white">Create a listing →</div>
@@ -258,7 +267,7 @@ export default function HomePage() {
 
             <button
               type="button"
-              onClick={() => nav("/wanted/post")}
+              onClick={() => goRequireAuth("/wanted/post")}
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
               <div className="text-sm font-extrabold text-white">Post a wanted →</div>
@@ -268,7 +277,7 @@ export default function HomePage() {
 
           {/* Simple keyword search */}
           <form
-            className="mt-4"
+            className="mt-6"
             onSubmit={(e) => {
               e.preventDefault();
               goBrowse({ q: heroSearch });
@@ -291,7 +300,7 @@ export default function HomePage() {
           </form>
 
           {/* Popular searches (placeholder list; can be swapped for real analytics later) */}
-          <section className="mt-10">
+          <section className="mt-14">
             <div className="flex items-baseline justify-between gap-3">
               <div className="text-xs font-bold uppercase tracking-wider text-white/70">Popular searches</div>
             </div>

@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { authRegister, authLogin } from "../api";
 
 export default function SignUpPage() {
   const navigate = useNavigate();
+  const [sp] = useSearchParams();
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [surname, setSurname] = useState("");
@@ -42,7 +43,10 @@ export default function SignUpPage() {
         displayName,
       });
       await authLogin({ email: email.trim(), password });
-      navigate("/me");
+      const next = sp.get("next");
+      // Only allow internal paths.
+      if (next && next.startsWith("/")) navigate(next);
+      else navigate("/me");
     } catch (e: any) {
       setErr(e?.message ?? "Sign up failed");
     } finally {

@@ -120,7 +120,8 @@ export default function HomePage() {
   const [featuredErr, setFeaturedErr] = useState<string | null>(null);
   const [featuredIndex, setFeaturedIndex] = useState(0);
   const [featuredCols, setFeaturedCols] = useState(1);
-  const [featuredSlideDir, setFeaturedSlideDir] = useState<null | (-1 | 1)>(null);
+  const [featuredAnimate, setFeaturedAnimate] = useState(false);
+  const [featuredAnimMs, setFeaturedAnimMs] = useState(450);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const [heroSearch, setHeroSearch] = useState("");
@@ -214,6 +215,7 @@ export default function HomePage() {
   useEffect(() => {
     // Reset carousel position when featured data changes.
     setFeaturedIndex(0);
+    setFeaturedAnimate(false);
   }, [featured.length]);
 
   useEffect(() => {
@@ -236,7 +238,7 @@ export default function HomePage() {
 
   useEffect(() => {
     // If the responsive column count changes mid-transition, cancel the slide cleanly.
-    setFeaturedSlideDir(null);
+    setFeaturedAnimate(false);
   }, [featuredCols]);
 
   // Auto-advance carousel every 4 seconds (only when there's overflow and not paused by user interaction)
@@ -248,9 +250,14 @@ export default function HomePage() {
     const hasOverflow = colCount > featuredCols;
     if (!hasOverflow) return;
 
+    const maxStart = Math.max(0, colCount - Math.max(1, featuredCols));
+    if (maxStart === 0) return;
+
     const timer = setInterval(() => {
-      // Only auto-advance if not currently sliding
-      setFeaturedSlideDir((prev) => (prev === null ? 1 : prev));
+      // Loop back to start when reaching the end.
+      setFeaturedIndex((i) => (i >= maxStart ? 0 : i + 1));
+      setFeaturedAnimMs(450);
+      setFeaturedAnimate(true);
     }, 4000);
 
     return () => clearInterval(timer);
@@ -449,10 +456,10 @@ export default function HomePage() {
                 const n = tiles.length;
                 const colCount = Math.ceil(n / ROWS);
                 const hasOverflow = colCount > VISIBLE_COLS;
+                const maxStart = Math.max(0, colCount - VISIBLE_COLS);
 
                 // featuredIndex is the column index of the leftmost visible column.
-                const safeColIndex = colCount > 0 ? ((featuredIndex % colCount) + colCount) % colCount : 0;
-                const isSliding = featuredSlideDir != null;
+                const safeColIndex = Math.max(0, Math.min(maxStart, featuredIndex));
 
                 // Build "true" columns (2 rows per column) so wrapping never re-pairs items.
                 const cols: Array<Array<FeaturedTile | null>> = Array.from({ length: colCount }, (_, c) => [
@@ -460,16 +467,29 @@ export default function HomePage() {
                   tiles[c * ROWS + 1] ?? null,
                 ]);
 
-                // Keep the window indices unique to avoid reconciliation jumps.
-                const windowColSlots = hasOverflow ? Math.min(colCount, VISIBLE_COLS + 2) : Math.min(colCount, VISIBLE_COLS);
-                const windowColIndices = hasOverflow
-                  ? Array.from({ length: windowColSlots }, (_, i) => (safeColIndex + i - 1 + colCount) % colCount)
-                  : Array.from({ length: windowColSlots }, (_, i) => i);
-
                 function shift(dir: -1 | 1) {
                   if (!hasOverflow) return;
-                  if (featuredSlideDir) return; // ignore spam clicks while animating
-                  setFeaturedSlideDir(dir);
+                  // Wrap at the ends (prev from start -> end, next from end -> start).
+                  const next =
+                    dir === -1 && safeColIndex === 0
+                      ? maxStart
+                      : dir === 1 && safeColIndex === maxStart
+                        ? 0
+                        : Math.max(0, Math.min(maxStart, safeColIndex + dir));
+                  setFeaturedAnimMs(450);
+                  setFeaturedAnimate(true);
+                  setFeaturedIndex(next);
+                }
+
+                function jumpTo(target: number) {
+                  if (!hasOverflow) return;
+                  if (target === safeColIndex) return;
+
+                  const t = Math.max(0, Math.min(maxStart, target));
+                  const dist = Math.abs(t - safeColIndex);
+                  setFeaturedAnimMs(Math.min(1200, 350 + dist * 120));
+                  setFeaturedAnimate(true);
+                  setFeaturedIndex(t);
                 }
 
                 return (
@@ -506,16 +526,19 @@ export default function HomePage() {
                         shift(1);
                       } else if (e.key === "Home") {
                         e.preventDefault();
+                        setFeaturedAnimMs(450);
+                        setFeaturedAnimate(true);
                         setFeaturedIndex(0);
                       } else if (e.key === "End") {
                         e.preventDefault();
-                        setFeaturedIndex(Math.max(0, colCount - 1));
+                        setFeaturedAnimMs(450);
+                        setFeaturedAnimate(true);
+                        setFeaturedIndex(Math.max(0, colCount - VISIBLE_COLS));
                       }
                     }}
                     onTouchStart={(e) => setTouchStartX(e.touches[0]?.clientX ?? null)}
                     onTouchEnd={(e) => {
                       if (!hasOverflow) return;
-                      if (featuredSlideDir) return;
                       const startX = touchStartX;
                       const endX = e.changedTouches[0]?.clientX ?? null;
                       setTouchStartX(null);
@@ -552,9 +575,9 @@ export default function HomePage() {
                       {!hasOverflow ? (
                         <div
                           className="grid min-w-0 gap-4"
-                          style={{ gridTemplateColumns: `repeat(${Math.max(1, windowColIndices.length)}, minmax(0, 1fr))` }}
+                          style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.min(colCount, VISIBLE_COLS))}, minmax(0, 1fr))` }}
                         >
-                          {windowColIndices.map((colIdx) => (
+                          {Array.from({ length: Math.min(colCount, VISIBLE_COLS) }, (_, colIdx) => colIdx).map((colIdx) => (
                             <div key={`featured-col-static-${colIdx}`} className="min-w-0">
                               <div className="flex flex-col gap-4">
                                 {cols[colIdx]?.map((t, r) => {
@@ -577,18 +600,15 @@ export default function HomePage() {
                           <div
                             className="flex will-change-transform"
                             style={{
-                              transform: `translateX(-${(1 + (isSliding ? (featuredSlideDir as -1 | 1) : 0)) * (100 / VISIBLE_COLS)}%)`,
-                              transition: isSliding ? "transform 450ms ease" : "none",
+                              transform: `translateX(-${safeColIndex * (100 / VISIBLE_COLS)}%)`,
+                              transition: featuredAnimate ? `transform ${featuredAnimMs}ms ease` : "none",
                             }}
                             onTransitionEnd={(e) => {
                               if (e.propertyName !== "transform") return;
-                              if (!featuredSlideDir) return;
-                              const dir = featuredSlideDir;
-                              setFeaturedIndex((i) => ((i + dir) % colCount + colCount) % colCount);
-                              setFeaturedSlideDir(null);
+                              setFeaturedAnimate(false);
                             }}
                           >
-                            {windowColIndices.map((colIdx) => (
+                            {Array.from({ length: colCount }, (_, colIdx) => colIdx).map((colIdx) => (
                               <div
                                 key={`featured-col-${colIdx}`}
                                 className="shrink-0 px-2"
@@ -620,7 +640,7 @@ export default function HomePage() {
                         role="tablist"
                         aria-label="Promoted listing position"
                       >
-                        {Array.from({ length: colCount }, (_, i) => {
+                        {Array.from({ length: maxStart + 1 }, (_, i) => {
                           const active = i === safeColIndex;
                           return (
                             <button
@@ -631,9 +651,9 @@ export default function HomePage() {
                                 // part of the dot hit area (keeps keyboard accessibility).
                                 e.preventDefault();
                               }}
-                              onClick={() => setFeaturedIndex(i)}
+                              onClick={() => jumpTo(i)}
                               className="inline-flex h-7 w-7 items-center justify-center rounded-full cursor-pointer caret-transparent"
-                              aria-label={`Go to featured column ${i + 1} of ${colCount}`}
+                              aria-label={`Go to featured position ${i + 1} of ${maxStart + 1}`}
                               aria-current={active ? "true" : undefined}
                             >
                               <span

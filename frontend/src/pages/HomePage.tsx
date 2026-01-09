@@ -308,7 +308,7 @@ export default function HomePage() {
           <div className="mt-16 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <button
               type="button"
-              onClick={() => nav("/browse")}
+              onClick={() => nav("/browse?type=sale")}
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
               <div className="text-sm font-extrabold text-white">Explore listings →</div>
@@ -326,10 +326,10 @@ export default function HomePage() {
 
             <button
               type="button"
-              onClick={() => nav("/wanted")}
+              onClick={() => nav("/browse?type=wanted")}
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
-              <div className="text-sm font-extrabold text-white">Browse wanted listings →</div>
+              <div className="text-sm font-extrabold text-white">Browse wanted posts →</div>
               <div className="mt-1 text-xs font-semibold text-white/75">See what buyers are looking for</div>
             </button>
 
@@ -338,7 +338,7 @@ export default function HomePage() {
               onClick={() => goRequireAuth("/wanted/post")}
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
-              <div className="text-sm font-extrabold text-white">Create a wanted listing →</div>
+              <div className="text-sm font-extrabold text-white">Create a wanted post →</div>
               <div className="mt-1 text-xs font-semibold text-white/75">Let sellers know what you need</div>
             </button>
           </div>
@@ -680,7 +680,7 @@ export default function HomePage() {
               <div className="text-center">
                 <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Explore</div>
                 <div className="mt-3 flex flex-col items-center gap-2">
-                  <Link to="/browse" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
+                  <Link to="/browse?type=sale" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
                     Browse listings
                   </Link>
                   <Link to="/post" className="text-sm font-semibold text-slate-600 hover:text-slate-900">

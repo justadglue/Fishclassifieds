@@ -161,7 +161,7 @@ export default function WantedPostPage() {
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
-              onClick={() => nav("/wanted")}
+                onClick={() => nav("/browse?type=wanted")}
               className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 hover:bg-slate-50"
             >
               Cancel

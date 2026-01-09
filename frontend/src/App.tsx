@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Navigate, Routes, Route, useLocation } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import BrowseListings from "./pages/BrowseListings";
 import LoginPage from "./pages/LoginPage";
@@ -14,7 +14,6 @@ import FaqPage from "./pages/FaqPage.tsx";
 import ContactPage from "./pages/ContactPage.tsx";
 import TermsPage from "./pages/TermsPage.tsx";
 import PrivacyPage from "./pages/PrivacyPage.tsx";
-import WantedBrowsePage from "./pages/WantedBrowsePage.tsx";
 import WantedPostPage from "./pages/WantedPostPage.tsx";
 import WantedDetailPage from "./pages/WantedDetailPage.tsx";
 import WantedEditPage from "./pages/WantedEditPage.tsx";
@@ -39,7 +38,7 @@ export default function App() {
         <Route path="/me" element={<MyListingsPage />} />
         <Route path="/edit/:id" element={<EditListingPage />} />
         <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/wanted" element={<WantedBrowsePage />} />
+        <Route path="/wanted" element={<Navigate to="/browse?type=wanted" replace />} />
         <Route path="/wanted/post" element={<WantedPostPage />} />
         <Route path="/wanted/:id" element={<WantedDetailPage />} />
         <Route path="/wanted/edit/:id" element={<WantedEditPage />} />

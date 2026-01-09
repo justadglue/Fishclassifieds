@@ -80,11 +80,11 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
 
         <div className="flex-1" />
 
-        <Link to="/browse" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-          Browse
+        <Link to="/browse?type=sale" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+          For sale
         </Link>
 
-        <Link to="/wanted" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+        <Link to="/browse?type=wanted" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
           Wanted
         </Link>
 
@@ -120,6 +120,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
                 e.preventDefault();
                 const term = q.trim();
                 const sp = new URLSearchParams();
+                sp.set("type", "sale");
                 if (term) sp.set("q", term);
                 const suffix = sp.toString() ? `?${sp.toString()}` : "";
                 nav(`/browse${suffix}`);

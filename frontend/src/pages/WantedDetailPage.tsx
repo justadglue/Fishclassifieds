@@ -71,7 +71,7 @@ export default function WantedDetailPage() {
     setErr(null);
     try {
       await deleteWantedPost(item.id);
-      nav("/wanted");
+      nav("/browse?type=wanted");
     } catch (e: any) {
       setErr(e?.message ?? "Failed to delete wanted post");
     } finally {
@@ -83,7 +83,7 @@ export default function WantedDetailPage() {
     setMsgSoon(false);
     if (loading) return;
     if (!user) {
-      const target = id ? `/wanted/${id}` : "/wanted";
+      const target = id ? `/wanted/${id}` : "/browse?type=wanted";
       return nav(`/auth?next=${encodeURIComponent(target)}`);
     }
     setMsgSoon(true);
@@ -94,8 +94,8 @@ export default function WantedDetailPage() {
       <Header maxWidth="6xl" />
       <main className="mx-auto max-w-4xl px-4 py-8">
         <div className="flex items-center justify-between gap-3">
-          <button onClick={() => nav("/wanted")} className="text-sm font-semibold text-slate-600 hover:text-slate-900">
-            ← Back to Wanted
+          <button onClick={() => nav("/browse?type=wanted")} className="text-sm font-semibold text-slate-600 hover:text-slate-900">
+            ← Back to wanted posts
           </button>
           {item && (
             <div

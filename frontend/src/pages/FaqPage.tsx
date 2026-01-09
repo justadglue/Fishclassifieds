@@ -23,7 +23,7 @@ export default function FaqPage() {
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
             <div className="text-sm font-extrabold">How do I browse listings?</div>
             <div className="mt-2 text-sm font-semibold text-white/75">
-              Use <Link className="text-white underline hover:text-white/90" to="/browse">Browse</Link> to search and filter listings.
+              Use <Link className="text-white underline hover:text-white/90" to="/browse?type=sale">Browse</Link> to search and filter listings.
             </div>
           </div>
 

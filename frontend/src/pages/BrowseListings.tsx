@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { fetchListings, resolveAssets, type Category, type Listing } from "../api";
+import { fetchListings, fetchWanted, resolveAssets, type Category, type Listing, type WantedPost, type WantedStatus } from "../api";
 import Header from "../components/Header";
 
 type SortMode = "newest" | "price_asc" | "price_desc";
 type PageSize = 12 | 24 | 48 | 96;
+type BrowseType = "sale" | "wanted";
 
 function centsToDollars(cents: number) {
   return (cents / 100).toLocaleString(undefined, { style: "currency", currency: "AUD" });
@@ -25,6 +26,15 @@ function relativeTime(iso: string) {
 
 const CATEGORIES: ("" | Category)[] = ["", "Fish", "Shrimp", "Snails", "Plants", "Equipment"];
 const PAGE_SIZES: PageSize[] = [12, 24, 48, 96];
+
+function budgetLabel(w: WantedPost) {
+  const min = w.budgetMinCents ?? null;
+  const max = w.budgetMaxCents ?? null;
+  if (min == null && max == null) return "Budget: any";
+  if (min != null && max != null) return `Budget: ${centsToDollars(min)}–${centsToDollars(max)}`;
+  if (min != null) return `Budget: ${centsToDollars(min)}+`;
+  return `Budget: up to ${centsToDollars(max!)}`;
+}
 
 function clampInt(v: string | null, fallback: number, min: number, max: number) {
   const n = Number(v);
@@ -128,9 +138,11 @@ function StatusPill({ l }: { l: Listing }) {
   );
 }
 
-export default function HomePage() {
+export default function BrowseListings() {
   const [sp, setSp] = useSearchParams();
   const topRef = useRef<HTMLDivElement | null>(null);
+
+  const browseType: BrowseType = sp.get("type") === "wanted" ? "wanted" : "sale";
 
   const q = sp.get("q") ?? "";
   const category = (sp.get("category") ?? "") as "" | Category;
@@ -138,23 +150,25 @@ export default function HomePage() {
   const minDollars = sp.get("min") ?? "";
   const maxDollars = sp.get("max") ?? "";
   const sort = (sp.get("sort") ?? "newest") as SortMode;
+  const wantedStatus = (sp.get("status") ?? "open") as WantedStatus;
 
   const page = clampInt(sp.get("page"), 1, 1, 999999);
   const per = clampInt(sp.get("per"), 24, 12, 200) as PageSize;
 
-  const [items, setItems] = useState<Listing[]>([]);
+  const [saleItems, setSaleItems] = useState<Listing[]>([]);
+  const [wantedItems, setWantedItems] = useState<WantedPost[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const minPriceCents = useMemo(() => {
+  const minCents = useMemo(() => {
     const s = String(minDollars ?? "").trim();
     if (!s) return undefined;
     const n = Number(s);
     return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : undefined;
   }, [minDollars]);
 
-  const maxPriceCents = useMemo(() => {
+  const maxCents = useMemo(() => {
     const s = String(maxDollars ?? "").trim();
     if (!s) return undefined;
     const n = Number(s);
@@ -186,20 +200,38 @@ export default function HomePage() {
       setLoading(true);
       setErr(null);
       try {
-        const data = await fetchListings({
-          q: q || undefined,
-          category: category || undefined,
-          species: species || undefined,
-          minPriceCents,
-          maxPriceCents,
-          sort,
-          limit: per,
-          offset,
-        });
+        const data =
+          browseType === "sale"
+            ? await fetchListings({
+                q: q || undefined,
+                category: category || undefined,
+                species: species || undefined,
+                minPriceCents: minCents,
+                maxPriceCents: maxCents,
+                sort,
+                limit: per,
+                offset,
+              })
+            : await fetchWanted({
+                q: q || undefined,
+                category: category || undefined,
+                species: species || undefined,
+                status: wantedStatus,
+                minBudgetCents: minCents,
+                maxBudgetCents: maxCents,
+                limit: per,
+                offset,
+              });
 
         if (cancelled) return;
 
-        setItems(data.items);
+        if (browseType === "sale") {
+          setSaleItems(data.items as Listing[]);
+          setWantedItems([]);
+        } else {
+          setWantedItems(data.items as WantedPost[]);
+          setSaleItems([]);
+        }
         setTotal(data.total);
 
         const tp = Math.max(1, Math.ceil(data.total / per));
@@ -209,7 +241,7 @@ export default function HomePage() {
           setSp(nextSp, { replace: true });
         }
       } catch (e: any) {
-        if (!cancelled) setErr(e?.message ?? "Failed to load listings");
+        if (!cancelled) setErr(e?.message ?? (browseType === "sale" ? "Failed to load listings" : "Failed to load wanted posts"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -218,7 +250,7 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [q, category, species, minPriceCents, maxPriceCents, sort, per, page, offset, sp, setSp]);
+  }, [browseType, q, category, species, wantedStatus, minCents, maxCents, sort, per, page, offset, sp, setSp]);
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(sp);
@@ -226,6 +258,20 @@ export default function HomePage() {
     if (resetsPage) next.set("page", "1");
     if (!value) next.delete(key);
     else next.set(key, value);
+    setSp(next, { replace: true });
+  }
+
+  function setBrowseType(nextType: BrowseType) {
+    const next = new URLSearchParams(sp);
+    next.set("type", nextType);
+    next.set("page", "1");
+    if (nextType === "wanted") {
+      if (!next.get("status")) next.set("status", "open");
+      next.delete("sort");
+    } else {
+      next.delete("status");
+      if (!next.get("sort")) next.set("sort", "newest");
+    }
     setSp(next, { replace: true });
   }
 
@@ -265,8 +311,9 @@ export default function HomePage() {
     });
   }
 
+  const activeCount = browseType === "sale" ? saleItems.length : wantedItems.length;
   const showingFrom = total === 0 ? 0 : (page - 1) * per + 1;
-  const showingTo = Math.min(total, (page - 1) * per + items.length);
+  const showingTo = Math.min(total, (page - 1) * per + activeCount);
   const canPrev = page > 1;
   const canNext = page < totalPages;
 
@@ -286,11 +333,39 @@ export default function HomePage() {
 
             <div className="mt-4 space-y-3">
               <label className="block">
+                <div className="mb-1 text-xs font-semibold text-slate-700">Listing type</div>
+                <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setBrowseType("sale")}
+                    className={[
+                      "flex-1 px-3 py-2 text-sm font-semibold",
+                      browseType === "sale" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+                    ].join(" ")}
+                    aria-pressed={browseType === "sale"}
+                  >
+                    For sale
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBrowseType("wanted")}
+                    className={[
+                      "flex-1 px-3 py-2 text-sm font-semibold",
+                      browseType === "wanted" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+                    ].join(" ")}
+                    aria-pressed={browseType === "wanted"}
+                  >
+                    Wanted
+                  </button>
+                </div>
+              </label>
+
+              <label className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Search</div>
                 <input
                   value={q}
                   onChange={(e) => setParam("q", e.target.value)}
-                  placeholder="e.g. guppy, Brisbane, breeder..."
+                  placeholder={browseType === "sale" ? "e.g. guppy, Brisbane, breeder..." : "e.g. betta, Brisbane, nano tank..."}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
                 />
               </label>
@@ -327,7 +402,7 @@ export default function HomePage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <div className="mb-1 text-xs font-semibold text-slate-700">Min ($)</div>
+                  <div className="mb-1 text-xs font-semibold text-slate-700">{browseType === "sale" ? "Min price ($)" : "Min budget ($)"}</div>
                   <input
                     value={minDollars}
                     onChange={(e) => setParam("min", e.target.value)}
@@ -337,7 +412,7 @@ export default function HomePage() {
                   />
                 </label>
                 <label className="block">
-                  <div className="mb-1 text-xs font-semibold text-slate-700">Max ($)</div>
+                  <div className="mb-1 text-xs font-semibold text-slate-700">{browseType === "sale" ? "Max price ($)" : "Max budget ($)"}</div>
                   <input
                     value={maxDollars}
                     onChange={(e) => setParam("max", e.target.value)}
@@ -348,8 +423,24 @@ export default function HomePage() {
                 </label>
               </div>
 
+              {browseType === "wanted" && (
+                <label className="block">
+                  <div className="mb-1 text-xs font-semibold text-slate-700">Status</div>
+                  <select
+                    value={wantedStatus}
+                    onChange={(e) => setParam("status", e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  >
+                    <option value="open">Open</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </label>
+              )}
+
               <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-700">
-                Tip: category narrows broad items; search finds details like “cherry”, “pair”, “breeder”.
+                {browseType === "sale"
+                  ? "Tip: category narrows broad items; search finds details like “cherry”, “pair”, “breeder”."
+                  : "Tip: use search for details like “pair”, “juvenile”, or “pickup”. Include location for local-only requests."}
               </div>
             </div>
           </aside>
@@ -357,25 +448,27 @@ export default function HomePage() {
           <section>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h1 className="text-xl font-extrabold text-slate-900">Browse listings</h1>
+                <h1 className="text-xl font-extrabold text-slate-900">{browseType === "sale" ? "Browse listings" : "Browse wanted posts"}</h1>
                 <div className="mt-1 text-sm text-slate-600">
                   {loading ? "Loading..." : total === 0 ? "0 results" : `Showing ${showingFrom}–${showingTo} of ${total}`}
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <label className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-700">Sort</span>
-                  <select
-                    value={sort}
-                    onChange={(e) => setParam("sort", e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-                  >
-                    <option value="newest">Newest</option>
-                    <option value="price_asc">Price: Low → High</option>
-                    <option value="price_desc">Price: High → Low</option>
-                  </select>
-                </label>
+                {browseType === "sale" && (
+                  <label className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-700">Sort</span>
+                    <select
+                      value={sort}
+                      onChange={(e) => setParam("sort", e.target.value)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                    >
+                      <option value="newest">Newest</option>
+                      <option value="price_asc">Price: Low → High</option>
+                      <option value="price_desc">Price: High → Low</option>
+                    </select>
+                  </label>
+                )}
 
                 <label className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-700">Per page</span>
@@ -416,49 +509,87 @@ export default function HomePage() {
             )}
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {items.map((l) => {
-                const assets = resolveAssets(l.images ?? []);
-                const hero = assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+              {browseType === "sale"
+                ? saleItems.map((l) => {
+                    const assets = resolveAssets(l.images ?? []);
+                    const hero = assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
 
-                return (
-                  <Link
-                    key={l.id}
-                    to={`/listing/${l.id}`}
-                    className="group overflow-hidden rounded-2xl border border-slate-200 bg-white hover:border-slate-300"
-                  >
-                    <div className="relative aspect-[4/3] w-full bg-slate-100">
-                      <StatusPill l={l} />
-                      {hero ? (
-                        <img
-                          src={hero}
-                          alt={l.title}
-                          className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
-                          loading="lazy"
-                          decoding="async"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">No image</div>
-                      )}
-                    </div>
+                    return (
+                      <Link
+                        key={l.id}
+                        to={`/listing/${l.id}`}
+                        className="group overflow-hidden rounded-2xl border border-slate-200 bg-white hover:border-slate-300"
+                      >
+                        <div className="relative aspect-4/3 w-full bg-slate-100">
+                          <StatusPill l={l} />
+                          {hero ? (
+                            <img
+                              src={hero}
+                              alt={l.title}
+                              className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">
+                              No image
+                            </div>
+                          )}
+                        </div>
 
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-extrabold text-slate-900">{l.title}</div>
-                          <div className="mt-1 truncate text-xs font-semibold text-slate-600">
-                            {l.category} • {l.species} • {l.location}
+                        <div className="p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-extrabold text-slate-900">{l.title}</div>
+                              <div className="mt-1 truncate text-xs font-semibold text-slate-600">
+                                {l.category} • {l.species} • {l.location}
+                              </div>
+                            </div>
+                            <div className="shrink-0 rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold text-white">
+                              {centsToDollars(l.priceCents)}
+                            </div>
+                          </div>
+                          <div className="mt-3 line-clamp-2 text-xs text-slate-700">{l.description}</div>
+                          <div className="mt-3 text-[11px] font-semibold text-slate-500">{relativeTime(l.createdAt)}</div>
+                        </div>
+                      </Link>
+                    );
+                  })
+                : wantedItems.map((w) => (
+                    <Link
+                      key={w.id}
+                      to={`/wanted/${w.id}`}
+                      className="group overflow-hidden rounded-2xl border border-slate-200 bg-white hover:border-slate-300"
+                    >
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-extrabold text-slate-900">{w.title}</div>
+                            <div className="mt-1 truncate text-xs font-semibold text-slate-600">
+                              {w.category}
+                              {w.species ? ` • ${w.species}` : ""} • {w.location}
+                            </div>
+                          </div>
+                          <div
+                            className={[
+                              "shrink-0 rounded-full px-2 py-1 text-[11px] font-bold",
+                              w.status === "open" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700",
+                            ].join(" ")}
+                          >
+                            {w.status === "open" ? "Open" : "Closed"}
                           </div>
                         </div>
-                        <div className="shrink-0 rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold text-white">
-                          {centsToDollars(l.priceCents)}
+
+                        <div className="mt-3 text-xs font-semibold text-slate-700">{budgetLabel(w)}</div>
+                        <div className="mt-3 line-clamp-3 text-xs text-slate-700">{w.description}</div>
+
+                        <div className="mt-3 flex items-center justify-between gap-3 text-[11px] font-semibold text-slate-500">
+                          <div>{relativeTime(w.createdAt)}</div>
+                          <div className="truncate">{w.userDisplayName ? `Wanted by ${w.userDisplayName}` : ""}</div>
                         </div>
                       </div>
-                      <div className="mt-3 line-clamp-2 text-xs text-slate-700">{l.description}</div>
-                      <div className="mt-3 text-[11px] font-semibold text-slate-500">{relativeTime(l.createdAt)}</div>
-                    </div>
-                  </Link>
-                );
-              })}
+                    </Link>
+                  ))}
             </div>
 
             <PaginationBar

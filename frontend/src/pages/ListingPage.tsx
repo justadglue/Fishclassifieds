@@ -122,7 +122,7 @@ export default function ListingPage() {
     <div className="min-h-full">
       <Header maxWidth="5xl" />
       <main className="mx-auto max-w-5xl px-4 py-6">
-        <Link to="/browse" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+        <Link to="/browse?type=sale" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
           ← Back to listings
         </Link>
 
@@ -139,7 +139,7 @@ export default function ListingPage() {
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
               <div className="bg-slate-100">
                 {/* Image box */}
-                <div className="relative aspect-[4/3] w-full bg-slate-100">
+                <div className="relative aspect-4/3 w-full bg-slate-100">
                   {hero ? (
                     <img src={hero} alt={item.title} className="h-full w-full object-cover" />
                   ) : (

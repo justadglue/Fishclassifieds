@@ -244,7 +244,7 @@ export default function HomePage() {
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
               <div className="text-sm font-extrabold text-white">Explore listings →</div>
-              <div className="mt-1 text-xs font-semibold text-white/75">Fish, plants, shrimp, snails, equipment and more</div>
+              <div className="mt-1 text-xs font-semibold text-white/75">Fish, plants, shrimp, equipment and more</div>
             </button>
 
             <button
@@ -253,7 +253,7 @@ export default function HomePage() {
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
               <div className="text-sm font-extrabold text-white">Create a listing →</div>
-              <div className="mt-1 text-xs font-semibold text-white/75">Post a listing and connect with buyers</div>
+              <div className="mt-1 text-xs font-semibold text-white/75">Reach interested buyers</div>
             </button>
 
             <button
@@ -261,8 +261,8 @@ export default function HomePage() {
               onClick={() => nav("/wanted")}
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
-              <div className="text-sm font-extrabold text-white">Browse wanted →</div>
-              <div className="mt-1 text-xs font-semibold text-white/75">Are you a seller? See what buyers are actively looking for</div>
+              <div className="text-sm font-extrabold text-white">Browse wanted listings →</div>
+              <div className="mt-1 text-xs font-semibold text-white/75">See what buyers are looking for</div>
             </button>
 
             <button
@@ -270,8 +270,8 @@ export default function HomePage() {
               onClick={() => goRequireAuth("/wanted/post")}
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
-              <div className="text-sm font-extrabold text-white">Post a wanted →</div>
-              <div className="mt-1 text-xs font-semibold text-white/75">Have something specific in mind? Post a wanted listing</div>
+              <div className="text-sm font-extrabold text-white">Create a wanted listing →</div>
+              <div className="mt-1 text-xs font-semibold text-white/75">Let sellers know what you need</div>
             </button>
           </div>
 

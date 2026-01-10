@@ -505,11 +505,12 @@ app.post("/api/listings", requireAuth, (req, res) => {
 
   db.prepare(
     `INSERT INTO listings(
-id,owner_token,title,category,species,price_cents,location,description,contact,image_url,
+id,user_id,owner_token,title,category,species,price_cents,location,description,contact,image_url,
 status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
-)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
     id,
+    user.id,
     ownerToken,
     title,
     category,
@@ -527,10 +528,6 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
     now,
     null
   );
-
-  // Link listing to the authenticated account (best-practice ownership).
-  db.prepare(`UPDATE listings SET user_id = ? WHERE id = ?`).run(user.id, id);
-
   const insertImg = db.prepare(
     `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
 VALUES(?,?,?,?,?,?)`
@@ -1169,6 +1166,91 @@ app.post("/api/listings/:id/mark-sold", requireAuth, (req, res) => {
   setResolution(row.id, "sold");
   const updated = db.prepare("SELECT * FROM listings WHERE id = ?").get(row.id) as (ListingRow & any) | undefined;
   return res.json(mapListing(req, updated!));
+});
+
+app.post("/api/listings/:id/relist", requireAuth, (req, res) => {
+  runAutoExpirePass();
+  if (!HAS_LISTINGS_USER_ID) {
+    return res.status(400).json({
+      error: "DB is missing listings.user_id. Run: npm --prefix backend run db:migration",
+    });
+  }
+
+  const id = req.params.id;
+  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  if (!assertListingOwner(req, res, row)) return;
+
+  const status = String(row.status ?? "active") as ListingStatus;
+  const resolution = String(row.resolution ?? "none") as ListingResolution;
+  if (status === "deleted") return res.status(400).json({ error: "Listing is deleted" });
+  if (status === "expired") return res.status(400).json({ error: "Listing is expired" });
+  if (resolution !== "sold") return res.status(400).json({ error: "Only sold listings can be relisted" });
+
+  const now = nowIso();
+  const newId = crypto.randomUUID();
+  const newOwnerToken = crypto.randomUUID();
+
+  const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
+  const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
+
+  const copyImages = db
+    .prepare(
+      `SELECT url,thumb_url,medium_url,sort_order
+FROM listing_images
+WHERE listing_id = ?
+ORDER BY sort_order ASC`
+    )
+    .all(id) as Array<{ url: string; thumb_url: string | null; medium_url: string | null; sort_order: number }>;
+
+  const tx = db.transaction(() => {
+    // Archive old sold listing (so the new listing replaces it in "My listings")
+    db.prepare(`UPDATE listings SET status='deleted',deleted_at=?,updated_at=? WHERE id=?`).run(now, now, id);
+
+    // Create new paused listing (hidden) for final edits before resuming to active.
+    db.prepare(
+      `INSERT INTO listings(
+id,user_id,owner_token,title,category,species,price_cents,location,description,contact,image_url,
+status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
+) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    ).run(
+      newId,
+      Number(row.user_id),
+      newOwnerToken,
+      row.title,
+      row.category,
+      row.species,
+      row.price_cents,
+      row.location,
+      row.description,
+      row.contact ?? null,
+      row.image_url ?? null,
+      "paused",
+      expiresAt,
+      "none",
+      null,
+      now,
+      now,
+      null
+    );
+
+    const insImg = db.prepare(
+      `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
+VALUES(?,?,?,?,?,?)`
+    );
+    for (const img of copyImages) {
+      insImg.run(crypto.randomUUID(), newId, img.url, img.thumb_url ?? null, img.medium_url ?? null, img.sort_order ?? 0);
+    }
+  });
+
+  try {
+    tx();
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? "Failed to relist" });
+  }
+
+  const newRow = db.prepare("SELECT * FROM listings WHERE id = ?").get(newId) as (ListingRow & any) | undefined;
+  return res.json({ item: mapListing(req, newRow!), replacedId: id });
 });
 
 function getImagesForListing(req: express.Request, listingId: string): ImageAsset[] {

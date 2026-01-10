@@ -8,6 +8,7 @@ import {
   Pause,
   Pencil,
   Play,
+  RotateCcw,
   Trash2,
 } from "lucide-react";
 import {
@@ -17,6 +18,7 @@ import {
   pauseListing,
   resumeListing,
   markSold,
+  relistListing,
   type Listing,
 } from "../api";
 import Header from "../components/Header";
@@ -248,6 +250,23 @@ export default function MyListingsPage() {
     }
   }
 
+  async function doRelist(id: string) {
+    setErr(null);
+    const ok = window.confirm("Relist this item? A new paused listing will replace the sold one.");
+    if (!ok) return;
+
+    setLoading(true);
+    try {
+      const res = await relistListing(id);
+      setItems((prev) => prev.map((x) => (x.id === id ? res.item : x)));
+      nav(`/edit/${encodeURIComponent(res.item.id)}`);
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to relist");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function toggleExpanded(id: string) {
     setExpandedId((prev) => (prev === id ? null : id));
   }
@@ -296,6 +315,7 @@ export default function MyListingsPage() {
 
               const toggleTitle = l.status === "paused" ? "Resume" : "Pause";
               const canFeature = l.status === "active" && l.resolution === "none";
+              const isSold = l.resolution === "sold";
               const isExpanded = expandedId === l.id;
 
               return (
@@ -373,39 +393,57 @@ export default function MyListingsPage() {
                           className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <ActionButton
-                            label={l.featured ? "Manage featuring" : "Feature this listing"}
-                            title={
-                              !canFeature
-                                ? "Only active, unsold listings can be featured."
-                                : l.featured
-                                  ? "Manage featuring"
-                                  : "Feature this listing"
-                            }
-                            variant="feature"
-                            disabled={!canFeature}
-                            onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
-                            icon={l.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
-                          />
+                          {!isSold ? (
+                            <>
+                              <ActionButton
+                                label={l.featured ? "Manage featuring" : "Feature this listing"}
+                                title={
+                                  !canFeature
+                                    ? "Only active, unsold listings can be featured."
+                                    : l.featured
+                                      ? "Manage featuring"
+                                      : "Feature this listing"
+                                }
+                                variant="feature"
+                                disabled={!canFeature}
+                                onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
+                                icon={l.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
+                              />
 
-                          <ActionLink to={`/edit/${l.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
+                              <ActionLink to={`/edit/${l.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
 
-                          <ActionButton
-                            label={toggleTitle}
-                            title={toggleTitle}
-                            disabled={!canToggle}
-                            onClick={() => doTogglePauseResume(l)}
-                            icon={l.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
-                          />
+                              <ActionButton
+                                label={toggleTitle}
+                                title={toggleTitle}
+                                disabled={!canToggle}
+                                onClick={() => doTogglePauseResume(l)}
+                                icon={
+                                  l.status === "paused" ? (
+                                    <Play aria-hidden="true" className="h-4 w-4" />
+                                  ) : (
+                                    <Pause aria-hidden="true" className="h-4 w-4" />
+                                  )
+                                }
+                              />
 
-                          <ActionButton
-                            label="Mark sold"
-                            title="Mark as sold"
-                            variant="primary"
-                            disabled={!canResolve}
-                            onClick={() => doSold(l.id)}
-                            icon={<Check aria-hidden="true" className="h-4 w-4" />}
-                          />
+                              <ActionButton
+                                label="Mark sold"
+                                title="Mark as sold"
+                                variant="primary"
+                                disabled={!canResolve}
+                                onClick={() => doSold(l.id)}
+                                icon={<Check aria-hidden="true" className="h-4 w-4" />}
+                              />
+                            </>
+                          ) : (
+                            <ActionButton
+                              label="Relist"
+                              title="Relist"
+                              variant="primary"
+                              onClick={() => doRelist(l.id)}
+                              icon={<RotateCcw aria-hidden="true" className="h-4 w-4" />}
+                            />
+                          )}
 
                           <ActionButton
                             label="Delete"

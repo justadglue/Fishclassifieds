@@ -209,6 +209,10 @@ export async function fetchListing(id: string) {
   return apiFetch<Listing>(`/api/listings/${encodeURIComponent(id)}`);
 }
 
+export async function relistListing(id: string) {
+  return apiFetch<{ item: Listing; replacedId: string }>(`/api/listings/${encodeURIComponent(id)}/relist`, { method: "POST" });
+}
+
 export async function createListing(input: {
   title: string;
   category: Category;

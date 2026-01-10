@@ -1,13 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
-import { ChevronDown, Search, X } from "lucide-react";
-
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <ChevronDown aria-hidden="true" className={open ? "h-5 w-5 rotate-180 transition" : "h-5 w-5 transition"} />
-  );
-}
+import { User, Search, X } from "lucide-react";
+import { createPortal } from "react-dom";
 
 export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
   const { user, loading, logout } = useAuth();
@@ -15,11 +10,33 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
   const maxWidth = props.maxWidth ?? "6xl";
 
   const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuAnchorRef = useRef<HTMLDivElement | null>(null);
+  const menuPanelRef = useRef<HTMLDivElement | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [q, setQ] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  function computeMenuPos() {
+    const anchor = menuAnchorRef.current;
+    if (!anchor) return null;
+
+    const rect = anchor.getBoundingClientRect();
+    const MENU_W = 256; // w-64
+    const GAP = 8; // mt-2
+    const PADDING = 8;
+
+    const top = rect.bottom + GAP;
+    const left = Math.min(window.innerWidth - MENU_W - PADDING, Math.max(PADDING, rect.right - MENU_W));
+    return { top, left };
+  }
+
+  const displayName = useMemo(() => {
+    const u = user?.username?.trim();
+    if (u) return u;
+    return "Account";
+  }, [user]);
 
   useEffect(() => {
     function onDocMouseDown(e: MouseEvent) {
@@ -28,8 +45,10 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
       if (!(target instanceof Node)) return;
 
       if (open) {
-        const el = menuRef.current;
-        if (el && !el.contains(target)) setOpen(false);
+        const anchor = menuAnchorRef.current;
+        const panel = menuPanelRef.current;
+        const inside = (!!anchor && anchor.contains(target)) || (!!panel && panel.contains(target));
+        if (!inside) setOpen(false);
       }
 
       if (searchOpen) {
@@ -49,6 +68,24 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [open, searchOpen]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function positionMenu() {
+      const pos = computeMenuPos();
+      if (pos) setMenuPos(pos);
+    }
+
+    positionMenu();
+    window.addEventListener("resize", positionMenu);
+    // Sticky headers + backdrop filters can repaint oddly; reposition on scroll too.
+    window.addEventListener("scroll", positionMenu, { passive: true });
+    return () => {
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", positionMenu);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!searchOpen) return;
@@ -141,55 +178,76 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
         {loading ? (
           <div className="text-sm font-semibold text-slate-500">Checking session…</div>
         ) : user ? (
-          <div className="relative" ref={menuRef}>
+          <div className="relative" ref={menuAnchorRef}>
             <button
               type="button"
-              onClick={() => setOpen((v) => !v)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+              onClick={() => {
+                setOpen((v) => {
+                  const next = !v;
+                  if (next) {
+                    const pos = computeMenuPos();
+                    if (pos) setMenuPos(pos);
+                  } else {
+                    setMenuPos(null);
+                  }
+                  return next;
+                });
+              }}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 focus:outline-none"
               aria-haspopup="menu"
               aria-expanded={open}
+              aria-label={`Account menu for ${displayName}`}
+              title={displayName}
             >
-              <span className="max-w-[200px] truncate">{user.username || user.email}</span>
-              <Chevron open={open} />
+              <User aria-hidden="true" className="h-5 w-5" />
+              <span className="sr-only">{displayName}</span>
             </button>
 
-            {open && (
-              <div role="menu" className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
-                <div className="border-b border-slate-100 px-4 py-3">
-                  <div className="text-xs font-semibold text-slate-500">Signed in as</div>
-                  <div className="mt-1 truncate text-sm font-bold text-slate-900">{user.email}</div>
-                </div>
+            {open &&
+              typeof document !== "undefined" &&
+              createPortal(
+                <div
+                  ref={menuPanelRef}
+                  role="menu"
+                  className="fixed z-50 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+                  style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
+                >
+                  <div className="border-b border-slate-100 px-4 py-3">
+                    <div className="text-xs font-semibold text-slate-500">Signed in as</div>
+                    <div className="mt-1 truncate text-sm font-bold text-slate-900">{displayName}</div>
+                  </div>
 
-                <div className="p-2">
-                  <Link
-                    to="/me"
-                    onClick={() => setOpen(false)}
-                    className="block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                    role="menuitem"
-                  >
-                    My listings
-                  </Link>
+                  <div className="p-2">
+                    <Link
+                      to="/me"
+                      onClick={() => setOpen(false)}
+                      className="block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                      role="menuitem"
+                    >
+                      My listings
+                    </Link>
 
-                  <Link
-                    to="/profile"
-                    onClick={() => setOpen(false)}
-                    className="mt-1 block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                    role="menuitem"
-                  >
-                    My profile
-                  </Link>
+                    <Link
+                      to="/profile"
+                      onClick={() => setOpen(false)}
+                      className="mt-1 block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                      role="menuitem"
+                    >
+                      My profile
+                    </Link>
 
-                  <button
-                    type="button"
-                    onClick={doLogout}
-                    className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-50"
-                    role="menuitem"
-                  >
-                    Log out
-                  </button>
-                </div>
-              </div>
-            )}
+                    <button
+                      type="button"
+                      onClick={doLogout}
+                      className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-50"
+                      role="menuitem"
+                    >
+                      Log out
+                    </button>
+                  </div>
+                </div>,
+                document.body
+              )}
           </div>
         ) : (
           <div className="flex items-center gap-2">

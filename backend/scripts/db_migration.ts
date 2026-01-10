@@ -58,15 +58,14 @@ function main() {
 
   const migrations: string[] = [];
 
-  // Ensure users has required first_name/last_name (NOT NULL) and display_name is nullable.
+  // Ensure users has required first_name/last_name (NOT NULL) and NO display_name column.
   const hasFirst = hasColumn(db, "users", "first_name");
   const hasLast = hasColumn(db, "users", "last_name");
   const firstNotNull = hasFirst ? isColumnNotNull(db, "users", "first_name") : false;
   const lastNotNull = hasLast ? isColumnNotNull(db, "users", "last_name") : false;
   const hasDisplay = hasColumn(db, "users", "display_name");
-  const displayNotNull = hasDisplay ? isColumnNotNull(db, "users", "display_name") : false;
 
-  const needsUsersRebuild = !hasFirst || !hasLast || !firstNotNull || !lastNotNull || displayNotNull;
+  const needsUsersRebuild = !hasFirst || !hasLast || !firstNotNull || !lastNotNull || hasDisplay;
 
   if (needsUsersRebuild) {
     db.exec(`PRAGMA foreign_keys = OFF;`);
@@ -79,7 +78,6 @@ CREATE TABLE IF NOT EXISTS users_new(
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
-  display_name TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -89,7 +87,7 @@ CREATE TABLE IF NOT EXISTS users_new(
       const lastExpr = hasLast ? "last_name" : "''";
 
       db.exec(`
-INSERT INTO users_new(id,email,username,first_name,last_name,password_hash,display_name,created_at,updated_at)
+INSERT INTO users_new(id,email,username,first_name,last_name,password_hash,created_at,updated_at)
 SELECT
   id,
   email,
@@ -97,7 +95,6 @@ SELECT
   COALESCE(NULLIF(trim(${firstExpr}), ''), 'Unknown'),
   COALESCE(NULLIF(trim(${lastExpr}), ''), 'Unknown'),
   password_hash,
-  display_name,
   created_at,
   updated_at
 FROM users;
@@ -114,10 +111,58 @@ FROM users;
     db.exec(`PRAGMA foreign_keys = ON;`);
 
     if (!hasFirst || !hasLast) migrations.push("Added users.first_name / users.last_name (required)");
-    if (displayNotNull) migrations.push("Made users.display_name nullable");
+    if (hasDisplay) migrations.push("Removed legacy users display-name column");
     if ((hasFirst && !firstNotNull) || (hasLast && !lastNotNull)) migrations.push("Enforced NOT NULL on users.first_name / users.last_name");
   } else {
-    migrations.push("users schema already includes required first_name/last_name and nullable display_name");
+    migrations.push("users schema already includes required first_name/last_name and no legacy display-name column");
+  }
+
+  // Ensure deleted_accounts has no display_name_hash column.
+  const hasDeletedAccountsEmail = hasColumn(db, "deleted_accounts", "email_hash");
+  const hasDeletedAccountsUsername = hasColumn(db, "deleted_accounts", "username_hash");
+  const hasDeletedAccountsDisplay = hasColumn(db, "deleted_accounts", "display_name_hash");
+  const hasDeletedAccountsDeletedAt = hasColumn(db, "deleted_accounts", "deleted_at");
+
+  const needsDeletedAccountsRebuild =
+    hasDeletedAccountsDisplay ||
+    // If table exists but is missing expected columns, rebuild to a known-good schema.
+    (hasDeletedAccountsDeletedAt && (!hasDeletedAccountsEmail || !hasDeletedAccountsUsername));
+
+  if (needsDeletedAccountsRebuild) {
+    db.exec(`PRAGMA foreign_keys = OFF;`);
+    const tx = db.transaction(() => {
+      db.exec(`
+CREATE TABLE IF NOT EXISTS deleted_accounts_new(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  email_hash TEXT NOT NULL,
+  username_hash TEXT NOT NULL,
+  deleted_at TEXT NOT NULL,
+  reason TEXT
+);
+`);
+
+      // Only copy if the existing table looks like deleted_accounts.
+      if (hasDeletedAccountsDeletedAt) {
+        db.exec(`
+INSERT INTO deleted_accounts_new(id,user_id,email_hash,username_hash,deleted_at,reason)
+SELECT id,user_id,email_hash,username_hash,deleted_at,reason
+FROM deleted_accounts;
+`);
+      }
+
+      db.exec(`DROP TABLE IF EXISTS deleted_accounts;`);
+      db.exec(`ALTER TABLE deleted_accounts_new RENAME TO deleted_accounts;`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_deleted_accounts_deleted_at ON deleted_accounts(deleted_at);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_deleted_accounts_email_hash ON deleted_accounts(email_hash);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_deleted_accounts_username_hash ON deleted_accounts(username_hash);`);
+    });
+
+    tx();
+    db.exec(`PRAGMA foreign_keys = ON;`);
+    migrations.push("Removed legacy deleted_accounts display-name hash column");
+  } else {
+    migrations.push("deleted_accounts schema already has no legacy display-name hash column (or table missing)");
   }
 
   if (!hasColumn(db, "listings", "featured")) {

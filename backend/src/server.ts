@@ -349,7 +349,6 @@ app.get("/api/me", requireAuth, (req, res) => {
 const ProfileSchema = z.object({
   firstName: z.string().min(1).max(80).optional(),
   lastName: z.string().min(1).max(80).optional(),
-  displayName: z.string().min(1).max(80).optional().nullable(),
   avatarUrl: z.string().max(500).nullable().optional(),
   location: z.string().max(120).nullable().optional(),
   phone: z.string().max(40).nullable().optional(),
@@ -375,7 +374,7 @@ app.get("/api/profile", requireAuth, (req, res) => {
   }
   const user = req.user!;
   const u = db
-    .prepare(`SELECT id,email,username,display_name,first_name,last_name FROM users WHERE id = ?`)
+    .prepare(`SELECT id,email,username,first_name,last_name FROM users WHERE id = ?`)
     .get(user.id) as any | undefined;
   if (!u) return res.status(404).json({ error: "User not found" });
   const p = db.prepare(`SELECT * FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
@@ -385,7 +384,6 @@ app.get("/api/profile", requireAuth, (req, res) => {
       id: Number(u.id),
       email: String(u.email),
       username: String(u.username),
-      displayName: u.display_name != null ? String(u.display_name) : null,
     },
     account: {
       firstName: String(u.first_name),
@@ -407,17 +405,13 @@ app.put("/api/profile", requireAuth, (req, res) => {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
 
-  const { firstName, lastName, displayName, avatarUrl, location, phone, website, bio } = parsed.data;
+  const { firstName, lastName, avatarUrl, location, phone, website, bio } = parsed.data;
   const now = nowIsoSecurity();
 
   const tx = db.transaction(() => {
     const userSets: string[] = [];
     const userParams: any[] = [];
 
-    if (displayName !== undefined) {
-      userSets.push(`display_name = ?`);
-      userParams.push(displayName ?? null);
-    }
     if (firstName !== undefined) {
       userSets.push(`first_name = ?`);
       userParams.push(String(firstName).trim());
@@ -459,7 +453,7 @@ WHERE user_id = ?
   }
 
   const u = db
-    .prepare(`SELECT id,email,username,display_name,first_name,last_name FROM users WHERE id = ?`)
+    .prepare(`SELECT id,email,username,first_name,last_name FROM users WHERE id = ?`)
     .get(user.id) as any | undefined;
   const p = db.prepare(`SELECT * FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
 
@@ -468,7 +462,6 @@ WHERE user_id = ?
       id: Number(u.id),
       email: String(u.email),
       username: String(u.username),
-      displayName: u.display_name != null ? String(u.display_name) : null,
     },
     account: {
       firstName: String(u.first_name),
@@ -498,7 +491,7 @@ app.delete("/api/account", requireAuth, async (req, res) => {
 
   try {
     const row = db
-      .prepare(`SELECT id,email,username,display_name,password_hash FROM users WHERE id = ?`)
+      .prepare(`SELECT id,email,username,password_hash FROM users WHERE id = ?`)
       .get(user.id) as any | undefined;
 
     if (!row) return res.status(404).json({ error: "User not found" });
@@ -515,17 +508,10 @@ app.delete("/api/account", requireAuth, async (req, res) => {
     const tx = db.transaction(() => {
       db.prepare(
         `
-INSERT INTO deleted_accounts(user_id,email_hash,username_hash,display_name_hash,deleted_at,reason)
-VALUES(?,?,?,?,?,?)
+INSERT INTO deleted_accounts(user_id,email_hash,username_hash,deleted_at,reason)
+VALUES(?,?,?,?,?)
 `
-      ).run(
-        Number(row.id),
-        sha256(norm(row.email)),
-        sha256(norm(row.username)),
-        sha256(norm(row.display_name)),
-        now,
-        null
-      );
+      ).run(Number(row.id), sha256(norm(row.email)), sha256(norm(row.username)), now, null);
 
       db.prepare(`DELETE FROM users WHERE id = ?`).run(Number(row.id));
     });
@@ -858,7 +844,6 @@ function mapWantedRow(row: any) {
   return {
     id: String(row.id),
     userId: Number(row.user_id),
-    userDisplayName: row.user_display_name ? String(row.user_display_name) : null,
     username: row.user_username ? String(row.user_username) : null,
     title: String(row.title),
     category: String(row.category),
@@ -953,7 +938,7 @@ ${whereSql}
   const rows = db
     .prepare(
       `
-SELECT w.*, u.display_name as user_display_name, u.username as user_username
+SELECT w.*, u.username as user_username
 FROM wanted_posts w
 JOIN users u ON u.id = w.user_id
 ${whereSql}
@@ -976,7 +961,7 @@ app.get("/api/wanted/:id", (req, res) => {
   const row = db
     .prepare(
       `
-SELECT w.*, u.display_name as user_display_name, u.username as user_username
+SELECT w.*, u.username as user_username
 FROM wanted_posts w
 JOIN users u ON u.id = w.user_id
 WHERE w.id = ?
@@ -1027,7 +1012,7 @@ INSERT INTO wanted_posts(
   const row = db
     .prepare(
       `
-SELECT w.*, u.display_name as user_display_name, u.username as user_username
+SELECT w.*, u.username as user_username
 FROM wanted_posts w
 JOIN users u ON u.id = w.user_id
 WHERE w.id = ?
@@ -1086,7 +1071,7 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
   const updated = db
     .prepare(
       `
-SELECT w.*, u.display_name as user_display_name, u.username as user_username
+SELECT w.*, u.username as user_username
 FROM wanted_posts w
 JOIN users u ON u.id = w.user_id
 WHERE w.id = ?
@@ -1109,7 +1094,7 @@ app.post("/api/wanted/:id/close", requireAuth, (req, res) => {
   const updated = db
     .prepare(
       `
-SELECT w.*, u.display_name as user_display_name, u.username as user_username
+SELECT w.*, u.username as user_username
 FROM wanted_posts w
 JOIN users u ON u.id = w.user_id
 WHERE w.id = ?
@@ -1132,7 +1117,7 @@ app.post("/api/wanted/:id/reopen", requireAuth, (req, res) => {
   const updated = db
     .prepare(
       `
-SELECT w.*, u.display_name as user_display_name, u.username as user_username
+SELECT w.*, u.username as user_username
 FROM wanted_posts w
 JOIN users u ON u.id = w.user_id
 WHERE w.id = ?

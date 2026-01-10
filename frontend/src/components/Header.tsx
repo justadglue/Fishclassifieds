@@ -32,7 +32,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
     return { top, left };
   }
 
-  const displayName = useMemo(() => {
+  const accountLabel = useMemo(() => {
     const u = user?.username?.trim();
     if (u) return u;
     return "Account";
@@ -196,11 +196,11 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
               className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 focus:outline-none"
               aria-haspopup="menu"
               aria-expanded={open}
-              aria-label={`Account menu for ${displayName}`}
-              title={displayName}
+              aria-label={`Account menu for ${accountLabel}`}
+              title={accountLabel}
             >
               <User aria-hidden="true" className="h-5 w-5" />
-              <span className="sr-only">{displayName}</span>
+              <span className="sr-only">{accountLabel}</span>
             </button>
 
             {open &&
@@ -214,7 +214,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
                 >
                   <div className="border-b border-slate-100 px-4 py-3">
                     <div className="text-xs font-semibold text-slate-500">Signed in as</div>
-                    <div className="mt-1 truncate text-sm font-bold text-slate-900">{displayName}</div>
+                    <div className="mt-1 truncate text-sm font-bold text-slate-900">{accountLabel}</div>
                   </div>
 
                   <div className="p-2">

@@ -21,7 +21,7 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
 
     const db = getDb(req);
     const row = db
-      .prepare(`SELECT id,email,username,display_name FROM users WHERE id = ?`)
+      .prepare(`SELECT id,email,username FROM users WHERE id = ?`)
       .get(userId) as any | undefined;
 
     if (!row) return next();
@@ -30,7 +30,6 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
       id: Number(row.id),
       email: String(row.email),
       username: String(row.username),
-      displayName: row.display_name != null ? String(row.display_name) : null,
     };
   } catch {
     // ignore (treat as unauthenticated)

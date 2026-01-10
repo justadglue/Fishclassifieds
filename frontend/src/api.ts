@@ -36,7 +36,6 @@ export type WantedStatus = "open" | "closed";
 export type WantedPost = {
   id: string;
   userId: number;
-  userDisplayName: string | null;
   username: string | null;
   title: string;
   category: Category;
@@ -316,7 +315,7 @@ export async function uploadImage(file: File): Promise<ImageAsset> {
   return data;
 }
 
-export type AuthUser = { id: number; email: string; displayName: string | null; username: string };
+export type AuthUser = { id: number; email: string; username: string };
 
 export async function authRegister(input: {
   email: string;
@@ -324,7 +323,6 @@ export async function authRegister(input: {
   firstName: string;
   lastName: string;
   password: string;
-  displayName?: string | null;
 }) {
   return apiFetch<{ user: AuthUser }>(`/api/auth/register`, {
     method: "POST",
@@ -374,7 +372,6 @@ export async function fetchProfile() {
 export async function updateProfile(input: {
   firstName?: string;
   lastName?: string;
-  displayName?: string | null;
   avatarUrl?: string | null;
   location?: string | null;
   phone?: string | null;

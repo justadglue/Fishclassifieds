@@ -5,7 +5,7 @@ import { verifyAccessToken } from "./jwt.js";
 declare global {
   namespace Express {
     interface Request {
-      user?: { id: number; email: string; username: string; displayName: string | null };
+      user?: { id: number; email: string; username: string };
     }
   }
 }
@@ -29,7 +29,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
     const db = getDb(req);
     const row = db
-      .prepare(`SELECT id,email,username,display_name FROM users WHERE id = ?`)
+      .prepare(`SELECT id,email,username FROM users WHERE id = ?`)
       .get(userId) as any | undefined;
 
     if (!row) return res.status(401).json({ error: "User not found" });
@@ -38,7 +38,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
       id: Number(row.id),
       email: String(row.email),
       username: String(row.username),
-      displayName: row.display_name != null ? String(row.display_name) : null,
     };
 
     return next();

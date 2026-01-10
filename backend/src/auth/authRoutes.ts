@@ -20,7 +20,6 @@ const RegisterSchema = z.object({
   firstName: z.string().min(1).max(80),
   lastName: z.string().min(1).max(80),
   password: z.string().min(10).max(200),
-  displayName: z.string().min(1).max(80).optional().nullable(),
 });
 
 const LoginSchema = z.object({
@@ -47,7 +46,6 @@ router.post("/register", async (req: Request, res: Response) => {
   }
 
   const { email, username, password } = parsed.data;
-  const displayName = parsed.data.displayName?.trim() ? parsed.data.displayName.trim() : null;
   const firstName = parsed.data.firstName.trim();
   const lastName = parsed.data.lastName.trim();
   const normEmail = email.toLowerCase().trim();
@@ -75,16 +73,16 @@ router.post("/register", async (req: Request, res: Response) => {
   const info = db
     .prepare(
       `
-INSERT INTO users(email,username,first_name,last_name,password_hash,display_name,created_at,updated_at)
-VALUES(?,?,?,?,?,?,?,?)
+INSERT INTO users(email,username,first_name,last_name,password_hash,created_at,updated_at)
+VALUES(?,?,?,?,?,?,?)
 `
     )
-    .run(normEmail, normUsername, firstName, lastName, passwordHash, displayName, nowIso(), nowIso());
+    .run(normEmail, normUsername, firstName, lastName, passwordHash, nowIso(), nowIso());
 
   const userId = Number(info.lastInsertRowid);
 
   return res.status(201).json({
-    user: { id: userId, email: normEmail, displayName, username: normUsername },
+    user: { id: userId, email: normEmail, username: normUsername },
   });
 });
 
@@ -130,7 +128,7 @@ VALUES(?,?,?,?,?,?,NULL,?,?)
   setAuthCookies(res, accessToken, refreshToken);
 
   return res.json({
-    user: { id: row.id, email: row.email, displayName: row.display_name ?? null, username: row.username },
+    user: { id: row.id, email: row.email, username: row.username },
   });
 });
 
@@ -176,7 +174,7 @@ router.post("/refresh", (req: Request, res: Response) => {
   }
 
   const user = db
-    .prepare(`SELECT id,email,username,display_name FROM users WHERE id = ?`)
+    .prepare(`SELECT id,email,username FROM users WHERE id = ?`)
     .get(Number(payload.sub)) as any | undefined;
 
   if (!user) {
@@ -200,7 +198,7 @@ WHERE id = ?
   setAuthCookies(res, newAccess, newRefresh);
 
   return res.json({
-    user: { id: user.id, email: user.email, displayName: user.display_name ?? null, username: user.username },
+    user: { id: user.id, email: user.email, username: user.username },
   });
 });
 

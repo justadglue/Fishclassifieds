@@ -318,7 +318,14 @@ export async function uploadImage(file: File): Promise<ImageAsset> {
 
 export type AuthUser = { id: number; email: string; displayName: string | null; username: string };
 
-export async function authRegister(input: { email: string; username: string; password: string; displayName?: string | null }) {
+export async function authRegister(input: {
+  email: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+  displayName?: string | null;
+}) {
   return apiFetch<{ user: AuthUser }>(`/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -356,6 +363,7 @@ export type UserProfile = {
 
 export type ProfileResponse = {
   user: AuthUser;
+  account: { firstName: string; lastName: string };
   profile: UserProfile;
 };
 
@@ -364,6 +372,8 @@ export async function fetchProfile() {
 }
 
 export async function updateProfile(input: {
+  firstName?: string;
+  lastName?: string;
   displayName?: string | null;
   avatarUrl?: string | null;
   location?: string | null;

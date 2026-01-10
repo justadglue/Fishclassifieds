@@ -9,6 +9,8 @@ export default function SignUpPage() {
   const [sp] = useSearchParams();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -17,12 +19,16 @@ export default function SignUpPage() {
   const [err, setErr] = useState<string | null>(null);
 
   const emailOk = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()), [email]);
+  const firstOk = useMemo(() => firstName.trim().length > 0 && firstName.trim().length <= 80, [firstName]);
+  const lastOk = useMemo(() => lastName.trim().length > 0 && lastName.trim().length <= 80, [lastName]);
   const usernameOk = useMemo(() => /^[a-zA-Z0-9_]{3,20}$/.test(username), [username]);
   const pwOk = useMemo(() => password.length >= 10, [password]);
   const matchOk = useMemo(() => password === confirm && confirm.length > 0, [password, confirm]);
 
   const canSubmit =
     emailOk &&
+    firstOk &&
+    lastOk &&
     usernameOk &&
     pwOk &&
     matchOk &&
@@ -36,6 +42,8 @@ export default function SignUpPage() {
     try {
       await authRegister({
         email: email.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         username: username.trim(),
         password,
       });
@@ -93,6 +101,27 @@ export default function SignUpPage() {
               placeholder="Email address"
               className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
             />
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input
+                required
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="First name"
+                className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
+                maxLength={80}
+                autoComplete="given-name"
+              />
+              <input
+                required
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Last name"
+                className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
+                maxLength={80}
+                autoComplete="family-name"
+              />
+            </div>
 
             <input
               required

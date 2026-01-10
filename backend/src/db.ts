@@ -45,6 +45,8 @@ export type UserRow = {
   id: number;
   email: string;
   username: string;
+  first_name: string;
+  last_name: string;
   display_name: string | null;
   password_hash: string;
   created_at: string;
@@ -89,6 +91,8 @@ CREATE TABLE IF NOT EXISTS users(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
   username TEXT NOT NULL UNIQUE,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   display_name TEXT,
   created_at TEXT NOT NULL,

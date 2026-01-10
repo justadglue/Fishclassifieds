@@ -61,6 +61,17 @@ const HAS_LISTINGS_USER_ID = (() => {
   }
 })();
 
+const HAS_USERS_FIRST_LAST = (() => {
+  try {
+    const rows = db.pragma("table_info(users)") as Array<{ name: string }>;
+    const hasFirst = rows.some((r) => r.name === "first_name");
+    const hasLast = rows.some((r) => r.name === "last_name");
+    return hasFirst && hasLast;
+  } catch {
+    return false;
+  }
+})();
+
 app.set("trust proxy", 1);
 
 app.use(
@@ -336,6 +347,8 @@ app.get("/api/me", requireAuth, (req, res) => {
 });
 
 const ProfileSchema = z.object({
+  firstName: z.string().min(1).max(80).optional(),
+  lastName: z.string().min(1).max(80).optional(),
   displayName: z.string().min(1).max(80).optional().nullable(),
   avatarUrl: z.string().max(500).nullable().optional(),
   location: z.string().max(120).nullable().optional(),
@@ -355,8 +368,15 @@ function mapProfileRow(row: any) {
 }
 
 app.get("/api/profile", requireAuth, (req, res) => {
+  if (!HAS_USERS_FIRST_LAST) {
+    return res.status(400).json({
+      error: "DB is missing users.first_name / users.last_name. Run: npm --prefix backend run db:migration",
+    });
+  }
   const user = req.user!;
-  const u = db.prepare(`SELECT id,email,username,display_name FROM users WHERE id = ?`).get(user.id) as any | undefined;
+  const u = db
+    .prepare(`SELECT id,email,username,display_name,first_name,last_name FROM users WHERE id = ?`)
+    .get(user.id) as any | undefined;
   if (!u) return res.status(404).json({ error: "User not found" });
   const p = db.prepare(`SELECT * FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
 
@@ -367,26 +387,50 @@ app.get("/api/profile", requireAuth, (req, res) => {
       username: String(u.username),
       displayName: u.display_name != null ? String(u.display_name) : null,
     },
+    account: {
+      firstName: String(u.first_name),
+      lastName: String(u.last_name),
+    },
     profile: mapProfileRow(p),
   });
 });
 
 app.put("/api/profile", requireAuth, (req, res) => {
+  if (!HAS_USERS_FIRST_LAST) {
+    return res.status(400).json({
+      error: "DB is missing users.first_name / users.last_name. Run: npm --prefix backend run db:migration",
+    });
+  }
   const user = req.user!;
   const parsed = ProfileSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
 
-  const { displayName, avatarUrl, location, phone, website, bio } = parsed.data;
+  const { firstName, lastName, displayName, avatarUrl, location, phone, website, bio } = parsed.data;
   const now = nowIsoSecurity();
 
   const tx = db.transaction(() => {
+    const userSets: string[] = [];
+    const userParams: any[] = [];
+
     if (displayName !== undefined) {
-      db.prepare(`UPDATE users SET display_name = ?, updated_at = ? WHERE id = ?`).run(displayName ?? null, now, user.id);
-    } else {
-      db.prepare(`UPDATE users SET updated_at = ? WHERE id = ?`).run(now, user.id);
+      userSets.push(`display_name = ?`);
+      userParams.push(displayName ?? null);
     }
+    if (firstName !== undefined) {
+      userSets.push(`first_name = ?`);
+      userParams.push(String(firstName).trim());
+    }
+    if (lastName !== undefined) {
+      userSets.push(`last_name = ?`);
+      userParams.push(String(lastName).trim());
+    }
+
+    userSets.push(`updated_at = ?`);
+    userParams.push(now);
+
+    db.prepare(`UPDATE users SET ${userSets.join(", ")} WHERE id = ?`).run(...userParams, user.id);
 
     const existing = db.prepare(`SELECT user_id FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
 
@@ -414,7 +458,9 @@ WHERE user_id = ?
     return res.status(400).json({ error: e?.message ?? "Failed to update profile" });
   }
 
-  const u = db.prepare(`SELECT id,email,username,display_name FROM users WHERE id = ?`).get(user.id) as any | undefined;
+  const u = db
+    .prepare(`SELECT id,email,username,display_name,first_name,last_name FROM users WHERE id = ?`)
+    .get(user.id) as any | undefined;
   const p = db.prepare(`SELECT * FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
 
   return res.json({
@@ -423,6 +469,10 @@ WHERE user_id = ?
       email: String(u.email),
       username: String(u.username),
       displayName: u.display_name != null ? String(u.display_name) : null,
+    },
+    account: {
+      firstName: String(u.first_name),
+      lastName: String(u.last_name),
     },
     profile: mapProfileRow(p),
   });

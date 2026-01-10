@@ -17,6 +17,8 @@ const RegisterSchema = z.object({
     .min(3)
     .max(20)
     .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters,numbers,and underscore"),
+  firstName: z.string().min(1).max(80),
+  lastName: z.string().min(1).max(80),
   password: z.string().min(10).max(200),
   displayName: z.string().min(1).max(80).optional().nullable(),
 });
@@ -46,6 +48,8 @@ router.post("/register", async (req: Request, res: Response) => {
 
   const { email, username, password } = parsed.data;
   const displayName = parsed.data.displayName?.trim() ? parsed.data.displayName.trim() : null;
+  const firstName = parsed.data.firstName.trim();
+  const lastName = parsed.data.lastName.trim();
   const normEmail = email.toLowerCase().trim();
   const normUsername = username.toLowerCase().trim();
 
@@ -71,11 +75,11 @@ router.post("/register", async (req: Request, res: Response) => {
   const info = db
     .prepare(
       `
-INSERT INTO users(email,username,password_hash,display_name,created_at,updated_at)
-VALUES(?,?,?,?,?,?)
+INSERT INTO users(email,username,first_name,last_name,password_hash,display_name,created_at,updated_at)
+VALUES(?,?,?,?,?,?,?,?)
 `
     )
-    .run(normEmail, normUsername, passwordHash, displayName, nowIso(), nowIso());
+    .run(normEmail, normUsername, firstName, lastName, passwordHash, displayName, nowIso(), nowIso());
 
   const userId = Number(info.lastInsertRowid);
 

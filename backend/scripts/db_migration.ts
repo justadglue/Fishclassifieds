@@ -58,8 +58,17 @@ function main() {
 
   const migrations: string[] = [];
 
-  // Make users.display_name optional (nullable)
-  if (hasColumn(db, "users", "display_name") && isColumnNotNull(db, "users", "display_name")) {
+  // Ensure users has required first_name/last_name (NOT NULL) and display_name is nullable.
+  const hasFirst = hasColumn(db, "users", "first_name");
+  const hasLast = hasColumn(db, "users", "last_name");
+  const firstNotNull = hasFirst ? isColumnNotNull(db, "users", "first_name") : false;
+  const lastNotNull = hasLast ? isColumnNotNull(db, "users", "last_name") : false;
+  const hasDisplay = hasColumn(db, "users", "display_name");
+  const displayNotNull = hasDisplay ? isColumnNotNull(db, "users", "display_name") : false;
+
+  const needsUsersRebuild = !hasFirst || !hasLast || !firstNotNull || !lastNotNull || displayNotNull;
+
+  if (needsUsersRebuild) {
     db.exec(`PRAGMA foreign_keys = OFF;`);
     const tx = db.transaction(() => {
       db.exec(`
@@ -67,6 +76,8 @@ CREATE TABLE IF NOT EXISTS users_new(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
   username TEXT NOT NULL UNIQUE,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   display_name TEXT,
   created_at TEXT NOT NULL,
@@ -74,9 +85,21 @@ CREATE TABLE IF NOT EXISTS users_new(
 );
 `);
 
+      const firstExpr = hasFirst ? "first_name" : "''";
+      const lastExpr = hasLast ? "last_name" : "''";
+
       db.exec(`
-INSERT INTO users_new(id,email,username,password_hash,display_name,created_at,updated_at)
-SELECT id,email,username,password_hash,display_name,created_at,updated_at
+INSERT INTO users_new(id,email,username,first_name,last_name,password_hash,display_name,created_at,updated_at)
+SELECT
+  id,
+  email,
+  username,
+  COALESCE(NULLIF(trim(${firstExpr}), ''), 'Unknown'),
+  COALESCE(NULLIF(trim(${lastExpr}), ''), 'Unknown'),
+  password_hash,
+  display_name,
+  created_at,
+  updated_at
 FROM users;
 `);
 
@@ -89,9 +112,12 @@ FROM users;
 
     tx();
     db.exec(`PRAGMA foreign_keys = ON;`);
-    migrations.push("Made users.display_name nullable");
+
+    if (!hasFirst || !hasLast) migrations.push("Added users.first_name / users.last_name (required)");
+    if (displayNotNull) migrations.push("Made users.display_name nullable");
+    if ((hasFirst && !firstNotNull) || (hasLast && !lastNotNull)) migrations.push("Enforced NOT NULL on users.first_name / users.last_name");
   } else {
-    migrations.push("users.display_name already nullable (or missing)");
+    migrations.push("users schema already includes required first_name/last_name and nullable display_name");
   }
 
   if (!hasColumn(db, "listings", "featured")) {

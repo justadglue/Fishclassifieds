@@ -15,6 +15,8 @@ export default function ProfilePage() {
 
   const [data, setData] = useState<ProfileResponse | null>(null);
 
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
@@ -54,6 +56,8 @@ export default function ProfilePage() {
         if (cancelled) return;
 
         setData(res);
+        setFirstName(res.account.firstName ?? "");
+        setLastName(res.account.lastName ?? "");
         setAvatarUrl(res.profile.avatarUrl ?? "");
         setLocation(res.profile.location ?? "");
         setPhone(res.profile.phone ?? "");
@@ -96,9 +100,22 @@ export default function ProfilePage() {
     setErr(null);
     setSavedMsg(null);
 
+    const fn = firstName.trim();
+    const ln = lastName.trim();
+    if (!fn) {
+      setErr("First name is required.");
+      return;
+    }
+    if (!ln) {
+      setErr("Last name is required.");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await updateProfile({
+        firstName: fn,
+        lastName: ln,
         avatarUrl: normNullable(avatarUrl),
         location: normNullable(location),
         phone: normNullable(phone),
@@ -106,6 +123,8 @@ export default function ProfilePage() {
         bio: normNullable(bio),
       });
       setData(res);
+      setFirstName(res.account.firstName ?? "");
+      setLastName(res.account.lastName ?? "");
       setSavedMsg("Saved.");
       await refresh();
     } catch (e: any) {
@@ -187,6 +206,32 @@ export default function ProfilePage() {
             <div className="text-sm font-bold text-slate-900">Account</div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <div className="mb-1 text-xs font-semibold text-slate-700">First name</div>
+                <input
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400"
+                  maxLength={80}
+                  disabled={loading}
+                  autoComplete="given-name"
+                  required
+                />
+              </label>
+
+              <label className="block">
+                <div className="mb-1 text-xs font-semibold text-slate-700">Last name</div>
+                <input
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400"
+                  maxLength={80}
+                  disabled={loading}
+                  autoComplete="family-name"
+                  required
+                />
+              </label>
+
               <label className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Email</div>
                 <input
@@ -288,6 +333,8 @@ export default function ProfilePage() {
                   disabled={loading}
                   onClick={() => {
                     if (!data) return;
+                    setFirstName(data.account.firstName ?? "");
+                    setLastName(data.account.lastName ?? "");
                     setAvatarUrl(data.profile.avatarUrl ?? "");
                     setLocation(data.profile.location ?? "");
                     setPhone(data.profile.phone ?? "");

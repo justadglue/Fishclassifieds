@@ -43,33 +43,40 @@ function relativeTime(iso: string) {
 
 type Row = { id: string; listing?: Listing; error?: string };
 
-function badgeText(l: Listing) {
-  const bits: string[] = [];
-  bits.push(l.status);
-  if (l.resolution !== "none") bits.push(l.resolution);
-  return bits.join(" • ");
+function cap1(s: string) {
+  const t = String(s ?? "");
+  if (!t) return t;
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
-function Badge({ l }: { l: Listing }) {
+function statusLabel(l: Listing) {
+  // If sold, show Sold (not Active).
+  if (l.resolution === "sold") return "Sold";
+  return cap1(l.status);
+}
+
+function StatusText({ l }: { l: Listing }) {
   const s = l.status;
   const r = l.resolution;
 
   const cls =
     r !== "none"
-      ? "bg-slate-100 text-slate-800 border-slate-200"
+      ? "text-slate-800"
       : s === "active"
-        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-        : s === "pending"
-          ? "bg-amber-50 text-amber-900 border-amber-200"
-          : s === "paused"
-            ? "bg-violet-50 text-violet-900 border-violet-200"
-            : s === "expired"
-              ? "bg-slate-50 text-slate-700 border-slate-200"
-              : s === "draft"
-                ? "bg-sky-50 text-sky-900 border-sky-200"
-                : "bg-slate-50 text-slate-700 border-slate-200";
+      ? "text-emerald-700"
+      : s === "pending"
+      ? "text-amber-700"
+      : s === "paused"
+      ? "text-violet-700"
+      : s === "expired"
+      ? "text-slate-600"
+      : s === "draft"
+      ? "text-sky-700"
+      : s === "deleted"
+      ? "text-red-700"
+      : "text-slate-700";
 
-  return <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-bold ${cls}`}>{badgeText(l)}</span>;
+  return <span className={`text-sm font-semibold ${cls}`}>{statusLabel(l)}</span>;
 }
 
 function ActionButton(props: {
@@ -371,7 +378,7 @@ export default function MyListingsPage() {
                     </td>
 
                     <td className="px-4 py-4 align-top">
-                      <Badge l={l} />
+                      <StatusText l={l} />
                     </td>
 
                     <td className="px-4 py-4 align-top">

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Check, ChevronLeft, ChevronRight, Maximize2, Pause, Play, Trash2, X } from "lucide-react";
+import { Check, GripVertical, Maximize2, Pause, Play, Trash2, X } from "lucide-react";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -270,18 +270,6 @@ export default function EditListingPage() {
     };
   }, [lightboxOpen]);
 
-  function movePhoto(idx: number, dir: -1 | 1) {
-    setPhotos((prev) => {
-      const j = idx + dir;
-      if (j < 0 || j >= prev.length) return prev;
-      const copy = [...prev];
-      const tmp = copy[idx];
-      copy[idx] = copy[j];
-      copy[j] = tmp;
-      return copy;
-    });
-  }
-
   function removePhoto(idx: number) {
     setPhotos((prev) => prev.filter((_, i) => i !== idx));
   }
@@ -535,9 +523,8 @@ export default function EditListingPage() {
   function SortablePhotoCard(props: {
     p: (typeof photoPreviews)[number];
     idx: number;
-    total: number;
   }) {
-    const { p, idx, total } = props;
+    const { p, idx } = props;
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: p.id });
 
     const style: React.CSSProperties = {
@@ -559,40 +546,16 @@ export default function EditListingPage() {
         <div className="relative h-28 w-full bg-slate-100">
           <img src={p.src} alt={`photo-${idx}`} className="h-full w-full object-cover" draggable={false} />
 
+          <div className="absolute left-2 top-2 flex items-center gap-1 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-semibold text-slate-800 backdrop-blur pointer-events-none">
+            <GripVertical aria-hidden="true" className="h-3.5 w-3.5" />
+            <span>Drag</span>
+          </div>
+
           {idx === 0 && (
             <div className="absolute bottom-2 left-2 rounded-full bg-slate-900/80 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur">
               Thumbnail
             </div>
           )}
-
-          <div className="absolute left-2 top-2 flex gap-1">
-            <button
-              type="button"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                movePhoto(idx, -1);
-              }}
-              disabled={idx === 0}
-              className="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 disabled:opacity-50"
-              title="Move left"
-            >
-              <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                movePhoto(idx, 1);
-              }}
-              disabled={idx === total - 1}
-              className="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 disabled:opacity-50"
-              title="Move right"
-            >
-              <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
-            </button>
-          </div>
 
           <button
             type="button"
@@ -745,7 +708,7 @@ export default function EditListingPage() {
                 <div>
                   <div className="text-sm font-bold text-slate-900">Photos</div>
                   <div className="text-xs text-slate-600">Up to 6 photos.</div>
-                  <div className="text-xs text-slate-600">Photos will appear in this order on the listing.</div>
+                  <div className="text-xs text-slate-600">Drag to reorder. The first photo is used as the thumbnail.</div>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -772,7 +735,7 @@ export default function EditListingPage() {
                   <SortableContext items={photoPreviews.map((x) => x.id)} strategy={rectSortingStrategy}>
                     <div className="mt-4 grid gap-3 sm:grid-cols-3">
                       {photoPreviews.map((p, idx) => (
-                        <SortablePhotoCard key={p.id} p={p} idx={idx} total={photoPreviews.length} />
+                        <SortablePhotoCard key={p.id} p={p} idx={idx} />
                       ))}
                     </div>
                   </SortableContext>

@@ -10,6 +10,7 @@ export type ListingResolution = "none" | "sold";
 
 export type ListingRow = {
   id: string;
+  user_id: number | null;
   owner_token: string;
   featured?: number;
   featured_until?: number | null;
@@ -84,53 +85,6 @@ function ensureDir(p: string) {
 
 function createSchema(db: Database.Database) {
   db.exec(`
-CREATE TABLE IF NOT EXISTS listings(
-  id TEXT PRIMARY KEY,
-  owner_token TEXT NOT NULL,
-  featured INTEGER NOT NULL DEFAULT 0,
-  featured_until INTEGER,
-  views INTEGER NOT NULL DEFAULT 0,
-  title TEXT NOT NULL,
-  category TEXT NOT NULL DEFAULT 'Fish',
-  species TEXT NOT NULL,
-  price_cents INTEGER NOT NULL,
-  location TEXT NOT NULL,
-  description TEXT NOT NULL,
-  contact TEXT,
-  image_url TEXT,
-  status TEXT NOT NULL DEFAULT 'active',
-  expires_at TEXT,
-  resolution TEXT NOT NULL DEFAULT 'none',
-  resolved_at TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  deleted_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS listing_images(
-  id TEXT PRIMARY KEY,
-  listing_id TEXT NOT NULL,
-  url TEXT NOT NULL,
-  thumb_url TEXT,
-  medium_url TEXT,
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_listings_created_at ON listings(created_at);
-CREATE INDEX IF NOT EXISTS idx_listings_updated_at ON listings(updated_at);
-CREATE INDEX IF NOT EXISTS idx_listings_species ON listings(species);
-CREATE INDEX IF NOT EXISTS idx_listings_price ON listings(price_cents);
-CREATE INDEX IF NOT EXISTS idx_listings_category ON listings(category);
-CREATE INDEX IF NOT EXISTS idx_listings_owner_token ON listings(owner_token);
-CREATE INDEX IF NOT EXISTS idx_listings_featured ON listings(featured);
-CREATE INDEX IF NOT EXISTS idx_listings_featured_until ON listings(featured_until);
-CREATE INDEX IF NOT EXISTS idx_listings_views ON listings(views);
-CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);
-CREATE INDEX IF NOT EXISTS idx_listings_resolution ON listings(resolution);
-CREATE INDEX IF NOT EXISTS idx_listings_expires_at ON listings(expires_at);
-CREATE INDEX IF NOT EXISTS idx_listing_images_listing_id ON listing_images(listing_id);
-
 CREATE TABLE IF NOT EXISTS users(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
@@ -189,6 +143,57 @@ CREATE TABLE IF NOT EXISTS deleted_accounts(
 CREATE INDEX IF NOT EXISTS idx_deleted_accounts_deleted_at ON deleted_accounts(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_deleted_accounts_email_hash ON deleted_accounts(email_hash);
 CREATE INDEX IF NOT EXISTS idx_deleted_accounts_username_hash ON deleted_accounts(username_hash);
+
+-- Sale listings. Account-owned listings set user_id; legacy/device-owned listings use owner_token.
+CREATE TABLE IF NOT EXISTS listings(
+  id TEXT PRIMARY KEY,
+  user_id INTEGER,
+  owner_token TEXT NOT NULL,
+  featured INTEGER NOT NULL DEFAULT 0,
+  featured_until INTEGER,
+  views INTEGER NOT NULL DEFAULT 0,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'Fish',
+  species TEXT NOT NULL,
+  price_cents INTEGER NOT NULL,
+  location TEXT NOT NULL,
+  description TEXT NOT NULL,
+  contact TEXT,
+  image_url TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  expires_at TEXT,
+  resolution TEXT NOT NULL DEFAULT 'none',
+  resolved_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS listing_images(
+  id TEXT PRIMARY KEY,
+  listing_id TEXT NOT NULL,
+  url TEXT NOT NULL,
+  thumb_url TEXT,
+  medium_url TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_listings_created_at ON listings(created_at);
+CREATE INDEX IF NOT EXISTS idx_listings_updated_at ON listings(updated_at);
+CREATE INDEX IF NOT EXISTS idx_listings_species ON listings(species);
+CREATE INDEX IF NOT EXISTS idx_listings_price ON listings(price_cents);
+CREATE INDEX IF NOT EXISTS idx_listings_category ON listings(category);
+CREATE INDEX IF NOT EXISTS idx_listings_owner_token ON listings(owner_token);
+CREATE INDEX IF NOT EXISTS idx_listings_user_id ON listings(user_id);
+CREATE INDEX IF NOT EXISTS idx_listings_featured ON listings(featured);
+CREATE INDEX IF NOT EXISTS idx_listings_featured_until ON listings(featured_until);
+CREATE INDEX IF NOT EXISTS idx_listings_views ON listings(views);
+CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);
+CREATE INDEX IF NOT EXISTS idx_listings_resolution ON listings(resolution);
+CREATE INDEX IF NOT EXISTS idx_listings_expires_at ON listings(expires_at);
+CREATE INDEX IF NOT EXISTS idx_listing_images_listing_id ON listing_images(listing_id);
 
 -- Buyer requests / wanted posts
 CREATE TABLE IF NOT EXISTS wanted_posts(

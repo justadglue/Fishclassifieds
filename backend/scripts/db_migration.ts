@@ -79,6 +79,17 @@ function main() {
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_views ON listings(views);`);
 
+  // Link sale listings to user accounts
+  if (!hasColumn(db, "listings", "user_id")) {
+    // SQLite allows adding a column with a REFERENCES clause, which becomes a FK constraint.
+    db.exec(`ALTER TABLE listings ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;`);
+    migrations.push("Added listings.user_id (FK -> users.id)");
+  } else {
+    migrations.push("listings.user_id already exists");
+  }
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_user_id ON listings(user_id);`);
+
   // Wanted posts (buyer requests)
   db.exec(`
 CREATE TABLE IF NOT EXISTS wanted_posts(

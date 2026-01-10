@@ -4,8 +4,6 @@ import { Check, Pause, Play, Trash2 } from "lucide-react";
 import {
   deleteListing,
   fetchListing,
-  getOwnerToken,
-  removeOwnerToken,
   resolveAssets,
   resolveImageUrl,
   updateListing,
@@ -18,6 +16,7 @@ import {
   type ImageAsset,
 } from "../api";
 import Header from "../components/Header";
+import { useAuth } from "../auth";
 
 function dollarsToCents(v: string) {
   const n = Number(v);
@@ -85,6 +84,7 @@ function IconButton(props: {
 export default function EditListingPage() {
   const { id } = useParams();
   const nav = useNavigate();
+  const { user, loading: authLoading } = useAuth();
 
   const [orig, setOrig] = useState<Listing | null>(null);
 
@@ -103,7 +103,12 @@ export default function EditListingPage() {
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const ownerToken = id ? getOwnerToken(id) : null;
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      nav(`/auth?next=${encodeURIComponent(`/edit/${id ?? ""}`)}`);
+    }
+  }, [authLoading, user, id, nav]);
 
   useEffect(() => {
     let cancelled = false;
@@ -267,11 +272,6 @@ export default function EditListingPage() {
     setErr(null);
     if (!id) return;
 
-    if (!ownerToken) {
-      setErr("Missing owner token for this listing (it wasn't created on this device).");
-      return;
-    }
-
     const priceCents = dollarsToCents(priceDollars);
     if (priceCents === null) {
       setErr("Please enter a valid non-negative price.");
@@ -317,18 +317,12 @@ export default function EditListingPage() {
     if (!id) return;
     setErr(null);
 
-    if (!ownerToken) {
-      setErr("Missing owner token for this listing (it wasn't created on this device).");
-      return;
-    }
-
     const ok = window.confirm("Delete this listing? This cannot be undone.");
     if (!ok) return;
 
     setLoading(true);
     try {
       await deleteListing(id);
-      removeOwnerToken(id);
       nav("/me");
     } catch (e: any) {
       setErr(e?.message ?? "Delete failed");
@@ -375,7 +369,6 @@ export default function EditListingPage() {
   const canSave = !loading && !uploading;
 
   const canTogglePause =
-    !!ownerToken &&
     !!orig &&
     orig.status !== "draft" &&
     orig.status !== "expired" &&
@@ -385,7 +378,6 @@ export default function EditListingPage() {
   const toggleLabel = orig?.status === "paused" ? "Resume listing" : "Pause listing";
 
   const canResolve =
-    !!ownerToken &&
     !!orig &&
     orig.status !== "expired" &&
     orig.status !== "deleted" &&
@@ -403,12 +395,6 @@ export default function EditListingPage() {
             </Link>
           )}
         </div>
-
-        {!ownerToken && (
-          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            You can view this listing, but you can't edit/delete it from this device (missing owner token).
-          </div>
-        )}
 
         {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
@@ -441,7 +427,7 @@ export default function EditListingPage() {
                   <span className="ml-2">Mark as Sold</span>
                 </IconButton>
 
-                <IconButton title="Delete listing" onClick={onDelete} disabled={loading || uploading || !ownerToken} variant="danger">
+                <IconButton title="Delete listing" onClick={onDelete} disabled={loading || uploading} variant="danger">
                   <Trash2 aria-hidden="true" className="h-5 w-5" />
                   <span className="ml-2">Delete</span>
                 </IconButton>
@@ -622,7 +608,7 @@ export default function EditListingPage() {
                 required
                 minLength={3}
                 maxLength={80}
-                disabled={!ownerToken}
+                disabled={loading}
               />
             </label>
 
@@ -633,7 +619,7 @@ export default function EditListingPage() {
                   value={category}
                   onChange={(e) => setCategory(e.target.value as Category)}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                  disabled={!ownerToken}
+                disabled={loading}
                 >
                   {CATEGORIES.map((c) => (
                     <option key={c} value={c}>
@@ -652,7 +638,7 @@ export default function EditListingPage() {
                   required
                   minLength={2}
                   maxLength={60}
-                  disabled={!ownerToken}
+                disabled={loading}
                 />
               </label>
             </div>
@@ -666,7 +652,7 @@ export default function EditListingPage() {
                   inputMode="decimal"
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
                   required
-                  disabled={!ownerToken}
+                disabled={loading}
                 />
               </label>
 
@@ -679,7 +665,7 @@ export default function EditListingPage() {
                   required
                   minLength={2}
                   maxLength={80}
-                  disabled={!ownerToken}
+                disabled={loading}
                 />
               </label>
             </div>
@@ -692,7 +678,7 @@ export default function EditListingPage() {
                 placeholder="e.g. phone, email, or 'DM on FB: ...'"
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
                 maxLength={200}
-                disabled={!ownerToken}
+                disabled={loading}
               />
             </label>
 
@@ -705,14 +691,14 @@ export default function EditListingPage() {
                 required
                 minLength={1}
                 maxLength={1000}
-                disabled={!ownerToken}
+                disabled={loading}
               />
             </label>
 
             <div className="flex gap-2">
               <button
                 type="submit"
-                disabled={!canSave || !ownerToken}
+                disabled={!canSave}
                 className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
               >
                 {loading ? "Saving..." : uploading ? "Uploading..." : "Save changes"}

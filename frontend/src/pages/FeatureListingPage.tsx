@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import { clearListingFeaturing, fetchListing, setListingFeaturingForDays, setListingFeaturingUntilMs, type Listing } from "../api";
+import { useAuth } from "../auth";
 
 export default function FeatureListingPage() {
   const { id } = useParams();
   const nav = useNavigate();
+  const { user, loading: authLoading } = useAuth();
 
   const [item, setItem] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(false);
@@ -16,6 +18,12 @@ export default function FeatureListingPage() {
   const [plan, setPlan] = useState<"7d" | "30d" | "15h" | "10h_ago">("7d");
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      nav(`/auth?next=${encodeURIComponent(`/feature/${id ?? ""}`)}`);
+      return;
+    }
+
     let cancelled = false;
     async function run() {
       if (!id) return;
@@ -34,7 +42,7 @@ export default function FeatureListingPage() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [authLoading, user, id, nav]);
 
   const canBeFeatured = useMemo(() => {
     if (!item) return false;

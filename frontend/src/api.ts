@@ -137,6 +137,15 @@ export function listOwnedIds(): string[] {
   return Object.keys(map);
 }
 
+export async function fetchMyListings(params?: { limit?: number; offset?: number; includeDeleted?: boolean }) {
+  const qs = new URLSearchParams();
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+  if (params?.includeDeleted) qs.set("includeDeleted", "1");
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<{ items: Listing[]; total: number; limit: number; offset: number }>(`/api/my/listings${suffix}`);
+}
+
 export async function fetchListings(params?: {
   q?: string;
   category?: Category;
@@ -247,6 +256,15 @@ export async function fetchListing(id: string) {
   return apiFetch<Listing>(`/api/listings/${encodeURIComponent(id)}`, headers ? { headers } : undefined);
 }
 
+export async function claimListing(id: string) {
+  const token = getOwnerToken(id);
+  if (!token) throw new Error("Missing owner token for this listing on this device.");
+  return apiFetch<Listing>(`/api/listings/${encodeURIComponent(id)}/claim`, {
+    method: "POST",
+    headers: { "x-owner-token": token },
+  });
+}
+
 export async function createListing(input: {
   title: string;
   category: Category;
@@ -260,7 +278,7 @@ export async function createListing(input: {
   status?: "draft" | "active";
 }) {
   const body = JSON.stringify(input);
-  const res = await apiFetch<Listing & { ownerToken: string }>(`/api/listings`, {
+  const res = await apiFetch<Listing & { ownerToken?: string }>(`/api/listings`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
@@ -285,12 +303,11 @@ export async function updateListing(
   }
 ) {
   const token = getOwnerToken(id);
-  if (!token) throw new Error("Missing owner token for this listing(not created on this device).");
   return apiFetch<Listing>(`/api/listings/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
-      "x-owner-token": token,
+      ...(token ? { "x-owner-token": token } : {}),
     },
     body: JSON.stringify(input),
   });
@@ -315,19 +332,17 @@ export async function clearListingFeaturing(id: string) {
 
 export async function deleteListing(id: string) {
   const token = getOwnerToken(id);
-  if (!token) throw new Error("Missing owner token for this listing(not created on this device).");
   return apiFetch<{ ok: true }>(`/api/listings/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    headers: { "x-owner-token": token },
+    headers: token ? { "x-owner-token": token } : undefined,
   });
 }
 
 async function postAction(id: string, action: "pause" | "resume" | "mark-sold") {
   const token = getOwnerToken(id);
-  if (!token) throw new Error("Missing owner token for this listing(not created on this device).");
   return apiFetch<Listing>(`/api/listings/${encodeURIComponent(id)}/${action}`, {
     method: "POST",
-    headers: { "x-owner-token": token },
+    headers: token ? { "x-owner-token": token } : undefined,
   });
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Check,
@@ -12,8 +12,9 @@ import {
 } from "lucide-react";
 import {
   deleteListing,
-  fetchListing,
+  fetchMyListings,
   listOwnedIds,
+  claimListing,
   removeOwnerToken,
   resolveAssets,
   pauseListing,
@@ -22,6 +23,7 @@ import {
   type Listing,
 } from "../api";
 import Header from "../components/Header";
+import { useAuth } from "../auth";
 
 function centsToDollars(cents: number) {
   return (cents / 100).toLocaleString(undefined, { style: "currency", currency: "AUD" });
@@ -40,8 +42,6 @@ function relativeTime(iso: string) {
   const days = Math.floor(h / 24);
   return `${days}d ago`;
 }
-
-type Row = { id: string; listing?: Listing; error?: string };
 
 function cap1(s: string) {
   const t = String(s ?? "");
@@ -63,18 +63,18 @@ function StatusText({ l }: { l: Listing }) {
     r !== "none"
       ? "text-slate-800"
       : s === "active"
-      ? "text-emerald-700"
-      : s === "pending"
-      ? "text-amber-700"
-      : s === "paused"
-      ? "text-violet-700"
-      : s === "expired"
-      ? "text-slate-600"
-      : s === "draft"
-      ? "text-sky-700"
-      : s === "deleted"
-      ? "text-red-700"
-      : "text-slate-700";
+        ? "text-emerald-700"
+        : s === "pending"
+          ? "text-amber-700"
+          : s === "paused"
+            ? "text-violet-700"
+            : s === "expired"
+              ? "text-slate-600"
+              : s === "draft"
+                ? "text-sky-700"
+                : s === "deleted"
+                  ? "text-red-700"
+                  : "text-slate-700";
 
   return <span className={`text-sm font-semibold ${cls}`}>{statusLabel(l)}</span>;
 }
@@ -125,13 +125,20 @@ function ActionLink(props: { to: string; label: string; icon?: React.ReactNode }
 
 export default function MyListingsPage() {
   const nav = useNavigate();
-  const [rows, setRows] = useState<Row[]>([]);
+  const { user, loading: authLoading } = useAuth();
+
+  const [items, setItems] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  const ownedIds = useMemo(() => listOwnedIds(), []);
+  const [localIds, setLocalIds] = useState<string[]>(() => listOwnedIds());
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) nav(`/auth?next=${encodeURIComponent("/me")}`);
+  }, [authLoading, user, nav]);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,19 +146,9 @@ export default function MyListingsPage() {
       setErr(null);
       setLoading(true);
       try {
-        const ids = listOwnedIds();
-        const next: Row[] = [];
-
-        for (const id of ids) {
-          try {
-            const l = await fetchListing(id);
-            next.push({ id, listing: l });
-          } catch (e: any) {
-            next.push({ id, error: e?.message ?? "Failed to load listing" });
-          }
-        }
-
-        if (!cancelled) setRows(next);
+        if (!user) return;
+        const res = await fetchMyListings({ limit: 200, offset: 0 });
+        if (!cancelled) setItems(res.items ?? []);
       } catch (e: any) {
         if (!cancelled) setErr(e?.message ?? "Failed to load your listings");
       } finally {
@@ -162,7 +159,7 @@ export default function MyListingsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user]);
 
   // Keep “Featured for Xd/Xh” pills fresh over time.
   useEffect(() => {
@@ -227,8 +224,7 @@ export default function MyListingsPage() {
 
     try {
       await deleteListing(id);
-      removeOwnerToken(id);
-      setRows((prev) => prev.filter((r) => r.id !== id));
+      setItems((prev) => prev.filter((l) => l.id !== id));
     } catch (e: any) {
       setErr(e?.message ?? "Delete failed");
     }
@@ -238,7 +234,7 @@ export default function MyListingsPage() {
     setErr(null);
     try {
       const updated = l.status === "paused" ? await resumeListing(l.id) : await pauseListing(l.id);
-      setRows((prev) => prev.map((r) => (r.id === l.id ? { ...r, listing: updated } : r)));
+      setItems((prev) => prev.map((x) => (x.id === l.id ? updated : x)));
     } catch (e: any) {
       setErr(e?.message ?? "Failed to update listing status");
     }
@@ -251,9 +247,38 @@ export default function MyListingsPage() {
 
     try {
       const updated = await markSold(id);
-      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, listing: updated } : r)));
+      setItems((prev) => prev.map((x) => (x.id === id ? updated : x)));
     } catch (e: any) {
       setErr(e?.message ?? "Failed to mark sold");
+    }
+  }
+
+  async function onLinkDeviceListings() {
+    setErr(null);
+    const ids = listOwnedIds();
+    if (!ids.length) return;
+
+    const ok = window.confirm(`Link ${ids.length} listing(s) from this device to your account?`);
+    if (!ok) return;
+
+    setLoading(true);
+    try {
+      for (const id of ids) {
+        try {
+          await claimListing(id);
+          removeOwnerToken(id);
+        } catch {
+          // ignore per-listing errors
+        }
+      }
+
+      setLocalIds(listOwnedIds());
+      const res = await fetchMyListings({ limit: 200, offset: 0 });
+      setItems(res.items ?? []);
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to link device listings");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -266,12 +291,29 @@ export default function MyListingsPage() {
       <Header maxWidth="5xl" />
       <main className="mx-auto max-w-5xl px-4 py-6">
         <h1 className="text-xl font-extrabold text-slate-900">My listings</h1>
-        <div className="mt-1 text-sm text-slate-600">Listings created on this device.</div>
+        <div className="mt-1 text-sm text-slate-600">Listings linked to your account.</div>
 
         {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
         {loading && <div className="mt-4 text-sm text-slate-600">Loading...</div>}
 
-        {!loading && ownedIds.length === 0 && (
+        {!loading && localIds.length > 0 && (
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+            <div className="text-sm font-semibold text-slate-900">Listings on this device</div>
+            <div className="mt-1 text-sm text-slate-600">
+              You have {localIds.length} legacy listing(s) saved on this device. Link them to your account to manage them anywhere.
+            </div>
+            <button
+              type="button"
+              onClick={onLinkDeviceListings}
+              disabled={loading}
+              className="mt-4 inline-block rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+            >
+              Link device listings
+            </button>
+          </div>
+        )}
+
+        {!loading && items.length === 0 && (
           <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
             <div className="text-sm font-semibold text-slate-900">No listings yet</div>
             <div className="mt-1 text-sm text-slate-600">Post one and it will show here.</div>
@@ -294,36 +336,8 @@ export default function MyListingsPage() {
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
-            {rows.map((r, idx) => {
-              const l = r.listing;
+            {items.map((l, idx) => {
               const rowBorder = idx === 0 ? "" : "border-t border-slate-200";
-
-              if (!l) {
-                return (
-                  <tbody key={r.id}>
-                    <tr className={["text-sm", rowBorder].join(" ")}>
-                      <td className="px-4 py-4" colSpan={7}>
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <div className="text-sm font-extrabold text-slate-900">Listing {r.id}</div>
-                            <div className="mt-1 text-sm text-slate-700">{r.error ?? "Unavailable"}</div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              removeOwnerToken(r.id);
-                              setRows((prev) => prev.filter((x) => x.id !== r.id));
-                            }}
-                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
-                          >
-                            Remove from My Listings
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                );
-              }
 
               const assets = resolveAssets(l.images ?? []);
               const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;

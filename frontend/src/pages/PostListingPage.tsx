@@ -5,7 +5,6 @@ import {
   createListing,
   uploadImage,
   resolveImageUrl,
-  setOwnerToken,
   type Category,
   type ImageAsset,
 } from "../api";
@@ -138,7 +137,7 @@ export default function PostListingPage() {
     try {
       for (const img of imgs) {
         if (img.status === "uploaded" && img.uploaded) continue;
-        await uploadOne(img).catch(() => {});
+        await uploadOne(img).catch(() => { });
       }
     } finally {
       setUploading(false);
@@ -197,7 +196,6 @@ export default function PostListingPage() {
         images: uploadedAssets,
       });
 
-      setOwnerToken(created.id, created.ownerToken);
       nav(`/listing/${created.id}`);
     } catch (e: any) {
       setErr(e?.message ?? "Failed to post listing");
@@ -289,10 +287,10 @@ export default function PostListingPage() {
                           {p.status === "uploading"
                             ? "Uploading…"
                             : p.status === "uploaded"
-                            ? "Uploaded"
-                            : p.status === "error"
-                            ? "Error"
-                            : "Ready"}
+                              ? "Uploaded"
+                              : p.status === "error"
+                                ? "Error"
+                                : "Ready"}
                         </div>
 
                         {p.status === "error" && (

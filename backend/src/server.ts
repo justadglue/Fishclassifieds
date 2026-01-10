@@ -14,6 +14,7 @@ import sharp from "sharp";
 import authRoutes from "./auth/authRoutes.js";
 import { assertConfig, config } from "./config.js";
 import { requireAuth } from "./auth/requireAuth.js";
+import { optionalAuth } from "./auth/optionalAuth.js";
 import { clearAuthCookies } from "./auth/cookies.js";
 import { nowIso as nowIsoSecurity } from "./security.js";
 import argon2 from "argon2";
@@ -46,6 +47,15 @@ const HAS_LISTINGS_FEATURED_UNTIL = (() => {
   try {
     const rows = db.pragma("table_info(listings)") as Array<{ name: string }>;
     return rows.some((r) => r.name === "featured_until");
+  } catch {
+    return false;
+  }
+})();
+
+const HAS_LISTINGS_USER_ID = (() => {
+  try {
+    const rows = db.pragma("table_info(listings)") as Array<{ name: string }>;
+    return rows.some((r) => r.name === "user_id");
   } catch {
     return false;
   }
@@ -195,9 +205,46 @@ app.use((err: any, _req: any, res: any, next: any) => {
   return res.status(400).json({ error: msg });
 });
 
-function requireOwner(req: express.Request, row: any) {
+function hasAccountOwner(row: any) {
+  return row?.user_id !== undefined && row?.user_id !== null;
+}
+
+function isLegacyOwner(req: express.Request, row: any) {
   const token = String(req.header("x-owner-token") ?? "").trim();
   return token && row?.owner_token && token === row.owner_token;
+}
+
+function isAccountOwner(req: express.Request, row: any) {
+  const u = req.user;
+  if (!u) return false;
+  if (!hasAccountOwner(row)) return false;
+  return Number(row.user_id) === u.id;
+}
+
+function isListingOwner(req: express.Request, row: any) {
+  // For account-owned listings, ignore legacy owner tokens.
+  if (hasAccountOwner(row)) return isAccountOwner(req, row);
+  return isLegacyOwner(req, row);
+}
+
+function assertListingOwner(req: express.Request, res: express.Response, row: any) {
+  if (hasAccountOwner(row)) {
+    if (!req.user) {
+      res.status(401).json({ error: "Not authenticated" });
+      return false;
+    }
+    if (!isAccountOwner(req, row)) {
+      res.status(403).json({ error: "Not owner" });
+      return false;
+    }
+    return true;
+  }
+
+  if (!isLegacyOwner(req, row)) {
+    res.status(403).json({ error: "Not owner" });
+    return false;
+  }
+  return true;
 }
 
 const StatusSchema = z.enum(["draft", "pending", "active", "paused", "expired", "deleted"]);
@@ -450,8 +497,13 @@ VALUES(?,?,?,?,?,?)
   return res.json({ ok: true });
 });
 
-app.post("/api/listings", (req, res) => {
+app.post("/api/listings", requireAuth, (req, res) => {
   runAutoExpirePass();
+  if (!HAS_LISTINGS_USER_ID) {
+    return res.status(400).json({
+      error: "DB is missing listings.user_id. Run: npm --prefix backend run db:migration",
+    });
+  }
   const parsed = CreateListingSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
@@ -463,6 +515,7 @@ app.post("/api/listings", (req, res) => {
   const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
   const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
   const requireApproval = String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
+  const user = req.user!;
 
   const { title, category, species, priceCents, location, description, contact, images, imageUrl } = parsed.data;
   const requestedStatus = parsed.data.status;
@@ -493,6 +546,9 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
     null
   );
 
+  // Link listing to the authenticated account (best-practice ownership).
+  db.prepare(`UPDATE listings SET user_id = ? WHERE id = ?`).run(user.id, id);
+
   const insertImg = db.prepare(
     `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
 VALUES(?,?,?,?,?,?)`
@@ -508,6 +564,78 @@ VALUES(?,?,?,?,?,?)`
 
   const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
   return res.status(201).json({ ...mapListing(req, row!), ownerToken });
+});
+
+app.get("/api/my/listings", requireAuth, (req, res) => {
+  runAutoExpirePass();
+  if (!HAS_LISTINGS_USER_ID) {
+    return res.status(400).json({
+      error: "DB is missing listings.user_id. Run: npm --prefix backend run db:migration",
+    });
+  }
+
+  const includeDeleted = String(req.query.includeDeleted ?? "").trim() === "1";
+  const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 100;
+  const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
+  const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
+
+  const user = req.user!;
+
+  const where: string[] = [];
+  const params: any[] = [];
+  where.push(`user_id = ?`);
+  params.push(user.id);
+  if (!includeDeleted) where.push(`status <> 'deleted'`);
+
+  const whereSql = `WHERE ${where.join(" AND ")}`;
+
+  const totalRow = db.prepare(`SELECT COUNT(*)as c FROM listings ${whereSql}`).get(...params) as any;
+  const total = Number(totalRow?.c ?? 0);
+
+  const rows = db
+    .prepare(
+      `
+SELECT * FROM listings
+${whereSql}
+ORDER BY updated_at DESC, created_at DESC, id DESC
+LIMIT ? OFFSET ?
+`
+    )
+    .all(...params, limit, offset) as (ListingRow & any)[];
+
+  return res.json({
+    items: rows.map((r) => mapListing(req, r)),
+    total,
+    limit,
+    offset,
+  });
+});
+
+app.post("/api/listings/:id/claim", requireAuth, (req, res) => {
+  runAutoExpirePass();
+  if (!HAS_LISTINGS_USER_ID) {
+    return res.status(400).json({
+      error: "DB is missing listings.user_id. Run: npm --prefix backend run db:migration",
+    });
+  }
+
+  const id = req.params.id;
+  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+
+  if (row.user_id !== null && row.user_id !== undefined) {
+    return res.status(400).json({ error: "Listing is already linked to an account" });
+  }
+
+  const token = String(req.header("x-owner-token") ?? "").trim();
+  if (!token || token !== row.owner_token) return res.status(403).json({ error: "Not owner" });
+
+  const now = nowIso();
+  db.prepare(`UPDATE listings SET user_id = ?, updated_at = ? WHERE id = ?`).run(req.user!.id, now, id);
+
+  const updated = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
+  return res.json(mapListing(req, updated!));
 });
 
 app.get("/api/listings", (req, res) => {
@@ -590,13 +718,13 @@ LIMIT ? OFFSET ?
   });
 });
 
-app.get("/api/listings/:id", (req, res) => {
+app.get("/api/listings/:id", optionalAuth, (req, res) => {
   runAutoExpirePass();
   const id = req.params.id;
   let row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
 
-  const isOwner = requireOwner(req, row);
+  const isOwner = isListingOwner(req, row);
   const status = String(row.status ?? "active") as ListingStatus;
   const resolution = String(row.resolution ?? "none") as ListingResolution;
 
@@ -614,12 +742,12 @@ app.get("/api/listings/:id", (req, res) => {
   return res.json(mapListing(req, row));
 });
 
-app.patch("/api/listings/:id", (req, res) => {
+app.patch("/api/listings/:id", optionalAuth, (req, res) => {
   runAutoExpirePass();
   const id = req.params.id;
   const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
-  if (!requireOwner(req, row)) return res.status(403).json({ error: "Not owner" });
+  if (!assertListingOwner(req, res, row)) return;
 
   const parsed = UpdateListingSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -701,12 +829,12 @@ VALUES(?,?,?,?,?,?)`
   return res.json(mapListing(req, updated!));
 });
 
-app.delete("/api/listings/:id", (req, res) => {
+app.delete("/api/listings/:id", optionalAuth, (req, res) => {
   runAutoExpirePass();
   const id = req.params.id;
   const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
-  if (!requireOwner(req, row)) return res.status(403).json({ error: "Not owner" });
+  if (!assertListingOwner(req, res, row)) return;
 
   const now = nowIso();
   db.prepare(`UPDATE listings SET status = 'deleted',deleted_at = ?,updated_at = ? WHERE id = ?`).run(now, now, id);
@@ -1019,10 +1147,7 @@ function loadOwnedListing(req: express.Request, res: express.Response) {
     res.status(404).json({ error: "Not found" });
     return null;
   }
-  if (!requireOwner(req, row)) {
-    res.status(403).json({ error: "Not owner" });
-    return null;
-  }
+  if (!assertListingOwner(req, res, row)) return null;
   return row as ListingRow & any;
 }
 
@@ -1036,7 +1161,7 @@ function setResolution(id: string, resolution: ListingResolution) {
   db.prepare(`UPDATE listings SET resolution=?,resolved_at=?,updated_at=? WHERE id=?`).run(resolution, now, now, id);
 }
 
-app.post("/api/listings/:id/pause", (req, res) => {
+app.post("/api/listings/:id/pause", optionalAuth, (req, res) => {
   runAutoExpirePass();
   const row = loadOwnedListing(req, res);
   if (!row) return;
@@ -1055,7 +1180,7 @@ app.post("/api/listings/:id/pause", (req, res) => {
   return res.json(mapListing(req, updated!));
 });
 
-app.post("/api/listings/:id/resume", (req, res) => {
+app.post("/api/listings/:id/resume", optionalAuth, (req, res) => {
   runAutoExpirePass();
   const row = loadOwnedListing(req, res);
   if (!row) return;
@@ -1073,7 +1198,7 @@ app.post("/api/listings/:id/resume", (req, res) => {
   return res.json(mapListing(req, updated!));
 });
 
-app.post("/api/listings/:id/mark-sold", (req, res) => {
+app.post("/api/listings/:id/mark-sold", optionalAuth, (req, res) => {
   runAutoExpirePass();
   const row = loadOwnedListing(req, res);
   if (!row) return;

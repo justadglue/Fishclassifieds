@@ -28,6 +28,21 @@ function centsToDollarsString(cents: number) {
   return (cents / 100).toFixed(2);
 }
 
+function expiresInShort(iso: string) {
+  const exp = new Date(iso).getTime();
+  if (!Number.isFinite(exp)) return null;
+  const diffMs = exp - Date.now();
+  if (diffMs <= 0) return "0m";
+
+  const minMs = 60 * 1000;
+  const hourMs = 60 * minMs;
+  const dayMs = 24 * hourMs;
+
+  if (diffMs < hourMs) return `${Math.max(1, Math.ceil(diffMs / minMs))}m`;
+  if (diffMs < dayMs) return `${Math.max(1, Math.ceil(diffMs / hourMs))}h`;
+  return `${Math.max(1, Math.ceil(diffMs / dayMs))}d`;
+}
+
 const CATEGORIES: Category[] = ["Fish", "Shrimp", "Snails", "Plants", "Equipment"];
 
 type PendingImage = {
@@ -436,7 +451,7 @@ export default function EditListingPage() {
               <div className="mt-3 text-xs text-slate-600">
                 {orig.expiresAt ? (
                   <>
-                    Expires{" "}
+                    Expires in {expiresInShort(orig.expiresAt) ?? "—"} on{" "}
                     {new Date(orig.expiresAt).toLocaleString(undefined, {
                       year: "numeric",
                       month: "short",
@@ -701,7 +716,7 @@ export default function EditListingPage() {
                 disabled={!canSave}
                 className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
               >
-                {loading ? "Saving..." : uploading ? "Uploading..." : "Save changes"}
+                {loading ? "Saving..." : uploading ? "Uploading..." : "Update listing"}
               </button>
             </div>
           </form>

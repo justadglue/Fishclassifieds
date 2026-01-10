@@ -42,6 +42,22 @@ function relativeTime(iso: string) {
   return `${days}d ago`;
 }
 
+function expiresInShort(expiresAt: string | null | undefined) {
+  if (!expiresAt) return "—";
+  const exp = new Date(expiresAt).getTime();
+  if (!Number.isFinite(exp)) return "—";
+  const diffMs = exp - Date.now();
+  if (diffMs <= 0) return "Expired";
+
+  const minMs = 60 * 1000;
+  const hourMs = 60 * minMs;
+  const dayMs = 24 * hourMs;
+
+  if (diffMs < hourMs) return `${Math.max(1, Math.ceil(diffMs / minMs))}m`;
+  if (diffMs < dayMs) return `${Math.max(1, Math.ceil(diffMs / hourMs))}h`;
+  return `${Math.max(1, Math.ceil(diffMs / dayMs))}d`;
+}
+
 function cap1(s: string) {
   const t = String(s ?? "");
   if (!t) return t;
@@ -239,9 +255,6 @@ export default function MyListingsPage() {
 
   async function doSold(id: string) {
     setErr(null);
-    const ok = window.confirm("Mark this listing as SOLD? It will be hidden from Browse.");
-    if (!ok) return;
-
     try {
       const updated = await markSold(id);
       setItems((prev) => prev.map((x) => (x.id === id ? updated : x)));
@@ -252,9 +265,6 @@ export default function MyListingsPage() {
 
   async function doRelist(id: string) {
     setErr(null);
-    const ok = window.confirm("Relist this item? A new paused listing will replace the sold one.");
-    if (!ok) return;
-
     setLoading(true);
     try {
       const res = await relistListing(id);
@@ -273,8 +283,8 @@ export default function MyListingsPage() {
 
   return (
     <div className="min-h-full">
-      <Header maxWidth="5xl" />
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <Header maxWidth="6xl" />
+      <main className="mx-auto max-w-7xl px-4 py-6">
         <h1 className="text-xl font-extrabold text-slate-900">My listings</h1>
         <div className="mt-1 text-sm text-slate-600">Listings linked to your account.</div>
 
@@ -291,8 +301,8 @@ export default function MyListingsPage() {
           </div>
         )}
 
-        <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-          <table className="w-full min-w-[980px]">
+        <div className="mt-6 overflow-x-auto lg:overflow-x-visible rounded-2xl border border-slate-200 bg-white">
+          <table className="w-full min-w-[1080px] lg:min-w-0">
             <thead className="bg-slate-50">
               <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-600">
                 <th className="px-4 py-3">Listing</th>
@@ -301,6 +311,7 @@ export default function MyListingsPage() {
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Created</th>
                 <th className="px-4 py-3">Updated</th>
+                <th className="px-4 py-3">Expires in</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
@@ -375,6 +386,12 @@ export default function MyListingsPage() {
                     </td>
 
                     <td className="px-4 py-4 align-top">
+                      <div className="text-sm font-semibold text-slate-700" title={l.expiresAt ? new Date(l.expiresAt).toLocaleString() : ""}>
+                        {expiresInShort(l.expiresAt)}
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-4 align-top">
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
@@ -388,7 +405,7 @@ export default function MyListingsPage() {
 
                   {isExpanded && (
                     <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(l.id)}>
-                      <td colSpan={7} className="px-4 pb-4 pt-0">
+                      <td colSpan={8} className="px-4 pb-4 pt-0">
                         <div
                           className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2"
                           onClick={(e) => e.stopPropagation()}

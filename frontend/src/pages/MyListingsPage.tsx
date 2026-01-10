@@ -305,7 +305,7 @@ export default function MyListingsPage() {
     // Legacy fallback (no timer set)
     if (until === null) {
       return (
-        <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
+        <div className="inline-flex shrink-0 items-center gap-1 text-[11px] font-bold leading-none text-emerald-700">
           <CircleCheck aria-hidden="true" className="h-4 w-4" />
           <span>Featured</span>
         </div>
@@ -318,7 +318,7 @@ export default function MyListingsPage() {
 
     if (diffMs <= 0) {
       return (
-        <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-red-700">
+        <div className="inline-flex shrink-0 items-center gap-1 text-[11px] font-bold leading-none text-red-700">
           <CircleX aria-hidden="true" className="h-4 w-4" />
           <span>Feature expired</span>
         </div>
@@ -328,7 +328,7 @@ export default function MyListingsPage() {
     if (diffMs < dayMs) {
       const hrs = Math.max(1, Math.ceil(diffMs / hourMs));
       return (
-        <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-amber-700">
+        <div className="inline-flex shrink-0 items-center gap-1 text-[11px] font-bold leading-none text-amber-700">
           <Hourglass aria-hidden="true" className="h-4 w-4" />
           <span>Featured ({hrs}h left)</span>
         </div>
@@ -337,7 +337,7 @@ export default function MyListingsPage() {
 
     const days = Math.max(1, Math.ceil(diffMs / dayMs));
     return (
-      <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
+      <div className="inline-flex shrink-0 items-center gap-1 text-[11px] font-bold leading-none text-emerald-700">
         <CircleCheck aria-hidden="true" className="h-4 w-4" />
         <span>
           Featured ({days}d left)
@@ -502,18 +502,18 @@ export default function MyListingsPage() {
                     onClick={() => toggleExpanded(l.id)}
                   >
                     <td className="px-4 py-4 align-top">
-                      <div className="flex items-start gap-3">
+                      <div className="flex min-h-20 items-center gap-3">
                         <Link
                           to={`/listing/${l.id}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="h-14 w-20 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+                          className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
                         >
                           {hero ? (
                             <img src={hero} alt={l.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                           ) : null}
                         </Link>
 
-                        <div className="min-w-0">
+                        <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
                           <Link
                             to={`/listing/${l.id}`}
                             onClick={(e) => e.stopPropagation()}
@@ -521,10 +521,10 @@ export default function MyListingsPage() {
                           >
                             {l.title}
                           </Link>
-                          <div className="mt-1 truncate text-xs font-semibold text-slate-600">
+                          <div className="mt-1 min-w-0 truncate text-xs font-semibold text-slate-600">
                             {l.category} • {l.species} • {l.location}
                           </div>
-                          {renderFeaturedText(l)}
+                          <div className="mt-1">{renderFeaturedText(l)}</div>
                         </div>
                       </div>
                     </td>

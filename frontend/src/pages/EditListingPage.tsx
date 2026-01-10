@@ -133,7 +133,7 @@ export default function EditListingPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      nav(`/auth?next=${encodeURIComponent(`/edit/${id ?? ""}`)}`);
+      nav(`/auth?next=${encodeURIComponent(`/edit/${id ?? ""}`)}&ctx=edit_listing`);
     }
   }, [authLoading, user, id, nav]);
 

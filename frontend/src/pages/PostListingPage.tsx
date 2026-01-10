@@ -41,7 +41,7 @@ export default function PostListingPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) nav(`/auth?next=${encodeURIComponent("/post")}`);
+    if (!user) nav(`/auth?next=${encodeURIComponent("/post")}&ctx=create_listing`);
   }, [authLoading, user, nav]);
 
   const [title, setTitle] = useState("");

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { authRegister } from "../api";
 import { useAuth } from "../auth";
 
 function safeNext(sp: URLSearchParams) {
@@ -9,10 +8,89 @@ function safeNext(sp: URLSearchParams) {
   return null;
 }
 
+type AuthGateCtx =
+  | "create_listing"
+  | "edit_listing"
+  | "feature_listing"
+  | "my_listings"
+  | "profile"
+  | "wanted_post"
+  | "wanted_edit"
+  | "message";
+
+function normalizeCtx(raw: string | null, next: string | null): AuthGateCtx | null {
+  const v = (raw ?? "").trim();
+  if (v) return v as AuthGateCtx;
+
+  // Derive a sensible default from `next` when no explicit context is provided.
+  if (!next) return null;
+  if (next === "/post") return "create_listing";
+  if (next.startsWith("/edit/")) return "edit_listing";
+  if (next.startsWith("/feature/")) return "feature_listing";
+  if (next === "/me") return "my_listings";
+  if (next === "/profile") return "profile";
+  if (next === "/wanted/post") return "wanted_post";
+  if (next.startsWith("/wanted/edit/")) return "wanted_edit";
+  if (next.startsWith("/wanted/")) return "message";
+  return null;
+}
+
+function ctxCopy(ctx: AuthGateCtx | null) {
+  switch (ctx) {
+    case "create_listing":
+      return {
+        title: "Sign in to create a listing",
+        body: "To create a listing, you’ll need to register or sign in. Sign in below, or create an account if you’re new here.",
+      };
+    case "edit_listing":
+      return {
+        title: "Sign in to edit your listing",
+        body: "For security, editing listings requires an account. Sign in below to continue.",
+      };
+    case "feature_listing":
+      return {
+        title: "Sign in to manage featuring",
+        body: "Featuring and promotion tools require an account. Sign in below to continue.",
+      };
+    case "my_listings":
+      return {
+        title: "Sign in to view your listings",
+        body: "Your listings are tied to your account. Sign in below to manage them.",
+      };
+    case "profile":
+      return {
+        title: "Sign in to access your profile",
+        body: "Profile and account settings require you to be signed in.",
+      };
+    case "wanted_post":
+      return {
+        title: "Sign in to post a wanted",
+        body: "To post a wanted, you’ll need to register or sign in. Sign in below, or create an account if needed.",
+      };
+    case "wanted_edit":
+      return {
+        title: "Sign in to edit your wanted post",
+        body: "Editing wanted posts requires you to be signed in.",
+      };
+    case "message":
+      return {
+        title: "Sign in to continue",
+        body: "This action requires an account. Sign in below, or create one if you don’t have an account yet.",
+      };
+    default:
+      return {
+        title: "Sign in to continue",
+        body: "Some features require an account. Register or sign in below to continue.",
+      };
+  }
+}
+
 export default function AuthGatePage() {
   const navigate = useNavigate();
   const [sp] = useSearchParams();
   const next = safeNext(sp);
+  const ctx = useMemo(() => normalizeCtx(sp.get("ctx"), next), [sp, next]);
+  const copy = useMemo(() => ctxCopy(ctx), [ctx]);
 
   const { user, loading: authLoading, login } = useAuth();
 
@@ -21,52 +99,6 @@ export default function AuthGatePage() {
     if (authLoading) return;
     if (user) navigate(next ?? "/", { replace: true });
   }, [authLoading, user, next, navigate]);
-
-  // --- Sign up state ---
-  const [suEmail, setSuEmail] = useState("");
-  const [suFirstName, setSuFirstName] = useState("");
-  const [suSurname, setSuSurname] = useState("");
-  const [suUsername, setSuUsername] = useState("");
-  const [suPassword, setSuPassword] = useState("");
-  const [suConfirm, setSuConfirm] = useState("");
-  const [suAgree, setSuAgree] = useState(false);
-  const [suLoading, setSuLoading] = useState(false);
-  const [suErr, setSuErr] = useState<string | null>(null);
-
-  const suEmailOk = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(suEmail.trim()), [suEmail]);
-  const suUsernameOk = useMemo(() => /^[a-zA-Z0-9_]{3,20}$/.test(suUsername), [suUsername]);
-  const suPwOk = useMemo(() => suPassword.length >= 10, [suPassword]);
-  const suMatchOk = useMemo(() => suPassword === suConfirm && suConfirm.length > 0, [suPassword, suConfirm]);
-  const suCanSubmit =
-    suEmailOk &&
-    suFirstName.trim().length >= 2 &&
-    suSurname.trim().length >= 2 &&
-    suUsernameOk &&
-    suPwOk &&
-    suMatchOk &&
-    suAgree;
-
-  async function onSignUp(e: React.FormEvent) {
-    e.preventDefault();
-    if (!suCanSubmit || suLoading) return;
-    setSuErr(null);
-    setSuLoading(true);
-    try {
-      const displayName = `${suFirstName.trim()} ${suSurname.trim()}`.trim();
-      await authRegister({
-        email: suEmail.trim(),
-        username: suUsername.trim(),
-        password: suPassword,
-        displayName,
-      });
-      await login({ email: suEmail.trim(), password: suPassword });
-      navigate(next ?? "/me", { replace: true });
-    } catch (e: any) {
-      setSuErr(e?.message ?? "Sign up failed");
-    } finally {
-      setSuLoading(false);
-    }
-  }
 
   // --- Login state ---
   const [liEmail, setLiEmail] = useState("");
@@ -89,6 +121,14 @@ export default function AuthGatePage() {
     }
   }
 
+  const signUpHref = useMemo(() => {
+    const qp = new URLSearchParams();
+    if (next) qp.set("next", next);
+    if (ctx) qp.set("ctx", ctx);
+    const qs = qp.toString();
+    return qs ? `/signup?${qs}` : "/signup";
+  }, [next, ctx]);
+
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
@@ -96,155 +136,81 @@ export default function AuthGatePage() {
           <Link to="/" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
             ← Back to home
           </Link>
-          <div className="text-sm text-slate-600">
-            {next ? (
-              <span>
-                Continue to <span className="font-semibold text-slate-900">{next}</span> after signing in.
-              </span>
-            ) : (
-              <span>Sign in to access account features.</span>
-            )}
-          </div>
+          <Link to={signUpHref} className="text-sm font-semibold text-slate-900 underline underline-offset-4">
+            Create account
+          </Link>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-10">
-        <div className="mx-auto grid w-full max-w-3xl gap-6">
-          {/* Create account */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Create account</h1>
-            <p className="mt-1 text-sm text-slate-600">Sign up to post listings, wanted posts, and manage your account.</p>
+        <div className="mx-auto w-full max-w-4xl">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">{copy.title}</h1>
+            <p className="mt-2 text-sm text-slate-600">{copy.body}</p>
+          </div>
 
-            {suErr && (
-              <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{suErr}</div>
-            )}
-
-            <form onSubmit={onSignUp} className="mt-6 grid gap-3">
-              <input
-                type="email"
-                required
-                value={suEmail}
-                onChange={(e) => setSuEmail(e.target.value)}
-                placeholder="Email address"
-                className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
-                autoComplete="email"
-              />
-
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  required
-                  value={suFirstName}
-                  onChange={(e) => setSuFirstName(e.target.value)}
-                  placeholder="First name"
-                  className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
-                  autoComplete="given-name"
-                />
-                <input
-                  required
-                  value={suSurname}
-                  onChange={(e) => setSuSurname(e.target.value)}
-                  placeholder="Surname"
-                  className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
-                  autoComplete="family-name"
-                />
-              </div>
-
-              <input
-                required
-                value={suUsername}
-                onChange={(e) => setSuUsername(e.target.value)}
-                placeholder="Username (letters, numbers, underscore)"
-                className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
-                autoComplete="username"
-              />
-
-              <input
-                type="password"
-                required
-                value={suPassword}
-                onChange={(e) => setSuPassword(e.target.value)}
-                placeholder="Password (10+ chars)"
-                className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
-                autoComplete="new-password"
-              />
-
-              <input
-                type="password"
-                required
-                value={suConfirm}
-                onChange={(e) => setSuConfirm(e.target.value)}
-                placeholder="Confirm password"
-                className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
-                autoComplete="new-password"
-              />
-
-              <label className="mt-2 flex items-start gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={suAgree}
-                  onChange={(e) => setSuAgree(e.target.checked)}
-                  className="mt-1"
-                />
-                <span>I agree to basic marketplace rules (no scams, be respectful, accurate listings).</span>
-              </label>
-
-              <button
-                type="submit"
-                disabled={!suCanSubmit || suLoading || authLoading}
-                className="mt-2 rounded-xl border border-slate-900 bg-slate-900 px-4 py-3 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-60"
-              >
-                {suLoading ? "Creating..." : "Create account"}
-              </button>
-
-              <div className="text-xs font-semibold text-slate-500">
-                Password must be at least 10 characters. Username: 3–20 characters (letters/numbers/underscore).
-              </div>
-            </form>
-          </section>
-
-          {/* Login */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+          <div className="mt-6 grid gap-6 md:grid-cols-2">
+            {/* Sign in (primary) */}
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-xl font-extrabold tracking-tight text-slate-900">Sign in</h2>
-              <div className="text-sm text-slate-600">
-                Prefer separate pages? <Link to="/login" className="font-semibold text-slate-900 underline underline-offset-4">Login</Link>{" "}
-                /{" "}
-                <Link to="/signup" className="font-semibold text-slate-900 underline underline-offset-4">Sign up</Link>
-              </div>
-            </div>
+              <p className="mt-1 text-sm text-slate-600">Use your email and password.</p>
 
-            {liErr && (
-              <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{liErr}</div>
-            )}
+              {liErr && (
+                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{liErr}</div>
+              )}
 
-            <form onSubmit={onLogin} className="mt-6 grid gap-4">
-              <input
-                type="email"
-                required
-                value={liEmail}
-                onChange={(e) => setLiEmail(e.target.value)}
-                placeholder="Email address"
-                className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
-                autoComplete="email"
-              />
-              <input
-                type="password"
-                required
-                value={liPassword}
-                onChange={(e) => setLiPassword(e.target.value)}
-                placeholder="Password"
-                className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
-                autoComplete="current-password"
-              />
-              <button
-                type="submit"
-                disabled={liLoading || authLoading}
-                className="mt-2 rounded-xl border border-slate-900 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
+              <form onSubmit={onLogin} className="mt-6 grid gap-4">
+                <input
+                  type="email"
+                  required
+                  value={liEmail}
+                  onChange={(e) => setLiEmail(e.target.value)}
+                  placeholder="Email address"
+                  className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
+                  autoComplete="email"
+                />
+                <input
+                  type="password"
+                  required
+                  value={liPassword}
+                  onChange={(e) => setLiPassword(e.target.value)}
+                  placeholder="Password"
+                  className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="submit"
+                  disabled={liLoading || authLoading}
+                  className="mt-2 rounded-xl border border-slate-900 bg-slate-900 px-4 py-3 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-60"
+                >
+                  {liLoading ? "Signing in..." : "Sign in"}
+                </button>
+              </form>
+            </section>
+
+            {/* Create account (secondary) */}
+            <aside className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="text-lg font-extrabold tracking-tight text-slate-900">New here?</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Creating an account lets you post listings and wanted posts, and manage everything in one place.
+              </p>
+
+              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-slate-700">
+                <li>Create and edit your listings</li>
+                <li>Post and manage wanted posts</li>
+                <li>Access account features like your profile</li>
+              </ul>
+
+              <Link
+                to={signUpHref}
+                className="mt-6 inline-flex w-full items-center justify-center rounded-xl border border-slate-900 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 hover:bg-slate-50"
               >
-                {liLoading ? "Signing in..." : "Sign in"}
-              </button>
-            </form>
-          </section>
+                Create account
+              </Link>
+
+              <div className="mt-3 text-xs font-semibold text-slate-500">Takes about a minute. Password must be 10+ characters.</div>
+            </aside>
+          </div>
         </div>
       </main>
     </div>

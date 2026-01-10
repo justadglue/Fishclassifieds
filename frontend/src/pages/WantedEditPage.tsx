@@ -40,7 +40,7 @@ export default function WantedEditPage() {
     if (loading) return;
     if (!user) {
       const target = id ? `/wanted/edit/${id}` : "/wanted";
-      nav(`/auth?next=${encodeURIComponent(target)}`);
+      nav(`/auth?next=${encodeURIComponent(target)}&ctx=wanted_edit`);
     }
   }, [loading, user, nav, id]);
 

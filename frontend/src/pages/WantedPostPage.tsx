@@ -31,7 +31,7 @@ export default function WantedPostPage() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user) nav(`/auth?next=${encodeURIComponent("/wanted/post")}`);
+    if (!user) nav(`/auth?next=${encodeURIComponent("/wanted/post")}&ctx=wanted_post`);
   }, [loading, user, nav]);
 
   const budgetMinCents = useMemo(() => dollarsToCents(minBudget), [minBudget]);

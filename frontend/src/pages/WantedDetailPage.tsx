@@ -84,7 +84,7 @@ export default function WantedDetailPage() {
     if (loading) return;
     if (!user) {
       const target = id ? `/wanted/${id}` : "/browse?type=wanted";
-      return nav(`/auth?next=${encodeURIComponent(target)}`);
+      return nav(`/auth?next=${encodeURIComponent(target)}&ctx=message`);
     }
     setMsgSoon(true);
   }

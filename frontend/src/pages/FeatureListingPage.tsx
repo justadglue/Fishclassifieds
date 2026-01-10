@@ -20,7 +20,7 @@ export default function FeatureListingPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      nav(`/auth?next=${encodeURIComponent(`/feature/${id ?? ""}`)}`);
+      nav(`/auth?next=${encodeURIComponent(`/feature/${id ?? ""}`)}&ctx=feature_listing`);
       return;
     }
 

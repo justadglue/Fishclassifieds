@@ -260,7 +260,7 @@ export default function MyListingsPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) nav(`/auth?next=${encodeURIComponent("/me")}`);
+    if (!user) nav(`/auth?next=${encodeURIComponent("/me")}&ctx=my_listings`);
   }, [authLoading, user, nav]);
 
   useEffect(() => {
@@ -482,166 +482,166 @@ export default function MyListingsPage() {
                 </tr>
               </thead>
               {displayItems.map((l, idx) => {
-              const rowBorder = idx === 0 ? "" : "border-t border-slate-200";
+                const rowBorder = idx === 0 ? "" : "border-t border-slate-200";
 
-              const assets = resolveAssets(l.images ?? []);
-              const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+                const assets = resolveAssets(l.images ?? []);
+                const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
 
-              const canToggle = l.status !== "expired" && l.status !== "deleted" && l.status !== "draft" && l.resolution === "none";
-              const canResolve = l.status !== "expired" && l.status !== "deleted" && l.resolution === "none";
+                const canToggle = l.status !== "expired" && l.status !== "deleted" && l.status !== "draft" && l.resolution === "none";
+                const canResolve = l.status !== "expired" && l.status !== "deleted" && l.resolution === "none";
 
-              const toggleTitle = l.status === "paused" ? "Resume" : "Pause";
-              const canFeature = l.status === "active" && l.resolution === "none";
-              const isSold = l.resolution === "sold";
-              const isExpanded = expandedId === l.id;
+                const toggleTitle = l.status === "paused" ? "Resume" : "Pause";
+                const canFeature = l.status === "active" && l.resolution === "none";
+                const isSold = l.resolution === "sold";
+                const isExpanded = expandedId === l.id;
 
-              return (
-                <tbody key={l.id} className="group">
-                  <tr
-                    className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")}
-                    onClick={() => toggleExpanded(l.id)}
-                  >
-                    <td className="px-4 py-4 align-top">
-                      <div className="flex min-h-20 items-center gap-3">
-                        <Link
-                          to={`/listing/${l.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
-                        >
-                          {hero ? (
-                            <img src={hero} alt={l.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                          ) : null}
-                        </Link>
-
-                        <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
+                return (
+                  <tbody key={l.id} className="group">
+                    <tr
+                      className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")}
+                      onClick={() => toggleExpanded(l.id)}
+                    >
+                      <td className="px-4 py-4 align-top">
+                        <div className="flex min-h-20 items-center gap-3">
                           <Link
                             to={`/listing/${l.id}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
+                            className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
                           >
-                            {l.title}
+                            {hero ? (
+                              <img src={hero} alt={l.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                            ) : null}
                           </Link>
-                          <div className="mt-1 min-w-0 truncate text-xs font-semibold text-slate-600">
-                            {l.category} • {l.species} • {l.location}
+
+                          <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
+                            <Link
+                              to={`/listing/${l.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
+                            >
+                              {l.title}
+                            </Link>
+                            <div className="mt-1 min-w-0 truncate text-xs font-semibold text-slate-600">
+                              {l.category} • {l.species} • {l.location}
+                            </div>
+                            <div className="mt-1">{renderFeaturedText(l)}</div>
                           </div>
-                          <div className="mt-1">{renderFeaturedText(l)}</div>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td className="px-4 py-4 align-top">
-                      <div className="text-sm font-extrabold text-slate-900">{centsToDollars(l.priceCents)}</div>
-                    </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-sm font-extrabold text-slate-900">{centsToDollars(l.priceCents)}</div>
+                      </td>
 
-                    <td className="px-4 py-4 align-top">
-                      <div className="text-sm font-semibold text-slate-700">{Number(l.views ?? 0).toLocaleString()}</div>
-                    </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-sm font-semibold text-slate-700">{Number(l.views ?? 0).toLocaleString()}</div>
+                      </td>
 
-                    <td className="px-4 py-4 align-top">
-                      <StatusText l={l} />
-                    </td>
+                      <td className="px-4 py-4 align-top">
+                        <StatusText l={l} />
+                      </td>
 
-                    <td className="px-4 py-4 align-top">
-                      <div className="text-sm font-semibold text-slate-700">{new Date(l.createdAt).toLocaleDateString()}</div>
-                    </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-sm font-semibold text-slate-700">{new Date(l.createdAt).toLocaleDateString()}</div>
+                      </td>
 
-                    <td className="px-4 py-4 align-top">
-                      <div className="text-sm font-semibold text-slate-700" title={new Date(l.updatedAt).toLocaleString()}>
-                        {relativeTime(l.updatedAt)}
-                      </div>
-                    </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-sm font-semibold text-slate-700" title={new Date(l.updatedAt).toLocaleString()}>
+                          {relativeTime(l.updatedAt)}
+                        </div>
+                      </td>
 
-                    <td className="px-4 py-4 align-top">
-                      <div className="text-sm font-semibold text-slate-700" title={l.expiresAt ? new Date(l.expiresAt).toLocaleString() : ""}>
-                        {expiresInShort(l.expiresAt)}
-                      </div>
-                    </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-sm font-semibold text-slate-700" title={l.expiresAt ? new Date(l.expiresAt).toLocaleString() : ""}>
+                          {expiresInShort(l.expiresAt)}
+                        </div>
+                      </td>
 
-                    <td className="px-4 py-4 align-top">
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleExpanded(l.id);
-                        }}
-                      >
-                        <ActionButton label={isExpanded ? "Hide" : "Actions"} title={isExpanded ? "Hide actions" : "Show actions"} />
-                      </div>
-                    </td>
-                  </tr>
-
-                  {isExpanded && (
-                    <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(l.id)}>
-                      <td colSpan={8} className="px-4 pb-4 pt-0">
+                      <td className="px-4 py-4 align-top">
                         <div
-                          className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2"
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleExpanded(l.id);
+                          }}
                         >
-                          {!isSold ? (
-                            <>
-                              <ActionButton
-                                label={l.featured ? "Manage featuring" : "Feature this listing"}
-                                title={
-                                  !canFeature
-                                    ? "Only active, unsold listings can be featured."
-                                    : l.featured
-                                      ? "Manage featuring"
-                                      : "Feature this listing"
-                                }
-                                variant="feature"
-                                disabled={!canFeature}
-                                onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
-                                icon={l.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
-                              />
-
-                              <ActionLink to={`/edit/${l.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
-
-                              <ActionButton
-                                label={toggleTitle}
-                                title={toggleTitle}
-                                disabled={!canToggle}
-                                onClick={() => doTogglePauseResume(l)}
-                                icon={
-                                  l.status === "paused" ? (
-                                    <Play aria-hidden="true" className="h-4 w-4" />
-                                  ) : (
-                                    <Pause aria-hidden="true" className="h-4 w-4" />
-                                  )
-                                }
-                              />
-
-                              <ActionButton
-                                label="Mark sold"
-                                title="Mark as sold"
-                                variant="primary"
-                                disabled={!canResolve}
-                                onClick={() => doSold(l.id)}
-                                icon={<Check aria-hidden="true" className="h-4 w-4" />}
-                              />
-                            </>
-                          ) : (
-                            <ActionButton
-                              label="Relist"
-                              title="Relist"
-                              variant="primary"
-                              onClick={() => doRelist(l.id)}
-                              icon={<RotateCcw aria-hidden="true" className="h-4 w-4" />}
-                            />
-                          )}
-
-                          <ActionButton
-                            label="Delete"
-                            title="Delete"
-                            variant="danger"
-                            onClick={() => onDelete(l.id)}
-                            icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
-                          />
+                          <ActionButton label={isExpanded ? "Hide" : "Actions"} title={isExpanded ? "Hide actions" : "Show actions"} />
                         </div>
                       </td>
                     </tr>
-                  )}
-                </tbody>
-              );
-            })}
+
+                    {isExpanded && (
+                      <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(l.id)}>
+                        <td colSpan={8} className="px-4 pb-4 pt-0">
+                          <div
+                            className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {!isSold ? (
+                              <>
+                                <ActionButton
+                                  label={l.featured ? "Manage featuring" : "Feature this listing"}
+                                  title={
+                                    !canFeature
+                                      ? "Only active, unsold listings can be featured."
+                                      : l.featured
+                                        ? "Manage featuring"
+                                        : "Feature this listing"
+                                  }
+                                  variant="feature"
+                                  disabled={!canFeature}
+                                  onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
+                                  icon={l.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
+                                />
+
+                                <ActionLink to={`/edit/${l.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
+
+                                <ActionButton
+                                  label={toggleTitle}
+                                  title={toggleTitle}
+                                  disabled={!canToggle}
+                                  onClick={() => doTogglePauseResume(l)}
+                                  icon={
+                                    l.status === "paused" ? (
+                                      <Play aria-hidden="true" className="h-4 w-4" />
+                                    ) : (
+                                      <Pause aria-hidden="true" className="h-4 w-4" />
+                                    )
+                                  }
+                                />
+
+                                <ActionButton
+                                  label="Mark sold"
+                                  title="Mark as sold"
+                                  variant="primary"
+                                  disabled={!canResolve}
+                                  onClick={() => doSold(l.id)}
+                                  icon={<Check aria-hidden="true" className="h-4 w-4" />}
+                                />
+                              </>
+                            ) : (
+                              <ActionButton
+                                label="Relist"
+                                title="Relist"
+                                variant="primary"
+                                onClick={() => doRelist(l.id)}
+                                icon={<RotateCcw aria-hidden="true" className="h-4 w-4" />}
+                              />
+                            )}
+
+                            <ActionButton
+                              label="Delete"
+                              title="Delete"
+                              variant="danger"
+                              onClick={() => onDelete(l.id)}
+                              icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                );
+              })}
             </table>
           </div>
         </div>

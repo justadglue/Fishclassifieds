@@ -193,12 +193,12 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <Link to="/login" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-              Login
+            <Link to="/auth" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+              Sign in
             </Link>
             <span className="text-slate-300">/</span>
             <Link to="/signup" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-              Sign up
+              Create account
             </Link>
           </div>
         )}

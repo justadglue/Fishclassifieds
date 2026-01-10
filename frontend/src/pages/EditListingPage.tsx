@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Check, ChevronLeft, ChevronRight, Maximize2, Pause, Play, Trash2, X } from "lucide-react";
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   deleteListing,
   fetchListing,
@@ -54,7 +57,7 @@ type PendingImage = {
 };
 
 type PhotoItem =
-  | { kind: "existing"; asset: ImageAsset }
+  | { kind: "existing"; id: string; asset: ImageAsset }
   | { kind: "pending"; id: string; file: File; uploaded?: ImageAsset; status: PendingImage["status"]; error?: string };
 
 function fmtStatus(l: Listing) {
@@ -152,7 +155,7 @@ export default function EditListingPage() {
         setLocation(l.location);
         setContact(l.contact ?? "");
         setDescription(l.description);
-        setPhotos((l.images ?? []).slice(0, 6).map((a) => ({ kind: "existing" as const, asset: a })));
+        setPhotos((l.images ?? []).slice(0, 6).map((a, i) => ({ kind: "existing" as const, id: `existing-${i}-${a.fullUrl}`, asset: a })));
       } catch (e: any) {
         if (!cancelled) setErr(e?.message ?? "Failed to load listing");
       } finally {
@@ -172,7 +175,8 @@ export default function EditListingPage() {
         const thumb = resolveImageUrl(p.asset.thumbUrl || p.asset.fullUrl) ?? (p.asset.thumbUrl || p.asset.fullUrl);
         const med = resolveImageUrl(p.asset.medUrl || p.asset.fullUrl) ?? (p.asset.medUrl || p.asset.fullUrl);
         return {
-          key: `existing-${idx}-${full}`,
+          id: p.id,
+          key: p.id,
           kind: "existing" as const,
           idx,
           status: "uploaded" as const,
@@ -189,6 +193,7 @@ export default function EditListingPage() {
       const src = resolvedThumb || resolvedFull || URL.createObjectURL(p.file);
       const fullSrc = resolvedFull || src;
       return {
+        id: p.id,
         key: p.id,
         kind: "pending" as const,
         idx,
@@ -434,7 +439,7 @@ export default function EditListingPage() {
       });
 
       setOrig(updated);
-      setPhotos((updated.images ?? []).slice(0, 6).map((a) => ({ kind: "existing" as const, asset: a })));
+      setPhotos((updated.images ?? []).slice(0, 6).map((a, i) => ({ kind: "existing" as const, id: `existing-${i}-${a.fullUrl}`, asset: a })));
       nav(`/listing/${id}`);
     } catch (e: any) {
       setErr(e?.message ?? "Save failed");
@@ -454,7 +459,7 @@ export default function EditListingPage() {
     setLocation(l.location);
     setContact(l.contact ?? "");
     setDescription(l.description);
-    setPhotos((l.images ?? []).slice(0, 6).map((a) => ({ kind: "existing" as const, asset: a })));
+    setPhotos((l.images ?? []).slice(0, 6).map((a, i) => ({ kind: "existing" as const, id: `existing-${i}-${a.fullUrl}`, asset: a })));
   }
 
   async function onDeleteListing() {
@@ -508,6 +513,147 @@ export default function EditListingPage() {
   }
 
   const canSave = !loading && !isUploading;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    })
+  );
+
+  function onDragEnd(e: any) {
+    const activeId = String(e.active?.id ?? "");
+    const overId = e.over?.id ? String(e.over.id) : null;
+    if (!activeId || !overId || activeId === overId) return;
+    setPhotos((prev) => {
+      const oldIndex = prev.findIndex((p) => p.id === activeId);
+      const newIndex = prev.findIndex((p) => p.id === overId);
+      if (oldIndex < 0 || newIndex < 0) return prev;
+      return arrayMove(prev, oldIndex, newIndex);
+    });
+  }
+
+  function SortablePhotoCard(props: {
+    p: (typeof photoPreviews)[number];
+    idx: number;
+    total: number;
+  }) {
+    const { p, idx, total } = props;
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: p.id });
+
+    const style: React.CSSProperties = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={[
+          "overflow-hidden rounded-2xl border bg-white touch-none select-none",
+          isDragging ? "border-slate-900 shadow-lg opacity-95 cursor-grabbing" : "border-slate-200 cursor-grab",
+        ].join(" ")}
+        {...attributes}
+        {...listeners}
+      >
+        <div className="relative h-28 w-full bg-slate-100">
+          <img src={p.src} alt={`photo-${idx}`} className="h-full w-full object-cover" draggable={false} />
+
+          {idx === 0 && (
+            <div className="absolute bottom-2 left-2 rounded-full bg-slate-900/80 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur">
+              Thumbnail
+            </div>
+          )}
+
+          <div className="absolute left-2 top-2 flex gap-1">
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                movePhoto(idx, -1);
+              }}
+              disabled={idx === 0}
+              className="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 disabled:opacity-50"
+              title="Move left"
+            >
+              <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                movePhoto(idx, 1);
+              }}
+              disabled={idx === total - 1}
+              className="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 disabled:opacity-50"
+              title="Move right"
+            >
+              <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              removePhoto(idx);
+            }}
+            className="absolute right-2 top-2 rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 hover:bg-white"
+            aria-label="Remove image"
+            title="Remove"
+          >
+            <X aria-hidden="true" className="h-3.5 w-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              openLightboxAt(idx);
+            }}
+            className="absolute right-10 top-2 rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 hover:bg-white"
+            aria-label="Expand photo"
+            title="Expand"
+          >
+            <Maximize2 aria-hidden="true" className="h-3.5 w-3.5" />
+          </button>
+
+          {p.kind === "pending" && (
+            <div className="absolute bottom-2 right-2 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-semibold text-slate-700">
+              {p.status === "uploading"
+                ? "Uploading..."
+                : p.status === "uploaded"
+                  ? "Uploaded"
+                  : p.status === "error"
+                    ? "Error"
+                    : "Ready"}
+            </div>
+          )}
+        </div>
+
+        {p.kind === "pending" && p.status === "error" && p.error && (
+          <div className="flex items-center justify-between gap-3 border-t border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+            <span className="truncate">{p.error}</span>
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                retryUpload(p.id);
+              }}
+              className="shrink-0 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-bold text-slate-900 hover:bg-white"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const canTogglePause =
     !relistMode &&
@@ -617,93 +763,21 @@ export default function EditListingPage() {
               </div>
 
               {/* Photos (single combined section) */}
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                {photoPreviews.length === 0 ? (
-                  <div className="col-span-full flex h-28 items-center justify-center rounded-2xl bg-slate-100 text-sm font-semibold text-slate-500">
-                    No photos
-                  </div>
-                ) : (
-                  photoPreviews.map((p, idx) => (
-                    <div key={p.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                      <div className="relative h-28 w-full bg-slate-100">
-                        <img src={p.src} alt={`photo-${idx}`} className="h-full w-full object-cover" />
-
-                        {idx === 0 && (
-                          <div className="absolute bottom-2 left-2 rounded-full bg-slate-900/80 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur">
-                            Thumbnail
-                          </div>
-                        )}
-
-                        <div className="absolute left-2 top-2 flex gap-1">
-                          <button
-                            type="button"
-                            onClick={() => movePhoto(idx, -1)}
-                            disabled={idx === 0}
-                            className="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 disabled:opacity-50"
-                            title="Move left"
-                          >
-                            <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => movePhoto(idx, 1)}
-                            disabled={idx === photoPreviews.length - 1}
-                            className="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 disabled:opacity-50"
-                            title="Move right"
-                          >
-                            <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => removePhoto(idx)}
-                          className="absolute right-2 top-2 rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 hover:bg-white"
-                          aria-label="Remove image"
-                          title="Remove"
-                        >
-                          <X aria-hidden="true" className="h-3.5 w-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => openLightboxAt(idx)}
-                          className="absolute right-10 top-2 rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 hover:bg-white"
-                          aria-label="Expand photo"
-                          title="Expand"
-                        >
-                          <Maximize2 aria-hidden="true" className="h-3.5 w-3.5" />
-                        </button>
-
-                        {p.kind === "pending" && (
-                          <div className="absolute bottom-2 right-2 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-semibold text-slate-700">
-                            {p.status === "uploading"
-                              ? "Uploading..."
-                              : p.status === "uploaded"
-                                ? "Uploaded"
-                                : p.status === "error"
-                                  ? "Error"
-                                  : "Ready"}
-                          </div>
-                        )}
-                      </div>
-
-                      {p.kind === "pending" && p.status === "error" && p.error && (
-                        <div className="flex items-center justify-between gap-3 border-t border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
-                          <span className="truncate">{p.error}</span>
-                          <button
-                            type="button"
-                            onClick={() => retryUpload(p.key)}
-                            className="shrink-0 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-bold text-slate-900 hover:bg-white"
-                          >
-                            Retry
-                          </button>
-                        </div>
-                      )}
+              {photoPreviews.length === 0 ? (
+                <div className="mt-4 flex h-28 items-center justify-center rounded-2xl bg-slate-100 text-sm font-semibold text-slate-500">
+                  No photos
+                </div>
+              ) : (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+                  <SortableContext items={photoPreviews.map((x) => x.id)} strategy={rectSortingStrategy}>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                      {photoPreviews.map((p, idx) => (
+                        <SortablePhotoCard key={p.id} p={p} idx={idx} total={photoPreviews.length} />
+                      ))}
                     </div>
-                  ))
-                )}
-              </div>
+                  </SortableContext>
+                </DndContext>
+              )}
             </div>
 
             {/* Fields */}

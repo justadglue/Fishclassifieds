@@ -70,7 +70,13 @@ app.use(
   })
 );
 
-app.use(helmet());
+// Allow frontend (different origin/port) to load uploaded images from /uploads.
+// Helmet's default CORP policy is "same-origin", which blocks these assets in the browser.
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 
 app.use(
   rateLimit({

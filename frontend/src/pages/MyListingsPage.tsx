@@ -13,9 +13,6 @@ import {
 import {
   deleteListing,
   fetchMyListings,
-  listOwnedIds,
-  claimListing,
-  removeOwnerToken,
   resolveAssets,
   pauseListing,
   resumeListing,
@@ -132,8 +129,6 @@ export default function MyListingsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
-
-  const [localIds, setLocalIds] = useState<string[]>(() => listOwnedIds());
 
   useEffect(() => {
     if (authLoading) return;
@@ -253,35 +248,6 @@ export default function MyListingsPage() {
     }
   }
 
-  async function onLinkDeviceListings() {
-    setErr(null);
-    const ids = listOwnedIds();
-    if (!ids.length) return;
-
-    const ok = window.confirm(`Link ${ids.length} listing(s) from this device to your account?`);
-    if (!ok) return;
-
-    setLoading(true);
-    try {
-      for (const id of ids) {
-        try {
-          await claimListing(id);
-          removeOwnerToken(id);
-        } catch {
-          // ignore per-listing errors
-        }
-      }
-
-      setLocalIds(listOwnedIds());
-      const res = await fetchMyListings({ limit: 200, offset: 0 });
-      setItems(res.items ?? []);
-    } catch (e: any) {
-      setErr(e?.message ?? "Failed to link device listings");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   function toggleExpanded(id: string) {
     setExpandedId((prev) => (prev === id ? null : id));
   }
@@ -295,23 +261,6 @@ export default function MyListingsPage() {
 
         {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
         {loading && <div className="mt-4 text-sm text-slate-600">Loading...</div>}
-
-        {!loading && localIds.length > 0 && (
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
-            <div className="text-sm font-semibold text-slate-900">Listings on this device</div>
-            <div className="mt-1 text-sm text-slate-600">
-              You have {localIds.length} legacy listing(s) saved on this device. Link them to your account to manage them anywhere.
-            </div>
-            <button
-              type="button"
-              onClick={onLinkDeviceListings}
-              disabled={loading}
-              className="mt-4 inline-block rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-            >
-              Link device listings
-            </button>
-          </div>
-        )}
 
         {!loading && items.length === 0 && (
           <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">

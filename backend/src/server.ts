@@ -205,42 +205,24 @@ app.use((err: any, _req: any, res: any, next: any) => {
   return res.status(400).json({ error: msg });
 });
 
-function hasAccountOwner(row: any) {
-  return row?.user_id !== undefined && row?.user_id !== null;
-}
-
-function isLegacyOwner(req: express.Request, row: any) {
-  const token = String(req.header("x-owner-token") ?? "").trim();
-  return token && row?.owner_token && token === row.owner_token;
-}
-
-function isAccountOwner(req: express.Request, row: any) {
+function isListingOwner(req: express.Request, row: any) {
   const u = req.user;
   if (!u) return false;
-  if (!hasAccountOwner(row)) return false;
+  if (row?.user_id === undefined || row?.user_id === null) return false;
   return Number(row.user_id) === u.id;
 }
 
-function isListingOwner(req: express.Request, row: any) {
-  // For account-owned listings, ignore legacy owner tokens.
-  if (hasAccountOwner(row)) return isAccountOwner(req, row);
-  return isLegacyOwner(req, row);
-}
-
 function assertListingOwner(req: express.Request, res: express.Response, row: any) {
-  if (hasAccountOwner(row)) {
-    if (!req.user) {
-      res.status(401).json({ error: "Not authenticated" });
-      return false;
-    }
-    if (!isAccountOwner(req, row)) {
-      res.status(403).json({ error: "Not owner" });
-      return false;
-    }
-    return true;
+  const u = req.user;
+  if (!u) {
+    res.status(401).json({ error: "Not authenticated" });
+    return false;
   }
-
-  if (!isLegacyOwner(req, row)) {
+  if (row?.user_id === undefined || row?.user_id === null) {
+    res.status(400).json({ error: "Listing is not linked to an account" });
+    return false;
+  }
+  if (Number(row.user_id) !== u.id) {
     res.status(403).json({ error: "Not owner" });
     return false;
   }
@@ -563,7 +545,7 @@ VALUES(?,?,?,?,?,?)`
   });
 
   const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
-  return res.status(201).json({ ...mapListing(req, row!), ownerToken });
+  return res.status(201).json(mapListing(req, row!));
 });
 
 app.get("/api/my/listings", requireAuth, (req, res) => {
@@ -610,32 +592,6 @@ LIMIT ? OFFSET ?
     limit,
     offset,
   });
-});
-
-app.post("/api/listings/:id/claim", requireAuth, (req, res) => {
-  runAutoExpirePass();
-  if (!HAS_LISTINGS_USER_ID) {
-    return res.status(400).json({
-      error: "DB is missing listings.user_id. Run: npm --prefix backend run db:migration",
-    });
-  }
-
-  const id = req.params.id;
-  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
-  if (!row) return res.status(404).json({ error: "Not found" });
-
-  if (row.user_id !== null && row.user_id !== undefined) {
-    return res.status(400).json({ error: "Listing is already linked to an account" });
-  }
-
-  const token = String(req.header("x-owner-token") ?? "").trim();
-  if (!token || token !== row.owner_token) return res.status(403).json({ error: "Not owner" });
-
-  const now = nowIso();
-  db.prepare(`UPDATE listings SET user_id = ?, updated_at = ? WHERE id = ?`).run(req.user!.id, now, id);
-
-  const updated = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
-  return res.json(mapListing(req, updated!));
 });
 
 app.get("/api/listings", (req, res) => {
@@ -742,7 +698,7 @@ app.get("/api/listings/:id", optionalAuth, (req, res) => {
   return res.json(mapListing(req, row));
 });
 
-app.patch("/api/listings/:id", optionalAuth, (req, res) => {
+app.patch("/api/listings/:id", requireAuth, (req, res) => {
   runAutoExpirePass();
   const id = req.params.id;
   const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
@@ -829,7 +785,7 @@ VALUES(?,?,?,?,?,?)`
   return res.json(mapListing(req, updated!));
 });
 
-app.delete("/api/listings/:id", optionalAuth, (req, res) => {
+app.delete("/api/listings/:id", requireAuth, (req, res) => {
   runAutoExpirePass();
   const id = req.params.id;
   const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
@@ -1161,7 +1117,7 @@ function setResolution(id: string, resolution: ListingResolution) {
   db.prepare(`UPDATE listings SET resolution=?,resolved_at=?,updated_at=? WHERE id=?`).run(resolution, now, now, id);
 }
 
-app.post("/api/listings/:id/pause", optionalAuth, (req, res) => {
+app.post("/api/listings/:id/pause", requireAuth, (req, res) => {
   runAutoExpirePass();
   const row = loadOwnedListing(req, res);
   if (!row) return;
@@ -1180,7 +1136,7 @@ app.post("/api/listings/:id/pause", optionalAuth, (req, res) => {
   return res.json(mapListing(req, updated!));
 });
 
-app.post("/api/listings/:id/resume", optionalAuth, (req, res) => {
+app.post("/api/listings/:id/resume", requireAuth, (req, res) => {
   runAutoExpirePass();
   const row = loadOwnedListing(req, res);
   if (!row) return;
@@ -1198,7 +1154,7 @@ app.post("/api/listings/:id/resume", optionalAuth, (req, res) => {
   return res.json(mapListing(req, updated!));
 });
 
-app.post("/api/listings/:id/mark-sold", optionalAuth, (req, res) => {
+app.post("/api/listings/:id/mark-sold", requireAuth, (req, res) => {
   runAutoExpirePass();
   const row = loadOwnedListing(req, res);
   if (!row) return;

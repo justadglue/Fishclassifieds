@@ -18,6 +18,11 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
   const searchRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
+  function closeSearch() {
+    setSearchOpen(false);
+    setQ("");
+  }
+
   function computeMenuPos() {
     const anchor = menuAnchorRef.current;
     if (!anchor) return null;
@@ -53,13 +58,13 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
 
       if (searchOpen) {
         const el = searchRef.current;
-        if (el && !el.contains(target)) setSearchOpen(false);
+        if (el && !el.contains(target)) closeSearch();
       }
     }
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
       if (open) setOpen(false);
-      if (searchOpen) setSearchOpen(false);
+      if (searchOpen) closeSearch();
     }
     document.addEventListener("mousedown", onDocMouseDown);
     window.addEventListener("keydown", onKeyDown);
@@ -146,7 +151,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
                 if (term) sp.set("q", term);
                 const suffix = sp.toString() ? `?${sp.toString()}` : "";
                 nav(`/browse${suffix}`);
-                setSearchOpen(false);
+                closeSearch();
               }}
               className="flex"
             >
@@ -158,13 +163,15 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
                   ref={searchInputRef}
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  type="search"
+                  type="text"
+                  inputMode="search"
+                  enterKeyHint="search"
                   placeholder="Search listings"
                   className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
                 />
                 <button
                   type="button"
-                  onClick={() => setSearchOpen(false)}
+                  onClick={closeSearch}
                   className="shrink-0 px-3 py-2 text-sm font-extrabold text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                   aria-label="Close search"
                 >

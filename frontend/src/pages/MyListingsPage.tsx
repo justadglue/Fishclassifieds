@@ -466,21 +466,22 @@ export default function MyListingsPage() {
           </div>
         )}
 
-        <div className="mt-6 overflow-x-auto lg:overflow-x-visible rounded-2xl border border-slate-200 bg-white">
-          <table className="w-full min-w-[1080px] lg:min-w-0">
-            <thead className="bg-slate-50">
-              <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-600">
-                <SortTh label="Listing" k="listing" className="px-4 py-3" />
-                <SortTh label="Price" k="price" className="px-4 py-3" />
-                <SortTh label="Views" k="views" className="px-4 py-3" />
-                <SortTh label="Status" k="status" className="px-4 py-3" title="Default: Status then Updated" />
-                <SortTh label="Created" k="created" className="px-4 py-3" />
-                <SortTh label="Updated" k="updated" className="px-4 py-3" />
-                <SortTh label="Expires in" k="expiresIn" className="px-4 py-3" />
-                <th className="px-4 py-3">Actions</th>
-              </tr>
-            </thead>
-            {displayItems.map((l, idx) => {
+        <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="overflow-x-auto lg:overflow-x-visible">
+            <table className="w-full min-w-[1080px] lg:min-w-0">
+              <thead className="bg-slate-50">
+                <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                  <SortTh label="Listing" k="listing" className="px-4 py-3" />
+                  <SortTh label="Price" k="price" className="px-4 py-3" />
+                  <SortTh label="Views" k="views" className="px-4 py-3" />
+                  <SortTh label="Status" k="status" className="px-4 py-3" title="Default: Status then Updated" />
+                  <SortTh label="Created" k="created" className="px-4 py-3" />
+                  <SortTh label="Updated" k="updated" className="px-4 py-3" />
+                  <SortTh label="Expires in" k="expiresIn" className="px-4 py-3" />
+                  <th className="px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              {displayItems.map((l, idx) => {
               const rowBorder = idx === 0 ? "" : "border-t border-slate-200";
 
               const assets = resolveAssets(l.images ?? []);
@@ -641,7 +642,8 @@ export default function MyListingsPage() {
                 </tbody>
               );
             })}
-          </table>
+            </table>
+          </div>
         </div>
       </main>
     </div>

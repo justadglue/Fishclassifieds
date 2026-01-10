@@ -62,13 +62,16 @@ export default function LoginPage() {
 
         <OAuthButtons intent="signin" />
 
-        <div className="mt-6 flex items-center justify-between text-sm">
+        <div className="mt-6 flex items-center justify-between gap-4 text-sm">
           <button onClick={() => navigate("/")} className="font-semibold text-slate-600 hover:text-slate-900">
             ← Back to home
           </button>
-          <Link to="/signup" className="font-semibold text-slate-900 underline underline-offset-4">
-            Create account
-          </Link>
+          <div className="text-right">
+            <div className="text-xs font-semibold text-slate-600">Don’t have an account?</div>
+            <Link to="/signup" className="font-semibold text-slate-900 underline underline-offset-4">
+              Create account
+            </Link>
+          </div>
         </div>
       </div>
     </div>

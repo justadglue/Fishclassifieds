@@ -18,7 +18,6 @@ import {
   pauseListing,
   resumeListing,
   markSold,
-  relistListing,
   type Listing,
 } from "../api";
 import Header from "../components/Header";
@@ -265,16 +264,7 @@ export default function MyListingsPage() {
 
   async function doRelist(id: string) {
     setErr(null);
-    setLoading(true);
-    try {
-      const res = await relistListing(id);
-      setItems((prev) => prev.map((x) => (x.id === id ? res.item : x)));
-      nav(`/edit/${encodeURIComponent(res.item.id)}`);
-    } catch (e: any) {
-      setErr(e?.message ?? "Failed to relist");
-    } finally {
-      setLoading(false);
-    }
+    nav(`/edit/${encodeURIComponent(id)}?relist=1`);
   }
 
   function toggleExpanded(id: string) {

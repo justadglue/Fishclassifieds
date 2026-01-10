@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Check, ChevronLeft, ChevronRight, Maximize2, Pause, Play, Trash2, X } from "lucide-react";
 import {
   deleteListing,
   fetchListing,
+  createListing,
   resolveImageUrl,
   updateListing,
   uploadImage,
@@ -56,10 +57,6 @@ type PhotoItem =
   | { kind: "existing"; asset: ImageAsset }
   | { kind: "pending"; id: string; file: File; uploaded?: ImageAsset; status: PendingImage["status"]; error?: string };
 
-function uid() {
-  return Math.random().toString(16).slice(2) + Date.now().toString(16);
-}
-
 function fmtStatus(l: Listing) {
   const parts: string[] = [];
   if (l.status === "draft") parts.push("Draft (hidden)");
@@ -99,10 +96,16 @@ function IconButton(props: {
   );
 }
 
+function uid() {
+  return Math.random().toString(16).slice(2) + Date.now().toString(16);
+}
+
 export default function EditListingPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const [sp] = useSearchParams();
+  const relistMode = sp.get("relist") === "1";
 
   const [orig, setOrig] = useState<Listing | null>(null);
 
@@ -373,20 +376,6 @@ export default function EditListingPage() {
     }
   }
 
-  async function refresh() {
-    if (!id) return;
-    const l = await fetchListing(id);
-    setOrig(l);
-    setTitle(l.title);
-    setCategory(l.category);
-    setSpecies(l.species);
-    setPriceDollars(centsToDollarsString(l.priceCents));
-    setLocation(l.location);
-    setContact(l.contact ?? "");
-    setDescription(l.description);
-    setPhotos((l.images ?? []).slice(0, 6).map((a) => ({ kind: "existing" as const, asset: a })));
-  }
-
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
@@ -413,6 +402,26 @@ export default function EditListingPage() {
         .filter((x): x is ImageAsset => !!x)
         .slice(0, 6);
 
+      if (relistMode) {
+        // Relist: do not modify anything until user clicks Update listing.
+        // Create a brand new listing (active/pending depending on server config), then archive the sold one.
+        const created = await createListing({
+          title: title.trim(),
+          category,
+          species: species.trim(),
+          priceCents,
+          location: location.trim(),
+          description: description.trim(),
+          contact: contact.trim() ? contact.trim() : null,
+          images: merged,
+          status: "active",
+        });
+
+        await deleteListing(id);
+        nav(`/listing/${created.id}`);
+        return;
+      }
+
       const updated = await updateListing(id, {
         title: title.trim(),
         category,
@@ -434,7 +443,21 @@ export default function EditListingPage() {
     }
   }
 
-  async function onDelete() {
+  async function refresh() {
+    if (!id) return;
+    const l = await fetchListing(id);
+    setOrig(l);
+    setTitle(l.title);
+    setCategory(l.category);
+    setSpecies(l.species);
+    setPriceDollars(centsToDollarsString(l.priceCents));
+    setLocation(l.location);
+    setContact(l.contact ?? "");
+    setDescription(l.description);
+    setPhotos((l.images ?? []).slice(0, 6).map((a) => ({ kind: "existing" as const, asset: a })));
+  }
+
+  async function onDeleteListing() {
     if (!id) return;
     setErr(null);
 
@@ -473,9 +496,6 @@ export default function EditListingPage() {
   async function doSold() {
     if (!id) return;
     setErr(null);
-    const ok = window.confirm("Mark this listing as SOLD? It will be hidden from Browse.");
-    if (!ok) return;
-
     setLoading(true);
     try {
       await markSold(id);
@@ -490,6 +510,7 @@ export default function EditListingPage() {
   const canSave = !loading && !isUploading;
 
   const canTogglePause =
+    !relistMode &&
     !!orig &&
     orig.status !== "draft" &&
     orig.status !== "expired" &&
@@ -499,17 +520,14 @@ export default function EditListingPage() {
   const toggleLabel = orig?.status === "paused" ? "Resume listing" : "Pause listing";
 
   const canResolve =
-    !!orig &&
-    orig.status !== "expired" &&
-    orig.status !== "deleted" &&
-    orig.resolution === "none";
+    !relistMode && !!orig && orig.status !== "expired" && orig.status !== "deleted" && orig.resolution === "none";
 
   return (
     <div className="min-h-full">
       <Header maxWidth="3xl" />
       <main className="mx-auto max-w-3xl px-4 py-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold text-slate-900">Edit listing</h1>
+          <h1 className="text-2xl font-extrabold text-slate-900">{relistMode ? "Relist listing" : "Edit listing"}</h1>
           {id && (
             <Link to={`/listing/${id}`} className="text-sm font-semibold text-slate-700 hover:text-slate-900">
               View
@@ -523,55 +541,57 @@ export default function EditListingPage() {
 
         {orig && (
           <form onSubmit={onSave} className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
-            {/* Lifecycle + actions */}
-            <div className="rounded-2xl border border-slate-200 p-4">
-              <div className="text-sm font-bold text-slate-900">Listing state</div>
-              <div className="mt-1 text-xs text-slate-600">{fmtStatus(orig)}</div>
+            {/* Listing state (only for normal edit, not relist) */}
+            {!relistMode && (
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <div className="text-sm font-bold text-slate-900">Listing state</div>
+                <div className="mt-1 text-xs text-slate-600">{fmtStatus(orig)}</div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <IconButton title={toggleLabel} onClick={doTogglePauseResume} disabled={!canTogglePause || loading} variant="default">
-                  {orig.status === "paused" ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <IconButton title={toggleLabel} onClick={doTogglePauseResume} disabled={!canTogglePause || loading} variant="default">
+                    {orig.status === "paused" ? (
+                      <>
+                        <Play aria-hidden="true" className="h-5 w-5" />
+                        <span className="ml-2">Resume Ad</span>
+                      </>
+                    ) : (
+                      <>
+                        <Pause aria-hidden="true" className="h-5 w-5" />
+                        <span className="ml-2">Pause Ad</span>
+                      </>
+                    )}
+                  </IconButton>
+
+                  <IconButton title="Mark as sold" onClick={doSold} disabled={!canResolve || loading} variant="primary">
+                    <Check aria-hidden="true" className="h-5 w-5" />
+                    <span className="ml-2">Mark as Sold</span>
+                  </IconButton>
+
+                  <IconButton title="Delete listing" onClick={onDeleteListing} disabled={loading || isUploading} variant="danger">
+                    <Trash2 aria-hidden="true" className="h-5 w-5" />
+                    <span className="ml-2">Delete</span>
+                  </IconButton>
+                </div>
+
+                <div className="mt-3 text-xs text-slate-600">
+                  {orig.expiresAt ? (
                     <>
-                      <Play aria-hidden="true" className="h-5 w-5" />
-                      <span className="ml-2">Resume Ad</span>
+                      Expires in {expiresInShort(orig.expiresAt) ?? "—"} on{" "}
+                      {new Date(orig.expiresAt).toLocaleString(undefined, {
+                        year: "numeric",
+                        month: "short",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                      . Expiry is automatic.
                     </>
                   ) : (
-                    <>
-                      <Pause aria-hidden="true" className="h-5 w-5" />
-                      <span className="ml-2">Pause Ad</span>
-                    </>
+                    <>Expiry is automatic.</>
                   )}
-                </IconButton>
-
-                <IconButton title="Mark as sold" onClick={doSold} disabled={!canResolve || loading} variant="primary">
-                  <Check aria-hidden="true" className="h-5 w-5" />
-                  <span className="ml-2">Mark as Sold</span>
-                </IconButton>
-
-                <IconButton title="Delete listing" onClick={onDelete} disabled={loading || isUploading} variant="danger">
-                  <Trash2 aria-hidden="true" className="h-5 w-5" />
-                  <span className="ml-2">Delete</span>
-                </IconButton>
+                </div>
               </div>
-
-              <div className="mt-3 text-xs text-slate-600">
-                {orig.expiresAt ? (
-                  <>
-                    Expires in {expiresInShort(orig.expiresAt) ?? "—"} on{" "}
-                    {new Date(orig.expiresAt).toLocaleString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                    . Expiry is automatic.
-                  </>
-                ) : (
-                  <>Expiry is automatic.</>
-                )}
-              </div>
-            </div>
+            )}
 
             {/* Images */}
             <div className="rounded-2xl border border-slate-200 p-4">
@@ -790,6 +810,19 @@ export default function EditListingPage() {
                 className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
               >
                 {loading ? "Saving..." : isUploading ? "Uploading..." : "Update listing"}
+              </button>
+
+              <button
+                type="button"
+                disabled={loading || isUploading}
+                onClick={() => {
+                  if (window.history.length > 1) nav(-1);
+                  else if (id) nav(`/listing/${id}`);
+                  else nav("/me");
+                }}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancel
               </button>
             </div>
           </form>

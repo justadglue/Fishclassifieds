@@ -590,7 +590,7 @@ export default function BrowseListings() {
 
                         <div className="mt-3 flex items-center justify-between gap-3 text-[11px] font-semibold text-slate-500">
                           <div>{relativeTime(w.createdAt)}</div>
-                          <div className="truncate">{w.userDisplayName ? `Wanted by ${w.userDisplayName}` : ""}</div>
+                          <div className="truncate">{w.username ? `Wanted by @${w.username}` : ""}</div>
                         </div>
                       </div>
                     </Link>

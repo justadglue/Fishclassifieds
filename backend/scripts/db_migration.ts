@@ -36,6 +36,12 @@ function hasColumn(db: Database.Database, table: string, col: string): boolean {
   return rows.some((r) => r.name === col);
 }
 
+function isColumnNotNull(db: Database.Database, table: string, col: string): boolean {
+  const rows = db.pragma(`table_info(${table})`) as Array<{ name: string; notnull: number }>;
+  const row = rows.find((r) => r.name === col);
+  return Boolean(row && Number(row.notnull) === 1);
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -51,6 +57,42 @@ function main() {
   db.pragma("journal_mode = WAL");
 
   const migrations: string[] = [];
+
+  // Make users.display_name optional (nullable)
+  if (hasColumn(db, "users", "display_name") && isColumnNotNull(db, "users", "display_name")) {
+    db.exec(`PRAGMA foreign_keys = OFF;`);
+    const tx = db.transaction(() => {
+      db.exec(`
+CREATE TABLE IF NOT EXISTS users_new(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL UNIQUE,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  display_name TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+`);
+
+      db.exec(`
+INSERT INTO users_new(id,email,username,password_hash,display_name,created_at,updated_at)
+SELECT id,email,username,password_hash,display_name,created_at,updated_at
+FROM users;
+`);
+
+      db.exec(`DROP TABLE users;`);
+      db.exec(`ALTER TABLE users_new RENAME TO users;`);
+
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);`);
+    });
+
+    tx();
+    db.exec(`PRAGMA foreign_keys = ON;`);
+    migrations.push("Made users.display_name nullable");
+  } else {
+    migrations.push("users.display_name already nullable (or missing)");
+  }
 
   if (!hasColumn(db, "listings", "featured")) {
     db.exec(`ALTER TABLE listings ADD COLUMN featured INTEGER NOT NULL DEFAULT 0;`);

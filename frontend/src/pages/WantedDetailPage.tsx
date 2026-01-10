@@ -126,8 +126,11 @@ export default function WantedDetailPage() {
                 </div>
                 <div className="mt-2 text-sm font-semibold text-slate-700">Budget: {budgetLabel(item)}</div>
                 <div className="mt-2 text-xs font-semibold text-slate-500">
-                  {item.userDisplayName ? `Wanted by ${item.userDisplayName}` : ""}{" "}
-                  {item.username ? <span className="text-slate-400">(@{item.username})</span> : null}
+                  {item.username ? (
+                    <>
+                      Wanted by <span className="text-slate-900">@{item.username}</span>
+                    </>
+                  ) : null}
                 </div>
               </div>
 

@@ -30,7 +30,7 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
       id: Number(row.id),
       email: String(row.email),
       username: String(row.username),
-      displayName: String(row.display_name),
+      displayName: row.display_name != null ? String(row.display_name) : null,
     };
   } catch {
     // ignore (treat as unauthenticated)

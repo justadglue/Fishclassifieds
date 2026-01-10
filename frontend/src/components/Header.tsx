@@ -149,7 +149,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
               aria-haspopup="menu"
               aria-expanded={open}
             >
-              <span className="max-w-[200px] truncate">{user.displayName || user.email}</span>
+              <span className="max-w-[200px] truncate">{user.username || user.email}</span>
               <Chevron open={open} />
             </button>
 

@@ -336,7 +336,7 @@ app.get("/api/me", requireAuth, (req, res) => {
 });
 
 const ProfileSchema = z.object({
-  displayName: z.string().min(1).max(80),
+  displayName: z.string().min(1).max(80).optional().nullable(),
   avatarUrl: z.string().max(500).nullable().optional(),
   location: z.string().max(120).nullable().optional(),
   phone: z.string().max(40).nullable().optional(),
@@ -365,7 +365,7 @@ app.get("/api/profile", requireAuth, (req, res) => {
       id: Number(u.id),
       email: String(u.email),
       username: String(u.username),
-      displayName: String(u.display_name),
+      displayName: u.display_name != null ? String(u.display_name) : null,
     },
     profile: mapProfileRow(p),
   });
@@ -382,7 +382,11 @@ app.put("/api/profile", requireAuth, (req, res) => {
   const now = nowIsoSecurity();
 
   const tx = db.transaction(() => {
-    db.prepare(`UPDATE users SET display_name = ?, updated_at = ? WHERE id = ?`).run(displayName, now, user.id);
+    if (displayName !== undefined) {
+      db.prepare(`UPDATE users SET display_name = ?, updated_at = ? WHERE id = ?`).run(displayName ?? null, now, user.id);
+    } else {
+      db.prepare(`UPDATE users SET updated_at = ? WHERE id = ?`).run(now, user.id);
+    }
 
     const existing = db.prepare(`SELECT user_id FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
 
@@ -418,7 +422,7 @@ WHERE user_id = ?
       id: Number(u.id),
       email: String(u.email),
       username: String(u.username),
-      displayName: String(u.display_name),
+      displayName: u.display_name != null ? String(u.display_name) : null,
     },
     profile: mapProfileRow(p),
   });

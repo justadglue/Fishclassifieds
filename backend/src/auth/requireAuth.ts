@@ -5,7 +5,7 @@ import { verifyAccessToken } from "./jwt.js";
 declare global {
   namespace Express {
     interface Request {
-      user?: { id: number; email: string; username: string; displayName: string };
+      user?: { id: number; email: string; username: string; displayName: string | null };
     }
   }
 }
@@ -38,7 +38,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
       id: Number(row.id),
       email: String(row.email),
       username: String(row.username),
-      displayName: String(row.display_name),
+      displayName: row.display_name != null ? String(row.display_name) : null,
     };
 
     return next();

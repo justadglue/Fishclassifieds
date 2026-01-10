@@ -9,8 +9,6 @@ export default function SignUpPage() {
   const [sp] = useSearchParams();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [surname, setSurname] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -25,8 +23,6 @@ export default function SignUpPage() {
 
   const canSubmit =
     emailOk &&
-    firstName.trim().length >= 2 &&
-    surname.trim().length >= 2 &&
     usernameOk &&
     pwOk &&
     matchOk &&
@@ -38,12 +34,10 @@ export default function SignUpPage() {
     setErr(null);
     setLoading(true);
     try {
-      const displayName = `${firstName.trim()} ${surname.trim()}`.trim();
       await authRegister({
         email: email.trim(),
         username: username.trim(),
         password,
-        displayName,
       });
       await login({ email: email.trim(), password });
       const next = sp.get("next");
@@ -100,28 +94,11 @@ export default function SignUpPage() {
               className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
             />
 
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                required
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="First name"
-                className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
-              />
-              <input
-                required
-                value={surname}
-                onChange={(e) => setSurname(e.target.value)}
-                placeholder="Surname"
-                className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
-              />
-            </div>
-
             <input
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Username (letters, numbers, underscore)"
+              placeholder="Display name for your account"
               className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
             />
 

@@ -15,7 +15,6 @@ export default function ProfilePage() {
 
   const [data, setData] = useState<ProfileResponse | null>(null);
 
-  const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
@@ -55,7 +54,6 @@ export default function ProfilePage() {
         if (cancelled) return;
 
         setData(res);
-        setDisplayName(res.user.displayName ?? "");
         setAvatarUrl(res.profile.avatarUrl ?? "");
         setLocation(res.profile.location ?? "");
         setPhone(res.profile.phone ?? "");
@@ -98,16 +96,9 @@ export default function ProfilePage() {
     setErr(null);
     setSavedMsg(null);
 
-    const dn = displayName.trim();
-    if (dn.length < 1) {
-      setErr("Display name is required.");
-      return;
-    }
-
     setLoading(true);
     try {
       const res = await updateProfile({
-        displayName: dn,
         avatarUrl: normNullable(avatarUrl),
         location: normNullable(location),
         phone: normNullable(phone),
@@ -220,18 +211,6 @@ export default function ProfilePage() {
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <label className="block sm:col-span-2">
-                  <div className="mb-1 text-xs font-semibold text-slate-700">Display name</div>
-                  <input
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                    maxLength={80}
-                    required
-                    disabled={loading}
-                  />
-                </label>
-
-                <label className="block sm:col-span-2">
                   <div className="mb-1 text-xs font-semibold text-slate-700">Avatar URL</div>
                   <input
                     value={avatarUrl}
@@ -309,7 +288,6 @@ export default function ProfilePage() {
                   disabled={loading}
                   onClick={() => {
                     if (!data) return;
-                    setDisplayName(data.user.displayName ?? "");
                     setAvatarUrl(data.profile.avatarUrl ?? "");
                     setLocation(data.profile.location ?? "");
                     setPhone(data.profile.phone ?? "");
@@ -356,9 +334,9 @@ export default function ProfilePage() {
                 )}
               </div>
               <div className="min-w-0">
-                <div className="truncate text-sm font-extrabold text-slate-900">{displayName.trim() || "Your name"}</div>
+                <div className="truncate text-sm font-extrabold text-slate-900">@{readOnlyUsername || "username"}</div>
                 <div className="truncate text-xs font-semibold text-slate-600">
-                  @{readOnlyUsername || "username"} • {location.trim() || "Location"}
+                  {location.trim() || "Location"}
                 </div>
               </div>
             </div>

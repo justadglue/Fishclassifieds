@@ -18,7 +18,7 @@ const RegisterSchema = z.object({
     .max(20)
     .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters,numbers,and underscore"),
   password: z.string().min(10).max(200),
-  displayName: z.string().min(1).max(80),
+  displayName: z.string().min(1).max(80).optional().nullable(),
 });
 
 const LoginSchema = z.object({
@@ -44,7 +44,8 @@ router.post("/register", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
 
-  const { email, username, password, displayName } = parsed.data;
+  const { email, username, password } = parsed.data;
+  const displayName = parsed.data.displayName?.trim() ? parsed.data.displayName.trim() : null;
   const normEmail = email.toLowerCase().trim();
   const normUsername = username.toLowerCase().trim();
 
@@ -125,7 +126,7 @@ VALUES(?,?,?,?,?,?,NULL,?,?)
   setAuthCookies(res, accessToken, refreshToken);
 
   return res.json({
-    user: { id: row.id, email: row.email, displayName: row.display_name, username: row.username },
+    user: { id: row.id, email: row.email, displayName: row.display_name ?? null, username: row.username },
   });
 });
 
@@ -195,7 +196,7 @@ WHERE id = ?
   setAuthCookies(res, newAccess, newRefresh);
 
   return res.json({
-    user: { id: user.id, email: user.email, displayName: user.display_name, username: user.username },
+    user: { id: user.id, email: user.email, displayName: user.display_name ?? null, username: user.username },
   });
 });
 

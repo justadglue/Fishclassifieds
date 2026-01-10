@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth";
+import OAuthButtons from "../components/OAuthButtons";
 
 function safeNext(sp: URLSearchParams) {
   const next = sp.get("next");
@@ -186,6 +187,8 @@ export default function AuthGatePage() {
                   {liLoading ? "Signing in..." : "Sign in"}
                 </button>
               </form>
+
+              <OAuthButtons intent="signin" />
             </section>
 
             {/* Create account (secondary) */}
@@ -198,7 +201,7 @@ export default function AuthGatePage() {
               <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-slate-700">
                 <li>Create and edit your listings</li>
                 <li>Post and manage wanted posts</li>
-                <li>Access account features like your profile</li>
+                <li>Join the community and reach out to other members and listings</li>
               </ul>
 
               <Link
@@ -207,8 +210,6 @@ export default function AuthGatePage() {
               >
                 Create account
               </Link>
-
-              <div className="mt-3 text-xs font-semibold text-slate-500">Takes about a minute. Password must be 10+ characters.</div>
             </aside>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { authRegister } from "../api";
 import { useAuth } from "../auth";
+import OAuthButtons from "../components/OAuthButtons";
 
 export default function SignUpPage() {
   const navigate = useNavigate();
@@ -161,9 +162,8 @@ export default function SignUpPage() {
             </button>
           </form>
 
-          <div className="mt-6 text-sm text-slate-600">
-            Tip: your username becomes part of your profile later (if you add one).
-          </div>
+          <OAuthButtons intent="signup" />
+
         </div>
       </main>
     </div>

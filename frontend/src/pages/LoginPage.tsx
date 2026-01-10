@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../auth";
+import OAuthButtons from "../components/OAuthButtons";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -58,6 +59,8 @@ export default function LoginPage() {
             {loading ? "Logging in..." : "Login"}
           </button>
         </form>
+
+        <OAuthButtons intent="signin" />
 
         <div className="mt-6 flex items-center justify-between text-sm">
           <button onClick={() => navigate("/")} className="font-semibold text-slate-600 hover:text-slate-900">

@@ -55,7 +55,7 @@ function ctxCopy(ctx: AuthGateCtx | null) {
       };
     case "my_listings":
       return {
-        title: "Sign in to view your listings",
+        title: "Sign in to manage your listings",
         body: "Your listings are tied to your account. Sign in below to manage them.",
       };
     case "profile":
@@ -65,8 +65,8 @@ function ctxCopy(ctx: AuthGateCtx | null) {
       };
     case "wanted_post":
       return {
-        title: "Sign in to post a wanted",
-        body: "To post a wanted, you’ll need to register or sign in. Sign in below, or create an account if needed.",
+        title: "Sign in to create a wanted post",
+        body: "To create a wanted post, you’ll need to register or sign in. Sign in below, or create an account if needed.",
       };
     case "wanted_edit":
       return {

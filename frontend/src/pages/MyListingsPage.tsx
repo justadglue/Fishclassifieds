@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
+  MoveDown,
+  MoveUp,
+  ArrowUpDown,
   Check,
   CircleCheck,
   CircleX,
@@ -69,6 +72,36 @@ function statusLabel(l: Listing) {
   return cap1(l.status);
 }
 
+function parseMs(iso: string | null | undefined) {
+  if (!iso) return null;
+  const n = new Date(iso).getTime();
+  return Number.isFinite(n) ? n : null;
+}
+
+type SortKey = "listing" | "price" | "views" | "status" | "created" | "updated" | "expiresIn";
+type SortDir = "asc" | "desc";
+
+function statusRank(l: Listing) {
+  // Custom priority (lower = higher). Sold treated as its own state.
+  if (l.resolution === "sold") return 5;
+  switch (l.status) {
+    case "active":
+      return 0;
+    case "pending":
+      return 1;
+    case "paused":
+      return 2;
+    case "draft":
+      return 3;
+    case "expired":
+      return 4;
+    case "deleted":
+      return 6;
+    default:
+      return 7;
+  }
+}
+
 function StatusText({ l }: { l: Listing }) {
   const s = l.status;
   const r = l.resolution;
@@ -91,6 +124,82 @@ function StatusText({ l }: { l: Listing }) {
                   : "text-slate-700";
 
   return <span className={`text-sm font-semibold ${cls}`}>{statusLabel(l)}</span>;
+}
+
+function sortListings(items: Listing[], sortKey: SortKey, sortDir: SortDir, nowMs: number) {
+  const dirMul = sortDir === "asc" ? 1 : -1;
+  const withIdx = items.map((l, idx) => ({ l, idx }));
+
+  function cmpNum(a: number | null, b: number | null) {
+    const av = a ?? Number.POSITIVE_INFINITY;
+    const bv = b ?? Number.POSITIVE_INFINITY;
+    return av === bv ? 0 : av < bv ? -1 : 1;
+  }
+
+  function cmpStr(a: string, b: string) {
+    return a.localeCompare(b, undefined, { sensitivity: "base" });
+  }
+
+  function cmpListing(a: Listing, b: Listing) {
+    if (sortKey === "status") {
+      const r = (statusRank(a) - statusRank(b)) * dirMul;
+      if (r) return r;
+      // Secondary: updated newest first (always).
+      const au = parseMs(a.updatedAt) ?? 0;
+      const bu = parseMs(b.updatedAt) ?? 0;
+      return bu - au;
+    }
+
+    let r = 0;
+    switch (sortKey) {
+      case "listing":
+        r = cmpStr(a.title, b.title) * dirMul;
+        break;
+      case "price":
+        r = (a.priceCents - b.priceCents) * dirMul;
+        break;
+      case "views":
+        r = (Number(a.views ?? 0) - Number(b.views ?? 0)) * dirMul;
+        break;
+      case "created": {
+        const ac = parseMs(a.createdAt);
+        const bc = parseMs(b.createdAt);
+        r = cmpNum(ac, bc) * dirMul;
+        break;
+      }
+      case "updated": {
+        const au = parseMs(a.updatedAt);
+        const bu = parseMs(b.updatedAt);
+        r = cmpNum(au, bu) * dirMul;
+        break;
+      }
+      case "expiresIn": {
+        const ae = parseMs(a.expiresAt);
+        const be = parseMs(b.expiresAt);
+        const an = ae === null ? null : Math.max(0, ae - nowMs);
+        const bn = be === null ? null : Math.max(0, be - nowMs);
+        r = cmpNum(an, bn) * dirMul;
+        break;
+      }
+    }
+
+    if (r) return r;
+    // Secondary: status (asc priority), then updated newest first.
+    const sr = statusRank(a) - statusRank(b);
+    if (sr) return sr;
+    const au = parseMs(a.updatedAt) ?? 0;
+    const bu = parseMs(b.updatedAt) ?? 0;
+    if (bu !== au) return bu - au;
+    return 0;
+  }
+
+  withIdx.sort((aa, bb) => {
+    const r = cmpListing(aa.l, bb.l);
+    if (r) return r;
+    return aa.idx - bb.idx;
+  });
+
+  return withIdx.map((x) => x.l);
 }
 
 function ActionButton(props: {
@@ -142,6 +251,8 @@ export default function MyListingsPage() {
   const { user, loading: authLoading } = useAuth();
 
   const [items, setItems] = useState<Listing[]>([]);
+  const [displayOrder, setDisplayOrder] = useState<string[]>([]);
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "status", dir: "asc" });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -160,7 +271,13 @@ export default function MyListingsPage() {
       try {
         if (!user) return;
         const res = await fetchMyListings({ limit: 200, offset: 0 });
-        if (!cancelled) setItems(res.items ?? []);
+        if (!cancelled) {
+          const nextItems = res.items ?? [];
+          setItems(nextItems);
+          // Apply default sort on load (and on hard refresh).
+          const ordered = sortListings(nextItems, sort.key, sort.dir, nowMs).map((l) => l.id);
+          setDisplayOrder(ordered);
+        }
       } catch (e: any) {
         if (!cancelled) setErr(e?.message ?? "Failed to load your listings");
       } finally {
@@ -237,6 +354,7 @@ export default function MyListingsPage() {
     try {
       await deleteListing(id);
       setItems((prev) => prev.filter((l) => l.id !== id));
+      setDisplayOrder((prev) => prev.filter((x) => x !== id));
     } catch (e: any) {
       setErr(e?.message ?? "Delete failed");
     }
@@ -247,6 +365,7 @@ export default function MyListingsPage() {
     try {
       const updated = l.status === "paused" ? await resumeListing(l.id) : await pauseListing(l.id);
       setItems((prev) => prev.map((x) => (x.id === l.id ? updated : x)));
+      setExpandedId(l.id);
     } catch (e: any) {
       setErr(e?.message ?? "Failed to update listing status");
     }
@@ -257,6 +376,7 @@ export default function MyListingsPage() {
     try {
       const updated = await markSold(id);
       setItems((prev) => prev.map((x) => (x.id === id ? updated : x)));
+      setExpandedId(id);
     } catch (e: any) {
       setErr(e?.message ?? "Failed to mark sold");
     }
@@ -269,6 +389,61 @@ export default function MyListingsPage() {
 
   function toggleExpanded(id: string) {
     setExpandedId((prev) => (prev === id ? null : id));
+  }
+
+  const defaultDirByKey: Record<SortKey, SortDir> = {
+    listing: "asc",
+    price: "asc",
+    views: "desc",
+    status: "asc",
+    created: "desc",
+    updated: "desc",
+    expiresIn: "asc",
+  };
+
+  function toggleSort(next: SortKey) {
+    setSort((prev) => {
+      const same = prev.key === next;
+      const dir = same ? (prev.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next];
+      const key = next;
+      // Recompute order only on explicit sort click (not when row data changes).
+      setDisplayOrder(sortListings(items, key, dir, nowMs).map((l) => l.id));
+      return { key, dir };
+    });
+  }
+
+  const displayItems = useMemo(() => {
+    const map = new Map(items.map((l) => [l.id, l] as const));
+    const orderedSet = new Set(displayOrder);
+    const ordered = displayOrder.map((id) => map.get(id)).filter((x): x is Listing => !!x);
+    const extras = items.filter((l) => !orderedSet.has(l.id));
+    return [...ordered, ...extras];
+  }, [items, displayOrder]);
+
+  function SortTh(props: { label: string; k: SortKey; className?: string; title?: string }) {
+    const { label, k, className, title } = props;
+    const active = sort.key === k;
+    const icon = !active ? (
+      <ArrowUpDown aria-hidden="true" className="h-4 w-4 text-slate-400" />
+    ) : sort.dir === "asc" ? (
+      <MoveUp aria-hidden="true" className="h-3 w-4 text-slate-400" />
+    ) : (
+      <MoveDown aria-hidden="true" className="h-3 w-4 text-slate-400" />
+    );
+
+    return (
+      <th className={className}>
+        <button
+          type="button"
+          onClick={() => toggleSort(k)}
+          title={title ?? `Sort by ${label}`}
+          className="inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100"
+        >
+          <span>{label}</span>
+          {icon}
+        </button>
+      </th>
+    );
   }
 
   return (
@@ -295,17 +470,17 @@ export default function MyListingsPage() {
           <table className="w-full min-w-[1080px] lg:min-w-0">
             <thead className="bg-slate-50">
               <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-600">
-                <th className="px-4 py-3">Listing</th>
-                <th className="px-4 py-3">Price</th>
-                <th className="px-4 py-3">Views</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Created</th>
-                <th className="px-4 py-3">Updated</th>
-                <th className="px-4 py-3">Expires in</th>
+                <SortTh label="Listing" k="listing" className="px-4 py-3" />
+                <SortTh label="Price" k="price" className="px-4 py-3" />
+                <SortTh label="Views" k="views" className="px-4 py-3" />
+                <SortTh label="Status" k="status" className="px-4 py-3" title="Default: Status then Updated" />
+                <SortTh label="Created" k="created" className="px-4 py-3" />
+                <SortTh label="Updated" k="updated" className="px-4 py-3" />
+                <SortTh label="Expires in" k="expiresIn" className="px-4 py-3" />
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
-            {items.map((l, idx) => {
+            {displayItems.map((l, idx) => {
               const rowBorder = idx === 0 ? "" : "border-t border-slate-200";
 
               const assets = resolveAssets(l.images ?? []);

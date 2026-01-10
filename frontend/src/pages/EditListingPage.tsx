@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Check, Pause, Play, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Maximize2, Pause, Play, Trash2, X } from "lucide-react";
 import {
   deleteListing,
   fetchListing,
-  resolveAssets,
   resolveImageUrl,
   updateListing,
   uploadImage,
@@ -52,6 +51,10 @@ type PendingImage = {
   status: "ready" | "uploading" | "uploaded" | "error";
   error?: string;
 };
+
+type PhotoItem =
+  | { kind: "existing"; asset: ImageAsset }
+  | { kind: "pending"; id: string; file: File; uploaded?: ImageAsset; status: PendingImage["status"]; error?: string };
 
 function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
@@ -111,12 +114,15 @@ export default function EditListingPage() {
   const [contact, setContact] = useState("");
   const [description, setDescription] = useState("");
 
-  const [images, setImages] = useState<ImageAsset[]>([]);
-  const [pending, setPending] = useState<PendingImage[]>([]);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
 
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [activePhotoIdx, setActivePhotoIdx] = useState(0);
+
+  const inFlightUploads = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (authLoading) return;
@@ -143,8 +149,7 @@ export default function EditListingPage() {
         setLocation(l.location);
         setContact(l.contact ?? "");
         setDescription(l.description);
-        setImages((l.images ?? []).slice(0, 6));
-        setPending([]);
+        setPhotos((l.images ?? []).slice(0, 6).map((a) => ({ kind: "existing" as const, asset: a })));
       } catch (e: any) {
         if (!cancelled) setErr(e?.message ?? "Failed to load listing");
       } finally {
@@ -157,38 +162,108 @@ export default function EditListingPage() {
     };
   }, [id]);
 
-  const existingPreviews = useMemo(() => {
-    const assets = resolveAssets(images ?? []);
-    return assets
-      .map((a) => resolveImageUrl(a.thumbUrl || a.fullUrl))
-      .filter((x): x is string => !!x);
-  }, [images]);
+  const photoPreviews = useMemo(() => {
+    return photos.map((p, idx) => {
+      if (p.kind === "existing") {
+        const full = resolveImageUrl(p.asset.fullUrl) ?? p.asset.fullUrl;
+        const thumb = resolveImageUrl(p.asset.thumbUrl || p.asset.fullUrl) ?? (p.asset.thumbUrl || p.asset.fullUrl);
+        const med = resolveImageUrl(p.asset.medUrl || p.asset.fullUrl) ?? (p.asset.medUrl || p.asset.fullUrl);
+        return {
+          key: `existing-${idx}-${full}`,
+          kind: "existing" as const,
+          idx,
+          status: "uploaded" as const,
+          src: thumb,
+          fullSrc: full || med || thumb,
+          local: false,
+          error: undefined as string | undefined,
+        };
+      }
 
-  const pendingPreviews = useMemo(() => {
-    return pending.map((p) => {
-      const resolvedThumb = p.uploaded?.thumbUrl ? resolveImageUrl(p.uploaded.thumbUrl) : null;
-      const resolvedFull = p.uploaded?.fullUrl ? resolveImageUrl(p.uploaded.fullUrl) : null;
-
+      const uploaded = p.uploaded;
+      const resolvedThumb = uploaded?.thumbUrl ? resolveImageUrl(uploaded.thumbUrl) : null;
+      const resolvedFull = uploaded?.fullUrl ? resolveImageUrl(uploaded.fullUrl) : null;
+      const src = resolvedThumb || resolvedFull || URL.createObjectURL(p.file);
+      const fullSrc = resolvedFull || src;
       return {
-        id: p.id,
+        key: p.id,
+        kind: "pending" as const,
+        idx,
         status: p.status,
+        src,
+        fullSrc,
+        local: !uploaded,
         error: p.error,
-        src: resolvedThumb || resolvedFull || URL.createObjectURL(p.file),
-        uploaded: !!p.uploaded,
-        local: !p.uploaded,
       };
     });
-  }, [pending]);
+  }, [photos]);
 
   useEffect(() => {
-    const locals = pendingPreviews.filter((p) => p.local).map((p) => p.src);
+    const locals = photoPreviews.filter((p) => p.local).map((p) => p.src);
     return () => {
       for (const u of locals) URL.revokeObjectURL(u);
     };
-  }, [pendingPreviews]);
+  }, [photoPreviews]);
 
-  function moveExisting(idx: number, dir: -1 | 1) {
-    setImages((prev) => {
+  const hasMultiple = photoPreviews.length > 1;
+
+  const openLightboxAt = useCallback(
+    (idx: number) => {
+      if (!photoPreviews.length) return;
+      setActivePhotoIdx(Math.max(0, Math.min(idx, photoPreviews.length - 1)));
+      setLightboxOpen(true);
+    },
+    [photoPreviews.length]
+  );
+
+  const closeLightbox = useCallback(() => setLightboxOpen(false), []);
+
+  const prevImage = useCallback(() => {
+    setActivePhotoIdx((i) => (i <= 0 ? photoPreviews.length - 1 : i - 1));
+  }, [photoPreviews.length]);
+
+  const nextImage = useCallback(() => {
+    setActivePhotoIdx((i) => (i >= photoPreviews.length - 1 ? 0 : i + 1));
+  }, [photoPreviews.length]);
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeLightbox();
+        return;
+      }
+      if (!hasMultiple) return;
+
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        prevImage();
+        return;
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        nextImage();
+        return;
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [closeLightbox, hasMultiple, lightboxOpen, nextImage, prevImage]);
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [lightboxOpen]);
+
+  function movePhoto(idx: number, dir: -1 | 1) {
+    setPhotos((prev) => {
       const j = idx + dir;
       if (j < 0 || j >= prev.length) return prev;
       const copy = [...prev];
@@ -199,71 +274,102 @@ export default function EditListingPage() {
     });
   }
 
-  function removeExisting(idx: number) {
-    setImages((prev) => prev.filter((_, i) => i !== idx));
+  function removePhoto(idx: number) {
+    setPhotos((prev) => prev.filter((_, i) => i !== idx));
   }
 
   function onPickFiles(nextFiles: FileList | null) {
     setErr(null);
     if (!nextFiles) return;
 
-    setPending((prev) => {
-      const room = Math.max(0, 6 - (images.length + prev.length));
+    setPhotos((prev) => {
+      const room = Math.max(0, 6 - prev.length);
       const picked = Array.from(nextFiles).slice(0, room);
       if (!picked.length) return prev;
 
       return [
         ...prev,
-        ...picked.map((f) => ({
-          id: uid(),
-          file: f,
-          status: "ready" as const,
-        })),
+        ...picked.map((f) => ({ kind: "pending" as const, id: uid(), file: f, status: "ready" as const })),
       ];
     });
   }
 
-  function removePending(pid: string) {
-    setPending((prev) => prev.filter((x) => x.id !== pid));
-  }
-
-  function movePending(pid: string, dir: -1 | 1) {
-    setPending((prev) => {
-      const i = prev.findIndex((x) => x.id === pid);
-      if (i < 0) return prev;
-      const j = i + dir;
-      if (j < 0 || j >= prev.length) return prev;
-      const copy = [...prev];
-      const tmp = copy[i];
-      copy[i] = copy[j];
-      copy[j] = tmp;
-      return copy;
-    });
-  }
-
-  async function uploadOne(p: PendingImage) {
-    setPending((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: "uploading", error: undefined } : x)));
+  const uploadOne = useCallback(async (p: { id: string; file: File }) => {
+    setPhotos((prev) =>
+      prev.map((x) => (x.kind === "pending" && x.id === p.id ? { ...x, status: "uploading", error: undefined } : x))
+    );
     try {
       const asset = await uploadImage(p.file);
-      setPending((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: "uploaded", uploaded: asset } : x)));
+      setPhotos((prev) =>
+        prev.map((x) => (x.kind === "pending" && x.id === p.id ? { ...x, status: "uploaded", uploaded: asset } : x))
+      );
       return asset;
     } catch (e: any) {
       const msg = e?.message ?? "Upload failed";
-      setPending((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: "error", error: msg } : x)));
+      setPhotos((prev) =>
+        prev.map((x) => (x.kind === "pending" && x.id === p.id ? { ...x, status: "error", error: msg } : x))
+      );
       throw new Error(msg);
     }
-  }
+  }, []);
+
+  // Auto-upload newly added photos (no separate upload button).
+  useEffect(() => {
+    const ready = photos.filter((p) => p.kind === "pending" && p.status === "ready") as Array<
+      Extract<PhotoItem, { kind: "pending" }>
+    >;
+    if (!ready.length) return;
+
+    let cancelled = false;
+    (async () => {
+      for (const p of ready) {
+        if (cancelled) return;
+        if (inFlightUploads.current.has(p.id)) continue;
+        inFlightUploads.current.add(p.id);
+        try {
+          await uploadOne({ id: p.id, file: p.file });
+        } catch {
+          // error already stored on the photo
+        } finally {
+          inFlightUploads.current.delete(p.id);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [photos, uploadOne]);
+
+  const isUploading = photos.some((p) => p.kind === "pending" && p.status === "uploading");
+
+  const retryUpload = useCallback(
+    async (pendingId: string) => {
+      const p = photos.find((x) => x.kind === "pending" && x.id === pendingId) as Extract<PhotoItem, { kind: "pending" }> | undefined;
+      if (!p) return;
+      if (inFlightUploads.current.has(p.id)) return;
+      inFlightUploads.current.add(p.id);
+      try {
+        await uploadOne({ id: p.id, file: p.file });
+      } catch {
+        // error already stored
+      } finally {
+        inFlightUploads.current.delete(p.id);
+      }
+    },
+    [photos, uploadOne]
+  );
 
   async function uploadAllPending() {
-    if (!pending.length) return;
-    setUploading(true);
+    const pendingItems = photos.filter((p) => p.kind === "pending") as Array<Extract<PhotoItem, { kind: "pending" }>>;
+    if (!pendingItems.length) return;
     try {
-      for (const p of pending) {
+      for (const p of pendingItems) {
         if (p.status === "uploaded" && p.uploaded) continue;
-        await uploadOne(p).catch(() => { });
+        await uploadOne({ id: p.id, file: p.file }).catch(() => { });
       }
     } finally {
-      setUploading(false);
+      // noop
     }
   }
 
@@ -278,8 +384,7 @@ export default function EditListingPage() {
     setLocation(l.location);
     setContact(l.contact ?? "");
     setDescription(l.description);
-    setImages((l.images ?? []).slice(0, 6));
-    setPending([]);
+    setPhotos((l.images ?? []).slice(0, 6).map((a) => ({ kind: "existing" as const, asset: a })));
   }
 
   async function onSave(e: React.FormEvent) {
@@ -295,16 +400,18 @@ export default function EditListingPage() {
 
     setLoading(true);
     try {
-      if (pending.some((p) => p.status !== "uploaded")) {
+      if (photos.some((p) => p.kind === "pending" && p.status !== "uploaded")) {
         await uploadAllPending();
       }
 
-      const newlyUploaded = pending
-        .filter((p) => p.status === "uploaded" && p.uploaded)
-        .map((p) => p.uploaded!)
+      const merged = photos
+        .map((p) => {
+          if (p.kind === "existing") return p.asset;
+          if (p.status === "uploaded" && p.uploaded) return p.uploaded;
+          return null;
+        })
+        .filter((x): x is ImageAsset => !!x)
         .slice(0, 6);
-
-      const merged = [...images, ...newlyUploaded].slice(0, 6);
 
       const updated = await updateListing(id, {
         title: title.trim(),
@@ -318,8 +425,7 @@ export default function EditListingPage() {
       });
 
       setOrig(updated);
-      setImages((updated.images ?? []).slice(0, 6));
-      setPending([]);
+      setPhotos((updated.images ?? []).slice(0, 6).map((a) => ({ kind: "existing" as const, asset: a })));
       nav(`/listing/${id}`);
     } catch (e: any) {
       setErr(e?.message ?? "Save failed");
@@ -381,7 +487,7 @@ export default function EditListingPage() {
     }
   }
 
-  const canSave = !loading && !uploading;
+  const canSave = !loading && !isUploading;
 
   const canTogglePause =
     !!orig &&
@@ -442,7 +548,7 @@ export default function EditListingPage() {
                   <span className="ml-2">Mark as Sold</span>
                 </IconButton>
 
-                <IconButton title="Delete listing" onClick={onDelete} disabled={loading || uploading} variant="danger">
+                <IconButton title="Delete listing" onClick={onDelete} disabled={loading || isUploading} variant="danger">
                   <Trash2 aria-hidden="true" className="h-5 w-5" />
                   <span className="ml-2">Delete</span>
                 </IconButton>
@@ -472,7 +578,8 @@ export default function EditListingPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-bold text-slate-900">Photos</div>
-                  <div className="text-xs text-slate-600">Up to 6 total (existing + new)</div>
+                  <div className="text-xs text-slate-600">Up to 6 photos.</div>
+                  <div className="text-xs text-slate-600">Photos will appear in this order on the listing.</div>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -486,107 +593,70 @@ export default function EditListingPage() {
                       onChange={(e) => onPickFiles(e.target.files)}
                     />
                   </label>
-
-                  <button
-                    type="button"
-                    onClick={uploadAllPending}
-                    disabled={!pending.length || uploading}
-                    className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-                  >
-                    {uploading ? "Uploading..." : "Upload new"}
-                  </button>
                 </div>
               </div>
 
-              {/* Existing */}
-              <div className="mt-4">
-                <div className="text-xs font-semibold text-slate-700">Existing</div>
-                <div className="mt-2 grid gap-3 sm:grid-cols-3">
-                  {existingPreviews.length ? (
-                    existingPreviews.map((src, idx) => (
-                      <div key={src + idx} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                        <div className="relative h-28 w-full bg-slate-100">
-                          <img src={src} alt={`existing-${idx}`} className="h-full w-full object-cover" />
+              {/* Photos (single combined section) */}
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {photoPreviews.length === 0 ? (
+                  <div className="col-span-full flex h-28 items-center justify-center rounded-2xl bg-slate-100 text-sm font-semibold text-slate-500">
+                    No photos
+                  </div>
+                ) : (
+                  photoPreviews.map((p, idx) => (
+                    <div key={p.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                      <div className="relative h-28 w-full bg-slate-100">
+                        <img src={p.src} alt={`photo-${idx}`} className="h-full w-full object-cover" />
 
-                          <div className="absolute left-2 top-2 flex gap-1">
-                            <button
-                              type="button"
-                              onClick={() => moveExisting(idx, -1)}
-                              disabled={idx === 0}
-                              className="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 disabled:opacity-50"
-                            >
-                              ←
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveExisting(idx, 1)}
-                              disabled={idx === existingPreviews.length - 1}
-                              className="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 disabled:opacity-50"
-                            >
-                              →
-                            </button>
+                        {idx === 0 && (
+                          <div className="absolute bottom-2 left-2 rounded-full bg-slate-900/80 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur">
+                            Thumbnail
                           </div>
+                        )}
 
+                        <div className="absolute left-2 top-2 flex gap-1">
                           <button
                             type="button"
-                            onClick={() => removeExisting(idx)}
-                            className="absolute right-2 top-2 rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 hover:bg-white"
-                            aria-label="Remove image"
-                            title="Remove"
+                            onClick={() => movePhoto(idx, -1)}
+                            disabled={idx === 0}
+                            className="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 disabled:opacity-50"
+                            title="Move left"
                           >
-                            ×
+                            <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => movePhoto(idx, 1)}
+                            disabled={idx === photoPreviews.length - 1}
+                            className="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 disabled:opacity-50"
+                            title="Move right"
+                          >
+                            <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
                           </button>
                         </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="col-span-full flex h-28 items-center justify-center rounded-2xl bg-slate-100 text-sm font-semibold text-slate-500">
-                      No existing images
-                    </div>
-                  )}
-                </div>
-              </div>
 
-              {/* Pending */}
-              <div className="mt-4">
-                <div className="text-xs font-semibold text-slate-700">New</div>
-                <div className="mt-2 grid gap-3 sm:grid-cols-3">
-                  {pendingPreviews.length ? (
-                    pendingPreviews.map((p, idx) => (
-                      <div key={p.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                        <div className="relative h-28 w-full bg-slate-100">
-                          <img src={p.src} alt={`pending-${idx}`} className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(idx)}
+                          className="absolute right-2 top-2 rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 hover:bg-white"
+                          aria-label="Remove image"
+                          title="Remove"
+                        >
+                          <X aria-hidden="true" className="h-3.5 w-3.5" />
+                        </button>
 
-                          <div className="absolute left-2 top-2 flex gap-1">
-                            <button
-                              type="button"
-                              onClick={() => movePending(p.id, -1)}
-                              disabled={idx === 0}
-                              className="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 disabled:opacity-50"
-                            >
-                              ←
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => movePending(p.id, 1)}
-                              disabled={idx === pendingPreviews.length - 1}
-                              className="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 disabled:opacity-50"
-                            >
-                              →
-                            </button>
-                          </div>
+                        <button
+                          type="button"
+                          onClick={() => openLightboxAt(idx)}
+                          className="absolute right-10 top-2 rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 hover:bg-white"
+                          aria-label="Expand photo"
+                          title="Expand"
+                        >
+                          <Maximize2 aria-hidden="true" className="h-3.5 w-3.5" />
+                        </button>
 
-                          <button
-                            type="button"
-                            onClick={() => removePending(p.id)}
-                            className="absolute right-2 top-2 rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-900 hover:bg-white"
-                            aria-label="Remove pending image"
-                            title="Remove"
-                          >
-                            ×
-                          </button>
-
-                          <div className="absolute bottom-2 left-2 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                        {p.kind === "pending" && (
+                          <div className="absolute bottom-2 right-2 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-semibold text-slate-700">
                             {p.status === "uploading"
                               ? "Uploading..."
                               : p.status === "uploaded"
@@ -595,21 +665,24 @@ export default function EditListingPage() {
                                   ? "Error"
                                   : "Ready"}
                           </div>
-                        </div>
-
-                        {p.status === "error" && p.error && (
-                          <div className="border-t border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
-                            {p.error}
-                          </div>
                         )}
                       </div>
-                    ))
-                  ) : (
-                    <div className="col-span-full flex h-28 items-center justify-center rounded-2xl bg-slate-100 text-sm font-semibold text-slate-500">
-                      No new images
+
+                      {p.kind === "pending" && p.status === "error" && p.error && (
+                        <div className="flex items-center justify-between gap-3 border-t border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                          <span className="truncate">{p.error}</span>
+                          <button
+                            type="button"
+                            onClick={() => retryUpload(p.key)}
+                            className="shrink-0 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-bold text-slate-900 hover:bg-white"
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -634,7 +707,7 @@ export default function EditListingPage() {
                   value={category}
                   onChange={(e) => setCategory(e.target.value as Category)}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                disabled={loading}
+                  disabled={loading}
                 >
                   {CATEGORIES.map((c) => (
                     <option key={c} value={c}>
@@ -653,7 +726,7 @@ export default function EditListingPage() {
                   required
                   minLength={2}
                   maxLength={60}
-                disabled={loading}
+                  disabled={loading}
                 />
               </label>
             </div>
@@ -667,7 +740,7 @@ export default function EditListingPage() {
                   inputMode="decimal"
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
                   required
-                disabled={loading}
+                  disabled={loading}
                 />
               </label>
 
@@ -680,7 +753,7 @@ export default function EditListingPage() {
                   required
                   minLength={2}
                   maxLength={80}
-                disabled={loading}
+                  disabled={loading}
                 />
               </label>
             </div>
@@ -716,12 +789,119 @@ export default function EditListingPage() {
                 disabled={!canSave}
                 className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
               >
-                {loading ? "Saving..." : uploading ? "Uploading..." : "Update listing"}
+                {loading ? "Saving..." : isUploading ? "Uploading..." : "Update listing"}
               </button>
             </div>
           </form>
         )}
       </main>
+
+      {/* Lightbox */}
+      {lightboxOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-[2px]"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeLightbox();
+          }}
+          aria-modal="true"
+          role="dialog"
+        >
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="relative w-full max-w-6xl">
+              <button
+                type="button"
+                onClick={closeLightbox}
+                aria-label="Close"
+                className="
+                  absolute right-2 top-2 z-10
+                  rounded-full border border-white/30
+                  bg-white/10 backdrop-blur
+                  px-3 py-2
+                  text-white
+                  shadow-sm
+                  transition
+                  hover:bg-white/20 hover:border-white/50
+                  focus:outline-none
+                  focus-visible:ring-2 focus-visible:ring-white/60
+                "
+              >
+                ✕
+              </button>
+
+              {photoPreviews.length > 0 && (
+                <div className="absolute left-2 top-2 z-10 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur">
+                  {activePhotoIdx + 1} / {photoPreviews.length}
+                </div>
+              )}
+
+              <div className="relative overflow-hidden rounded-2xl">
+                <div className="flex items-center justify-center">
+                  {photoPreviews[activePhotoIdx]?.fullSrc ? (
+                    <img
+                      src={photoPreviews[activePhotoIdx].fullSrc}
+                      alt={orig?.title ?? "Listing image"}
+                      className="max-h-[85vh] w-auto max-w-full select-none object-contain"
+                      draggable={false}
+                    />
+                  ) : (
+                    <div className="flex h-[60vh] w-full items-center justify-center rounded-2xl bg-white/10 text-sm font-semibold text-white">
+                      No image
+                    </div>
+                  )}
+                </div>
+
+                {hasMultiple && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={prevImage}
+                      aria-label="Previous image"
+                      className="
+                        absolute left-3 top-1/2 -translate-y-1/2
+                        rounded-full border border-white/30
+                        bg-white/10 backdrop-blur
+                        px-4 py-3
+                        text-white
+                        shadow-sm
+                        transition
+                        hover:bg-white/20 hover:border-white/50
+                        focus:outline-none
+                        focus-visible:ring-2 focus-visible:ring-white/60
+                      "
+                    >
+                      ‹
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={nextImage}
+                      aria-label="Next image"
+                      className="
+                        absolute right-3 top-1/2 -translate-y-1/2
+                        rounded-full border border-white/30
+                        bg-white/10 backdrop-blur
+                        px-4 py-3
+                        text-white
+                        shadow-sm
+                        transition
+                        hover:bg-white/20 hover:border-white/50
+                        focus:outline-none
+                        focus-visible:ring-2 focus-visible:ring-white/60
+                      "
+                    >
+                      ›
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="mt-3 text-center text-xs font-semibold text-white/70">
+                {hasMultiple ? "Use ← / → to navigate, Esc to close" : "Press Esc to close"}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

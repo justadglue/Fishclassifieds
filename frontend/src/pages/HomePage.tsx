@@ -410,7 +410,7 @@ export default function HomePage() {
               <div>
 
                 <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  A curated selection of standout listings
+                  A curated selection
                 </div>
                 <h2 className="text-2xl mt-2 font-black text-slate-900">Featured listings</h2>
               </div>

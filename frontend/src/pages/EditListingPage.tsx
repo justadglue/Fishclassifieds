@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Check, GripVertical, Maximize2, Pause, Play, Trash2, X } from "lucide-react";
+import { Check, GripVertical, Maximize2, Pause, Play, Trash2, Undo2, X } from "lucide-react";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -130,6 +130,8 @@ export default function EditListingPage() {
   const [contact, setContact] = useState("");
   const [description, setDescription] = useState("");
 
+  const customPriceInputRef = useRef<HTMLInputElement | null>(null);
+
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -182,6 +184,13 @@ export default function EditListingPage() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (priceType !== "custom") return;
+    // Avoid focusing a disabled input while the page is still loading.
+    if (loading) return;
+    window.setTimeout(() => customPriceInputRef.current?.focus(), 0);
+  }, [priceType, loading]);
 
   const photoPreviews = useMemo(() => {
     return photos.map((p, idx) => {
@@ -867,19 +876,43 @@ export default function EditListingPage() {
                 />
               </label>
 
-              <label className="block">
+              <div className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Price type</div>
-                <select
-                  value={priceType}
-                  onChange={(e) => setPriceType(e.target.value as PriceType)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                  disabled={loading}
-                >
-                  <option value="each">Each</option>
-                  <option value="all">All</option>
-                  <option value="custom">Custom…</option>
-                </select>
-              </label>
+                {priceType === "custom" ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={customPriceInputRef}
+                      value={customPriceText}
+                      onChange={(e) => setCustomPriceText(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                      placeholder="e.g. breeding pair"
+                      maxLength={80}
+                      disabled={loading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPriceType("each")}
+                      className="shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      title="Return to dropdown options"
+                      aria-label="Return to dropdown options"
+                      disabled={loading}
+                    >
+                      <Undo2 aria-hidden="true" className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={priceType}
+                    onChange={(e) => setPriceType(e.target.value as PriceType)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                    disabled={loading}
+                  >
+                    <option value="each">Each</option>
+                    <option value="all">All</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                )}
+              </div>
             </div>
 
             {/* Row 3: Location + Shipping */}
@@ -915,20 +948,6 @@ export default function EditListingPage() {
                 </div>
               </div>
             </div>
-
-            {priceType === "custom" && (
-              <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Custom price type</div>
-                <input
-                  value={customPriceText}
-                  onChange={(e) => setCustomPriceText(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                  placeholder="e.g. breeding pair"
-                  maxLength={80}
-                  disabled={loading}
-                />
-              </label>
-            )}
 
             <label className="block">
               <div className="mb-1 text-xs font-semibold text-slate-700">Contact (optional)</div>

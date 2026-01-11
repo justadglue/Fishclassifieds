@@ -1,7 +1,7 @@
 // frontend/src/pages/PostListingPage.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, GripVertical, Maximize2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, GripVertical, Maximize2, Undo2, X } from "lucide-react";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -57,11 +57,18 @@ export default function PostListingPage() {
   const [contact, setContact] = useState("");
   const [description, setDescription] = useState("");
 
+  const customPriceInputRef = useRef<HTMLInputElement | null>(null);
+
   const [photos, setPhotos] = useState<PendingImage[]>([]);
   const inFlightUploads = useRef<Set<string>>(new Set());
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (priceType !== "custom") return;
+    window.setTimeout(() => customPriceInputRef.current?.focus(), 0);
+  }, [priceType]);
 
   function removePhoto(id: string) {
     setPhotos((prev) => prev.filter((x) => x.id !== id));
@@ -530,18 +537,40 @@ export default function PostListingPage() {
               />
             </label>
 
-            <label className="block">
+            <div className="block">
               <div className="mb-1 text-xs font-semibold text-slate-700">Price type</div>
-              <select
-                value={priceType}
-                onChange={(e) => setPriceType(e.target.value as PriceType)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-              >
-                <option value="each">Each</option>
-                <option value="all">All</option>
-                <option value="custom">Custom…</option>
-              </select>
-            </label>
+              {priceType === "custom" ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={customPriceInputRef}
+                    value={customPriceText}
+                    onChange={(e) => setCustomPriceText(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                    placeholder="e.g. breeding pair"
+                    maxLength={80}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPriceType("each")}
+                    className="shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    title="Return to dropdown options"
+                    aria-label="Return to dropdown options"
+                  >
+                    <Undo2 aria-hidden="true" className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <select
+                  value={priceType}
+                  onChange={(e) => setPriceType(e.target.value as PriceType)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                >
+                  <option value="each">Each</option>
+                  <option value="all">All</option>
+                  <option value="custom">Custom</option>
+                </select>
+              )}
+            </div>
           </div>
 
           {/* Row 3: Location + Shipping */}
@@ -572,19 +601,6 @@ export default function PostListingPage() {
               </div>
             </div>
           </div>
-
-          {priceType === "custom" && (
-            <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Custom price type</div>
-              <input
-                value={customPriceText}
-                onChange={(e) => setCustomPriceText(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                placeholder="e.g. breeding pair"
-                maxLength={80}
-              />
-            </label>
-          )}
 
           <label className="block">
             <div className="mb-1 text-xs font-semibold text-slate-700">Contact (optional)</div>

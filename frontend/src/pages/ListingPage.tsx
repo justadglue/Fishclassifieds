@@ -195,10 +195,17 @@ export default function ListingPage() {
             <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_360px]">
               {/* Left column: gallery + description */}
               <div className="space-y-5">
-                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div>
                   <h1 className="text-2xl font-extrabold text-slate-900">{item.title}</h1>
-                  <div className="mt-2 text-sm font-semibold text-slate-700">
-                    {item.species} <span className="mx-2 text-slate-300">•</span> {item.location}
+                  <div className="mt-2 text-xs font-semibold text-slate-500">
+                    Posted {postedAgo ? `${postedAgo} • ` : ""}
+                    {new Date(item.createdAt).toLocaleString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </div>
                 </div>
 
@@ -420,17 +427,6 @@ export default function ListingPage() {
                   </dl>
                 </div>
               </aside>
-            </div>
-
-            <div className="mt-4 text-xs font-semibold text-slate-500">
-              Posted {postedAgo ? `${postedAgo} • ` : ""}
-              {new Date(item.createdAt).toLocaleString(undefined, {
-                year: "numeric",
-                month: "short",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
             </div>
           </>
         )}

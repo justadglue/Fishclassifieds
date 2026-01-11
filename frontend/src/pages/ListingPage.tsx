@@ -9,6 +9,29 @@ function centsToDollars(cents: number) {
   return (cents / 100).toLocaleString(undefined, { style: "currency", currency: "AUD" });
 }
 
+function timeAgo(iso: string) {
+  const t = Date.parse(String(iso ?? ""));
+  if (!Number.isFinite(t)) return "";
+  let diffMs = Date.now() - t;
+  if (!Number.isFinite(diffMs) || diffMs < 0) diffMs = 0;
+
+  const min = Math.floor(diffMs / 60_000);
+  if (min < 1) return "Just now";
+  if (min < 60) return `${min} min${min === 1 ? "" : "s"} ago`;
+
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} hour${hr === 1 ? "" : "s"} ago`;
+
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day} day${day === 1 ? "" : "s"} ago`;
+
+  const wk = Math.floor(day / 7);
+  if (wk < 5) return `${wk} week${wk === 1 ? "" : "s"} ago`;
+
+  const mo = Math.floor(day / 30);
+  return `${Math.max(1, mo)} month${mo === 1 ? "" : "s"} ago`;
+}
+
 export default function ListingPage() {
   const { id } = useParams();
   const [item, setItem] = useState<Listing | null>(null);
@@ -67,6 +90,7 @@ export default function ListingPage() {
           ? `(${details.customPriceText})`
           : "(custom)";
   const qtyLabel = `Qty ${details.quantity}`;
+  const postedAgo = item?.createdAt ? timeAgo(item.createdAt) : "";
   const phoneDigits = (item?.phone ?? "").toString().replace(/[^\d+]/g, "");
 
   function DefaultAvatar() {
@@ -167,13 +191,14 @@ export default function ListingPage() {
         )}
 
         {item && (
+          <>
           <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_360px]">
             {/* Left column: gallery + description */}
             <div className="space-y-5">
               <div className="rounded-2xl border border-slate-200 bg-white p-5">
                 <h1 className="text-2xl font-extrabold text-slate-900">{item.title}</h1>
                 <div className="mt-2 text-sm font-semibold text-slate-700">
-                  <span className="text-slate-500">Location:</span> {item.location}
+                  {item.species} <span className="mx-2 text-slate-300">•</span> {item.location}
                 </div>
               </div>
 
@@ -293,17 +318,6 @@ export default function ListingPage() {
                 <div className="mt-2 whitespace-pre-wrap text-sm text-slate-800">
                   {bodyDescription ? bodyDescription : <span className="text-slate-500">No description.</span>}
                 </div>
-
-                <div className="mt-5 text-xs font-semibold text-slate-500">
-                  Posted{" "}
-                  {new Date(item.createdAt).toLocaleString(undefined, {
-                    year: "numeric",
-                    month: "short",
-                    day: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </div>
               </div>
             </div>
 
@@ -339,6 +353,11 @@ export default function ListingPage() {
                     <div className="text-xs font-semibold text-slate-600">Fishclassifieds member</div>
                   </div>
                 </div>
+                {item.sellerBio && item.sellerBio.trim() ? (
+                  <div className="mt-3 whitespace-pre-wrap text-xs font-semibold text-slate-700">
+                    {item.sellerBio.trim()}
+                  </div>
+                ) : null}
               </div>
 
               <div className="mt-4 border-t border-slate-200 pt-4">
@@ -402,6 +421,18 @@ export default function ListingPage() {
               </div>
             </aside>
           </div>
+
+          <div className="mt-4 text-xs font-semibold text-slate-500">
+            Posted {postedAgo ? `${postedAgo} • ` : ""}
+            {new Date(item.createdAt).toLocaleString(undefined, {
+              year: "numeric",
+              month: "short",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
+          </>
         )}
       </main>
 

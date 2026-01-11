@@ -16,6 +16,7 @@ export type Listing = {
   views?: number;
   sellerUsername?: string | null;
   sellerAvatarUrl?: string | null;
+  sellerBio?: string | null;
   title: string;
   category: Category;
   species: string;

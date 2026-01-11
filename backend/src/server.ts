@@ -1265,6 +1265,17 @@ function mapListing(req: express.Request, row: ListingRow & any) {
       return null;
     }
   })();
+  const sellerBio = (() => {
+    try {
+      const uid = (row as any).user_id;
+      if (uid === null || uid === undefined) return null;
+      const r = db.prepare(`SELECT bio FROM user_profiles WHERE user_id = ?`).get(Number(uid)) as any;
+      const raw = r?.bio ? String(r.bio).trim() : "";
+      return raw ? raw : null;
+    } catch {
+      return null;
+    }
+  })();
 
   return {
     id: row.id,
@@ -1273,6 +1284,7 @@ function mapListing(req: express.Request, row: ListingRow & any) {
     views: Number((row as any).views ?? 0),
     sellerUsername,
     sellerAvatarUrl,
+    sellerBio,
     title: row.title,
     category: row.category,
     species: row.species,

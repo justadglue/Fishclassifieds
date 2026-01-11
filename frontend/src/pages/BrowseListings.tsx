@@ -324,7 +324,7 @@ export default function BrowseListings() {
       <main className="mx-auto max-w-6xl px-4 py-6">
         <div ref={topRef} />
         <div className="grid gap-6 md:grid-cols-[280px_1fr]">
-          <aside className="rounded-2xl border border-slate-200 bg-white p-4">
+          <aside className="rounded-2xl border border-slate-200 bg-white p-4 md:sticky md:top-24 md:self-start md:max-h-[calc(100vh-7rem)] md:overflow-auto">
             <div className="flex items-center justify-between">
               <div className="text-sm font-bold text-slate-900">Filters</div>
               <button type="button" onClick={clearFilters} className="text-xs font-semibold text-slate-600 hover:text-slate-900">

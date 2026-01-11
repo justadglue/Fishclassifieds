@@ -134,6 +134,7 @@ export default function EditListingPage() {
   const customPriceInputRef = useRef<HTMLInputElement | null>(null);
   const [showShipHint, setShowShipHint] = useState(false);
   const [shipHintVisible, setShipHintVisible] = useState(false);
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
 
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
 
@@ -194,6 +195,17 @@ export default function EditListingPage() {
     if (loading) return;
     window.setTimeout(() => customPriceInputRef.current?.focus(), 0);
   }, [priceType, loading]);
+
+  const resizeDescription = useCallback((el?: HTMLTextAreaElement | null) => {
+    const t = el ?? descriptionRef.current;
+    if (!t) return;
+    t.style.height = "auto";
+    t.style.height = `${t.scrollHeight}px`;
+  }, []);
+
+  useEffect(() => {
+    resizeDescription();
+  }, [description, resizeDescription]);
 
   useEffect(() => {
     if (willingToShip) {
@@ -999,9 +1011,14 @@ export default function EditListingPage() {
             <label className="block">
               <div className="mb-1 text-xs font-semibold text-slate-700">Description</div>
               <textarea
+                ref={descriptionRef}
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="min-h-[140px] w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  resizeDescription(e.currentTarget);
+                }}
+                onInput={(e) => resizeDescription(e.currentTarget as HTMLTextAreaElement)}
+                className="min-h-[140px] w-full resize-none overflow-hidden rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
                 required
                 minLength={1}
                 maxLength={maxDescLen}

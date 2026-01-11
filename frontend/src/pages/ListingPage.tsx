@@ -192,35 +192,35 @@ export default function ListingPage() {
 
         {item && (
           <>
-          <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_360px]">
-            {/* Left column: gallery + description */}
-            <div className="space-y-5">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                <h1 className="text-2xl font-extrabold text-slate-900">{item.title}</h1>
-                <div className="mt-2 text-sm font-semibold text-slate-700">
-                  {item.species} <span className="mx-2 text-slate-300">•</span> {item.location}
+            <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_360px]">
+              {/* Left column: gallery + description */}
+              <div className="space-y-5">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <h1 className="text-2xl font-extrabold text-slate-900">{item.title}</h1>
+                  <div className="mt-2 text-sm font-semibold text-slate-700">
+                    {item.species} <span className="mx-2 text-slate-300">•</span> {item.location}
+                  </div>
                 </div>
-              </div>
 
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                <div className="bg-slate-100">
-                  {/* Image box */}
-                  <div className="relative aspect-4/3 w-full bg-slate-100">
-                    {hero ? (
-                      <img src={hero} alt={item.title} className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">
-                        No image
-                      </div>
-                    )}
+                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                  <div className="bg-slate-100">
+                    {/* Image box */}
+                    <div className="relative aspect-4/3 w-full bg-slate-100">
+                      {hero ? (
+                        <img src={hero} alt={item.title} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">
+                          No image
+                        </div>
+                      )}
 
-                    {/* Maximize button (top-right) */}
-                    {hero && (
-                      <button
-                        type="button"
-                        onClick={openLightbox}
-                        aria-label="Maximize image"
-                        className="
+                      {/* Maximize button (top-right) */}
+                      {hero && (
+                        <button
+                          type="button"
+                          onClick={openLightbox}
+                          aria-label="Maximize image"
+                          className="
                           absolute right-3 top-3
                           rounded-full border border-white/30
                           bg-slate-900/15 backdrop-blur
@@ -232,20 +232,20 @@ export default function ListingPage() {
                           focus:outline-none
                           focus-visible:ring-2 focus-visible:ring-white/60
                         "
-                        title="View full size"
-                      >
-                        ⤢
-                      </button>
-                    )}
+                          title="View full size"
+                        >
+                          ⤢
+                        </button>
+                      )}
 
-                    {/* Navigation arrows (only if >1 image) */}
-                    {hasMultiple && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={prevImage}
-                          aria-label="Previous image"
-                          className="
+                      {/* Navigation arrows (only if >1 image) */}
+                      {hasMultiple && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={prevImage}
+                            aria-label="Previous image"
+                            className="
                             absolute left-3 top-1/2 -translate-y-1/2
                             rounded-full border border-white/30
                             bg-slate-900/15 backdrop-blur
@@ -257,15 +257,15 @@ export default function ListingPage() {
                             focus:outline-none
                             focus-visible:ring-2 focus-visible:ring-white/60
                           "
-                        >
-                          ‹
-                        </button>
+                          >
+                            ‹
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={nextImage}
-                          aria-label="Next image"
-                          className="
+                          <button
+                            type="button"
+                            onClick={nextImage}
+                            aria-label="Next image"
+                            className="
                             absolute right-3 top-1/2 -translate-y-1/2
                             rounded-full border border-white/30
                             bg-slate-900/15 backdrop-blur
@@ -277,161 +277,161 @@ export default function ListingPage() {
                             focus:outline-none
                             focus-visible:ring-2 focus-visible:ring-white/60
                           "
-                        >
-                          ›
-                        </button>
-                      </>
+                          >
+                            ›
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Thumbnails */}
+                    {assets.length > 0 && (
+                      <div className="flex gap-2 overflow-x-auto p-3">
+                        {assets.map((a, i) => (
+                          <button
+                            key={a.fullUrl + i}
+                            type="button"
+                            onClick={() => setActive(i)}
+                            className={[
+                              "h-16 w-20 shrink-0 overflow-hidden rounded-xl border bg-white",
+                              i === active ? "border-slate-900" : "border-slate-200",
+                            ].join(" ")}
+                            title={`Image ${i + 1}`}
+                            aria-current={i === active ? "true" : undefined}
+                          >
+                            <img
+                              src={a.thumbUrl || a.medUrl || a.fullUrl}
+                              alt={`thumb-${i}`}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
+                </div>
 
-                  {/* Thumbnails */}
-                  {assets.length > 0 && (
-                    <div className="flex gap-2 overflow-x-auto p-3">
-                      {assets.map((a, i) => (
-                        <button
-                          key={a.fullUrl + i}
-                          type="button"
-                          onClick={() => setActive(i)}
-                          className={[
-                            "h-16 w-20 shrink-0 overflow-hidden rounded-xl border bg-white",
-                            i === active ? "border-slate-900" : "border-slate-200",
-                          ].join(" ")}
-                          title={`Image ${i + 1}`}
-                          aria-current={i === active ? "true" : undefined}
-                        >
-                          <img
-                            src={a.thumbUrl || a.medUrl || a.fullUrl}
-                            alt={`thumb-${i}`}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        </button>
-                      ))}
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <div className="text-sm font-extrabold text-slate-900">Description</div>
+                  <div className="mt-2 whitespace-pre-wrap text-sm text-slate-800">
+                    {bodyDescription ? bodyDescription : <span className="text-slate-500">No description.</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right column: seller + contact + listing details */}
+              <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-5 lg:sticky lg:top-24">
+                <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Price</div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <div className="text-3xl font-extrabold text-slate-900">{centsToDollars(item.priceCents)}</div>
+                  <div className="text-sm font-semibold text-slate-600">{priceSuffix}</div>
+                </div>
+                <div className="mt-2 text-sm font-semibold text-slate-700">
+                  <span className="text-slate-500">{qtyLabel}</span>
+                </div>
+
+                <div className="mt-5 border-t border-slate-200 pt-4">
+                  <div className="text-sm font-extrabold text-slate-900">Listing owner</div>
+                  <div className="mt-2 flex items-center gap-3">
+                    {item.sellerAvatarUrl ? (
+                      <img
+                        src={item.sellerAvatarUrl}
+                        alt=""
+                        className="h-10 w-10 rounded-full border border-slate-200 object-cover"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <DefaultAvatar />
+                    )}
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-slate-900">
+                        {item.sellerUsername ? item.sellerUsername : "Fishclassifieds user"}
+                      </div>
+                      <div className="text-xs font-semibold text-slate-600">Fishclassifieds member</div>
                     </div>
+                  </div>
+                  {item.sellerBio && item.sellerBio.trim() ? (
+                    <div className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs text-slate-700">
+                      {item.sellerBio.trim()}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="mt-4 border-t border-slate-200 pt-4">
+                  <div className="text-sm font-extrabold text-slate-900">Contact</div>
+                  {!item.phone ? (
+                    <div className="mt-2 text-sm font-semibold text-slate-700">Phone not available.</div>
+                  ) : phoneRevealed ? (
+                    <a
+                      className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 hover:bg-slate-50"
+                      href={`tel:${phoneDigits}`}
+                    >
+                      {item.phone}
+                      <span className="text-xs font-semibold text-slate-600">(tap to call)</span>
+                    </a>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setPhoneRevealed(true)}
+                        className="mt-3 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+                      >
+                        Reveal phone number
+                      </button>
+                      <div className="mt-2 text-xs font-semibold text-slate-600">
+                        The listing owner's phone number is hidden for privacy.
+                      </div>
+                    </>
                   )}
                 </div>
-              </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                <div className="text-sm font-extrabold text-slate-900">Description</div>
-                <div className="mt-2 whitespace-pre-wrap text-sm text-slate-800">
-                  {bodyDescription ? bodyDescription : <span className="text-slate-500">No description.</span>}
+                <div className="mt-4 border-t border-slate-200 pt-4">
+                  <div className="text-sm font-extrabold text-slate-900">Listing details</div>
+                  <dl className="mt-3 space-y-2 text-sm">
+                    <div className="flex items-baseline justify-between gap-4">
+                      <dt className="font-semibold text-slate-600">Category</dt>
+                      <dd className="font-semibold text-slate-900">{item.category}</dd>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-4">
+                      <dt className="font-semibold text-slate-600">Species</dt>
+                      <dd className="font-semibold text-slate-900">{item.species}</dd>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-4">
+                      <dt className="font-semibold text-slate-600">Sex</dt>
+                      <dd className="font-semibold text-slate-900">{item.sex}</dd>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-4">
+                      <dt className="font-semibold text-slate-600">Location</dt>
+                      <dd className="font-semibold text-slate-900">{item.location}</dd>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-4">
+                      <dt className="font-semibold text-slate-600">Price type</dt>
+                      <dd className="font-semibold text-slate-900">{priceSuffix}</dd>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-4">
+                      <dt className="font-semibold text-slate-600">Shipping</dt>
+                      <dd className={["font-semibold", details.willingToShip ? "text-emerald-700" : "text-slate-900"].join(" ")}>
+                        {details.willingToShip ? "Shipping offered" : "Local pickup or delivery only"}
+                      </dd>
+                    </div>
+                  </dl>
                 </div>
-              </div>
+              </aside>
             </div>
 
-            {/* Right column: seller + contact + listing details */}
-            <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-5 lg:sticky lg:top-24">
-              <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Price</div>
-              <div className="mt-1 flex items-baseline gap-2">
-                <div className="text-3xl font-extrabold text-slate-900">{centsToDollars(item.priceCents)}</div>
-                <div className="text-sm font-semibold text-slate-600">{priceSuffix}</div>
-              </div>
-              <div className="mt-2 text-sm font-semibold text-slate-700">
-                <span className="text-slate-500">{qtyLabel}</span>
-              </div>
-
-              <div className="mt-5 border-t border-slate-200 pt-4">
-                <div className="text-sm font-extrabold text-slate-900">Listing owner</div>
-                <div className="mt-2 flex items-center gap-3">
-                  {item.sellerAvatarUrl ? (
-                    <img
-                      src={item.sellerAvatarUrl}
-                      alt=""
-                      className="h-10 w-10 rounded-full border border-slate-200 object-cover"
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  ) : (
-                    <DefaultAvatar />
-                  )}
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-slate-900">
-                      {item.sellerUsername ? item.sellerUsername : "Fishclassifieds user"}
-                    </div>
-                    <div className="text-xs font-semibold text-slate-600">Fishclassifieds member</div>
-                  </div>
-                </div>
-                {item.sellerBio && item.sellerBio.trim() ? (
-                  <div className="mt-3 whitespace-pre-wrap text-xs font-semibold text-slate-700">
-                    {item.sellerBio.trim()}
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="mt-4 border-t border-slate-200 pt-4">
-                <div className="text-sm font-extrabold text-slate-900">Contact</div>
-                {!item.phone ? (
-                  <div className="mt-2 text-sm font-semibold text-slate-700">Phone not available.</div>
-                ) : phoneRevealed ? (
-                  <a
-                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 hover:bg-slate-50"
-                    href={`tel:${phoneDigits}`}
-                  >
-                    {item.phone}
-                    <span className="text-xs font-semibold text-slate-600">(tap to call)</span>
-                  </a>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setPhoneRevealed(true)}
-                      className="mt-3 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-                    >
-                      Reveal phone number
-                    </button>
-                    <div className="mt-2 text-xs font-semibold text-slate-600">
-                      The listing owner's phone number is hidden for privacy.
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div className="mt-4 border-t border-slate-200 pt-4">
-                <div className="text-sm font-extrabold text-slate-900">Listing details</div>
-                <dl className="mt-3 space-y-2 text-sm">
-                  <div className="flex items-baseline justify-between gap-4">
-                    <dt className="font-semibold text-slate-600">Category</dt>
-                    <dd className="font-semibold text-slate-900">{item.category}</dd>
-                  </div>
-                  <div className="flex items-baseline justify-between gap-4">
-                    <dt className="font-semibold text-slate-600">Species</dt>
-                    <dd className="font-semibold text-slate-900">{item.species}</dd>
-                  </div>
-                  <div className="flex items-baseline justify-between gap-4">
-                    <dt className="font-semibold text-slate-600">Sex</dt>
-                    <dd className="font-semibold text-slate-900">{item.sex}</dd>
-                  </div>
-                  <div className="flex items-baseline justify-between gap-4">
-                    <dt className="font-semibold text-slate-600">Location</dt>
-                    <dd className="font-semibold text-slate-900">{item.location}</dd>
-                  </div>
-                  <div className="flex items-baseline justify-between gap-4">
-                    <dt className="font-semibold text-slate-600">Price type</dt>
-                    <dd className="font-semibold text-slate-900">{priceSuffix}</dd>
-                  </div>
-                  <div className="flex items-baseline justify-between gap-4">
-                    <dt className="font-semibold text-slate-600">Shipping</dt>
-                    <dd className={["font-semibold", details.willingToShip ? "text-emerald-700" : "text-slate-900"].join(" ")}>
-                      {details.willingToShip ? "Shipping offered" : "Local pickup or delivery only"}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-            </aside>
-          </div>
-
-          <div className="mt-4 text-xs font-semibold text-slate-500">
-            Posted {postedAgo ? `${postedAgo} • ` : ""}
-            {new Date(item.createdAt).toLocaleString(undefined, {
-              year: "numeric",
-              month: "short",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </div>
+            <div className="mt-4 text-xs font-semibold text-slate-500">
+              Posted {postedAgo ? `${postedAgo} • ` : ""}
+              {new Date(item.createdAt).toLocaleString(undefined, {
+                year: "numeric",
+                month: "short",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </div>
           </>
         )}
       </main>

@@ -1049,21 +1049,23 @@ export default function EditListingPage() {
               </div>
             </div>
 
-            <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Phone number</div>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                inputMode="tel"
-                autoComplete="tel"
-                placeholder="e.g. 0400 123 456"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                required
-                minLength={6}
-                maxLength={30}
-                disabled={loading}
-              />
-            </label>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className="block sm:col-span-1">
+                <div className="mb-1 text-xs font-semibold text-slate-700">Phone number</div>
+                <input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  inputMode="tel"
+                  autoComplete="tel"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  required
+                  minLength={6}
+                  maxLength={30}
+                  disabled={loading}
+                />
+              </label>
+              <div className="hidden sm:block sm:col-span-2" aria-hidden="true" />
+            </div>
 
             <label className="block">
               <div className="mb-1 text-xs font-semibold text-slate-700">Description</div>

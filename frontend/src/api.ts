@@ -14,6 +14,8 @@ export type Listing = {
   featured?: boolean;
   featuredUntil?: number | null;
   views?: number;
+  sellerUsername?: string | null;
+  sellerAvatarUrl?: string | null;
   title: string;
   category: Category;
   species: string;

@@ -421,24 +421,13 @@ export default function HomePage() {
             {featuredErr && (
               <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-800 shadow-sm">
                 {featuredErr}
-                <div className="mt-2 text-xs font-semibold text-slate-600">
-                  If this is your first time enabling featured listings, run:
-                  <div className="mt-1 font-mono text-[11px] text-slate-500">
-                    npm --prefix backend run db:migration -- --seed-featured
-                  </div>
-                </div>
               </div>
             )}
 
             {!featuredLoading && !featuredErr && featured.length === 0 && (
               <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-800 shadow-sm">
                 No featured listings yet.
-                <div className="mt-2 text-xs font-semibold text-slate-600">
-                  To demo this, run:
-                  <div className="mt-1 font-mono text-[11px] text-slate-500">
-                    npm --prefix backend run db:migration -- --seed-featured
-                  </div>
-                </div>
+                <div className="mt-2 text-xs font-semibold text-slate-600">Check back later for promoted listings.</div>
               </div>
             )}
 

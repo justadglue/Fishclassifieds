@@ -25,71 +25,6 @@ const app = express();
 const db = openDb();
 (app as any).locals.db = db;
 
-const HAS_LISTINGS_FEATURED = (() => {
-  try {
-    const rows = db.pragma("table_info(listings)") as Array<{ name: string }>;
-    return rows.some((r) => r.name === "featured");
-  } catch {
-    return false;
-  }
-})();
-
-const HAS_LISTINGS_VIEWS = (() => {
-  try {
-    const rows = db.pragma("table_info(listings)") as Array<{ name: string }>;
-    return rows.some((r) => r.name === "views");
-  } catch {
-    return false;
-  }
-})();
-
-const HAS_LISTINGS_FEATURED_UNTIL = (() => {
-  try {
-    const rows = db.pragma("table_info(listings)") as Array<{ name: string }>;
-    return rows.some((r) => r.name === "featured_until");
-  } catch {
-    return false;
-  }
-})();
-
-const HAS_LISTINGS_USER_ID = (() => {
-  try {
-    const rows = db.pragma("table_info(listings)") as Array<{ name: string }>;
-    return rows.some((r) => r.name === "user_id");
-  } catch {
-    return false;
-  }
-})();
-
-const HAS_LISTINGS_PHONE = (() => {
-  try {
-    const rows = db.pragma("table_info(listings)") as Array<{ name: string }>;
-    return rows.some((r) => r.name === "phone");
-  } catch {
-    return false;
-  }
-})();
-
-const HAS_LISTINGS_SEX = (() => {
-  try {
-    const rows = db.pragma("table_info(listings)") as Array<{ name: string }>;
-    return rows.some((r) => r.name === "sex");
-  } catch {
-    return false;
-  }
-})();
-
-const HAS_USERS_FIRST_LAST = (() => {
-  try {
-    const rows = db.pragma("table_info(users)") as Array<{ name: string }>;
-    const hasFirst = rows.some((r) => r.name === "first_name");
-    const hasLast = rows.some((r) => r.name === "last_name");
-    return hasFirst && hasLast;
-  } catch {
-    return false;
-  }
-})();
-
 app.set("trust proxy", 1);
 
 app.use(
@@ -389,11 +324,6 @@ function mapProfileRow(row: any) {
 }
 
 app.get("/api/profile", requireAuth, (req, res) => {
-  if (!HAS_USERS_FIRST_LAST) {
-    return res.status(400).json({
-      error: "DB is missing users.first_name / users.last_name. Run: npm --prefix backend run db:migration",
-    });
-  }
   const user = req.user!;
   const u = db
     .prepare(`SELECT id,email,username,first_name,last_name FROM users WHERE id = ?`)
@@ -416,11 +346,6 @@ app.get("/api/profile", requireAuth, (req, res) => {
 });
 
 app.put("/api/profile", requireAuth, (req, res) => {
-  if (!HAS_USERS_FIRST_LAST) {
-    return res.status(400).json({
-      error: "DB is missing users.first_name / users.last_name. Run: npm --prefix backend run db:migration",
-    });
-  }
   const user = req.user!;
   const parsed = ProfileSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -549,21 +474,6 @@ VALUES(?,?,?,?,?)
 
 app.post("/api/listings", requireAuth, (req, res) => {
   runAutoExpirePass();
-  if (!HAS_LISTINGS_USER_ID) {
-    return res.status(400).json({
-      error: "DB is missing listings.user_id. Run: npm --prefix backend run db:migration",
-    });
-  }
-  if (!HAS_LISTINGS_PHONE) {
-    return res.status(400).json({
-      error: "DB is missing listings.phone. Run: npm --prefix backend run db:migration",
-    });
-  }
-  if (!HAS_LISTINGS_SEX) {
-    return res.status(400).json({
-      error: "DB is missing listings.sex. Run: npm --prefix backend run db:migration",
-    });
-  }
   const parsed = CreateListingSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
@@ -626,12 +536,6 @@ VALUES(?,?,?,?,?,?)`
 
 app.get("/api/my/listings", requireAuth, (req, res) => {
   runAutoExpirePass();
-  if (!HAS_LISTINGS_USER_ID) {
-    return res.status(400).json({
-      error: "DB is missing listings.user_id. Run: npm --prefix backend run db:migration",
-    });
-  }
-
   const includeDeleted = String(req.query.includeDeleted ?? "").trim() === "1";
   const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 100;
@@ -690,17 +594,10 @@ app.get("/api/listings", (req, res) => {
   where.push(`resolution = 'none'`);
 
   if (featured === "1") {
-    if (!HAS_LISTINGS_FEATURED) {
-      return res.status(400).json({
-        error: "DB is missing listings.featured. Run: npm --prefix backend run db:migration -- --seed-featured",
-      });
-    }
     where.push(`featured = 1`);
     // Only show currently-featured items to the public “featured carousel”.
-    if (HAS_LISTINGS_FEATURED_UNTIL) {
-      where.push(`(featured_until IS NULL OR featured_until > ?)`);
-      params.push(Date.now());
-    }
+    where.push(`(featured_until IS NULL OR featured_until > ?)`);
+    params.push(Date.now());
   }
 
   if (q) {
@@ -766,7 +663,7 @@ app.get("/api/listings/:id", optionalAuth, (req, res) => {
   if (!isOwner && !isPublic) return res.status(404).json({ error: "Not found" });
 
   // Track views for public (non-owner) listing detail views.
-  if (HAS_LISTINGS_VIEWS && !isOwner && isPublic) {
+  if (!isOwner && isPublic) {
     db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ?`).run(id);
     row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
   }
@@ -776,16 +673,6 @@ app.get("/api/listings/:id", optionalAuth, (req, res) => {
 
 app.patch("/api/listings/:id", requireAuth, (req, res) => {
   runAutoExpirePass();
-  if (!HAS_LISTINGS_PHONE) {
-    return res.status(400).json({
-      error: "DB is missing listings.phone. Run: npm --prefix backend run db:migration",
-    });
-  }
-  if (!HAS_LISTINGS_SEX) {
-    return res.status(400).json({
-      error: "DB is missing listings.sex. Run: npm --prefix backend run db:migration",
-    });
-  }
   const id = req.params.id;
   const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
@@ -816,27 +703,17 @@ app.patch("/api/listings/:id", requireAuth, (req, res) => {
   };
 
   if (p.featuredUntil !== undefined) {
-    if (!HAS_LISTINGS_FEATURED_UNTIL) {
-      return res.status(400).json({
-        error: "DB is missing listings.featured_until. Run: npm --prefix backend run db:migration",
-      });
-    }
     map.featured_until = p.featuredUntil;
     // If client sets/clears featured_until but doesn't explicitly set featured, keep them in sync.
-    if (p.featured === undefined && HAS_LISTINGS_FEATURED) {
+    if (p.featured === undefined) {
       map.featured = p.featuredUntil === null ? 0 : 1;
     }
   }
 
   if (p.featured !== undefined) {
-    if (!HAS_LISTINGS_FEATURED) {
-      return res.status(400).json({
-        error: "DB is missing listings.featured. Run: npm --prefix backend run db:migration -- --seed-featured",
-      });
-    }
     map.featured = p.featured ? 1 : 0;
     // Turning off featuring clears the timer unless explicitly provided.
-    if (!p.featured && p.featuredUntil === undefined && HAS_LISTINGS_FEATURED_UNTIL) {
+    if (!p.featured && p.featuredUntil === undefined) {
       map.featured_until = null;
     }
   }
@@ -1259,21 +1136,6 @@ app.post("/api/listings/:id/mark-sold", requireAuth, (req, res) => {
 
 app.post("/api/listings/:id/relist", requireAuth, (req, res) => {
   runAutoExpirePass();
-  if (!HAS_LISTINGS_USER_ID) {
-    return res.status(400).json({
-      error: "DB is missing listings.user_id. Run: npm --prefix backend run db:migration",
-    });
-  }
-  if (!HAS_LISTINGS_PHONE) {
-    return res.status(400).json({
-      error: "DB is missing listings.phone. Run: npm --prefix backend run db:migration",
-    });
-  }
-  if (!HAS_LISTINGS_SEX) {
-    return res.status(400).json({
-      error: "DB is missing listings.sex. Run: npm --prefix backend run db:migration",
-    });
-  }
 
   const id = req.params.id;
   const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
@@ -1289,6 +1151,8 @@ app.post("/api/listings/:id/relist", requireAuth, (req, res) => {
   const now = nowIso();
   const newId = crypto.randomUUID();
   const newOwnerToken = crypto.randomUUID();
+  const phone = String((row as any).phone ?? "").trim();
+  if (!phone) return res.status(400).json({ error: "Listing is missing required phone number" });
 
   const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
   const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
@@ -1323,7 +1187,7 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
       row.price_cents,
       row.location,
       row.description,
-      String((row as any).phone ?? "").trim() || String((row as any).contact ?? "").trim() || "",
+      phone,
       row.image_url ?? null,
       "paused",
       expiresAt,
@@ -1379,12 +1243,36 @@ function mapListing(req: express.Request, row: ListingRow & any) {
   const images = getImagesForListing(req, row.id);
   const status = String(row.status ?? "active") as ListingStatus;
   const resolution = String(row.resolution ?? "none") as ListingResolution;
+  const sellerUsername = (() => {
+    try {
+      const uid = (row as any).user_id;
+      if (uid === null || uid === undefined) return null;
+      const r = db.prepare(`SELECT username FROM users WHERE id = ?`).get(Number(uid)) as any;
+      return r?.username ? String(r.username) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const sellerAvatarUrl = (() => {
+    try {
+      const uid = (row as any).user_id;
+      if (uid === null || uid === undefined) return null;
+      const r = db.prepare(`SELECT avatar_url FROM user_profiles WHERE user_id = ?`).get(Number(uid)) as any;
+      const raw = r?.avatar_url ? String(r.avatar_url) : "";
+      if (!raw) return null;
+      return toAbs(req, raw);
+    } catch {
+      return null;
+    }
+  })();
 
   return {
     id: row.id,
-    featured: HAS_LISTINGS_FEATURED ? Boolean((row as any).featured) : false,
-    featuredUntil: HAS_LISTINGS_FEATURED_UNTIL ? (row as any).featured_until ?? null : null,
-    views: HAS_LISTINGS_VIEWS ? Number((row as any).views ?? 0) : 0,
+    featured: Boolean(Number((row as any).featured ?? 0)),
+    featuredUntil: (row as any).featured_until ?? null,
+    views: Number((row as any).views ?? 0),
+    sellerUsername,
+    sellerAvatarUrl,
     title: row.title,
     category: row.category,
     species: row.species,

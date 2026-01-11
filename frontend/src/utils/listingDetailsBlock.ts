@@ -7,7 +7,7 @@ export type ListingSaleDetails = {
   willingToShip: boolean;
 };
 
-const MAX_CUSTOM_PRICE_TEXT_LEN = 15;
+const MAX_CUSTOM_PRICE_TEXT_LEN = 20;
 
 const START = "[[FC_SALE_DETAILS]]";
 const END = "[[/FC_SALE_DETAILS]]";

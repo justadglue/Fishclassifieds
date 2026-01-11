@@ -1,7 +1,18 @@
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import Header from "../components/Header";
 
 export default function FaqPage() {
+  const { hash } = useLocation();
+  const [highlightShipping, setHighlightShipping] = useState(false);
+
+  useEffect(() => {
+    if (hash !== "#fish-shipping") return;
+    setHighlightShipping(true);
+    const t = window.setTimeout(() => setHighlightShipping(false), 1000);
+    return () => window.clearTimeout(t);
+  }, [hash]);
+
   return (
     <div className="min-h-full bg-slate-950 text-white">
       <Header maxWidth="6xl" />
@@ -20,7 +31,13 @@ export default function FaqPage() {
             </div>
           </div>
 
-          <div id="fish-shipping" className="scroll-mt-24 rounded-2xl border border-white/10 bg-white/5 p-5">
+          <div
+            id="fish-shipping"
+            className={[
+              "scroll-mt-24 rounded-2xl border bg-white/5 p-5 transition-colors duration-1000",
+              highlightShipping ? "border-white bg-amber ring-2 ring-amber-200/20" : "border-white/10",
+            ].join(" ")}
+          >
             <div className="text-sm font-extrabold">How do I ship fish safely?</div>
             <div className="mt-2 space-y-2 text-sm font-semibold text-white/75">
               <div>

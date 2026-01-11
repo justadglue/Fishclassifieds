@@ -125,7 +125,7 @@ export default function EditListingPage() {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<Category>("Fish");
   const [species, setSpecies] = useState("");
-  const [sex, setSex] = useState<ListingSex>("Unknown");
+  const [sex, setSex] = useState<ListingSex | "">("");
   const [priceDollars, setPriceDollars] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [priceType, setPriceType] = useState<PriceType>("each");
@@ -171,7 +171,7 @@ export default function EditListingPage() {
         setTitle(l.title);
         setCategory(l.category);
         setSpecies(l.species);
-        setSex(l.sex ?? "Unknown");
+        setSex(l.sex ?? "");
         setPriceDollars(centsToDollarsString(l.priceCents));
         setLocation(l.location);
         setPhone(l.phone ?? "");
@@ -451,6 +451,11 @@ export default function EditListingPage() {
       return;
     }
 
+    if (!sex) {
+      setErr("Please select Sex.");
+      return;
+    }
+
     const phoneTrim = phone.trim();
     if (!phoneTrim) {
       setErr("Phone number is required.");
@@ -495,7 +500,7 @@ export default function EditListingPage() {
           title: title.trim(),
           category,
           species: species.trim(),
-          sex,
+          sex: sex as ListingSex,
           priceCents,
           location: location.trim(),
           description: finalDescription,
@@ -514,7 +519,7 @@ export default function EditListingPage() {
         title: title.trim(),
         category,
         species: species.trim(),
-        sex,
+        sex: sex as ListingSex,
         priceCents,
         location: location.trim(),
         description: finalDescription,
@@ -539,7 +544,7 @@ export default function EditListingPage() {
     setTitle(l.title);
     setCategory(l.category);
     setSpecies(l.species);
-    setSex(l.sex ?? "Unknown");
+    setSex(l.sex ?? "");
     setPriceDollars(centsToDollarsString(l.priceCents));
     setLocation(l.location);
     setPhone(l.phone ?? "");
@@ -901,7 +906,11 @@ export default function EditListingPage() {
                   onChange={(e) => setSex(e.target.value as ListingSex)}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
                   disabled={loading}
+                  required
                 >
+                  <option value="" disabled hidden>
+                    Select…
+                  </option>
                   {SEXES.map((s) => (
                     <option key={s} value={s}>
                       {s}

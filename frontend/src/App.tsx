@@ -20,10 +20,20 @@ import WantedDetailPage from "./pages/WantedDetailPage.tsx";
 import WantedEditPage from "./pages/WantedEditPage.tsx";
 
 function ScrollToTopOnRouteChange() {
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
   useEffect(() => {
+    if (hash) {
+      const id = hash.replace(/^#/, "");
+      // Wait a tick so the next route's DOM is mounted.
+      window.setTimeout(() => {
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        else window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      }, 0);
+      return;
+    }
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [pathname]);
+  }, [pathname, hash]);
   return null;
 }
 

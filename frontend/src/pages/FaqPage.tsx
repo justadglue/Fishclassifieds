@@ -20,6 +20,23 @@ export default function FaqPage() {
             </div>
           </div>
 
+          <div id="fish-shipping" className="scroll-mt-24 rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div className="text-sm font-extrabold">How do I ship fish safely?</div>
+            <div className="mt-2 space-y-2 text-sm font-semibold text-white/75">
+              <div>
+                Shipping live fish requires correct packing and planning. This is a placeholder section for now — we can expand it later.
+              </div>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>Use proper fish bags, insulation, and heat/cold packs as needed.</li>
+                <li>Pack to avoid leaks, temperature swings, and excessive sloshing.</li>
+                <li>Check weather and carrier rules before shipping.</li>
+              </ul>
+              <div className="text-white/60">
+                Tip: If you’re not confident you can ship correctly, leave “Willing to ship” unchecked.
+              </div>
+            </div>
+          </div>
+
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
             <div className="text-sm font-extrabold">How do I browse listings?</div>
             <div className="mt-2 text-sm font-semibold text-white/75">

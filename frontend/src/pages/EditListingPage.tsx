@@ -26,6 +26,7 @@ import {
   encodeSaleDetailsIntoDescription,
   type PriceType,
 } from "../utils/listingDetailsBlock";
+import ShippingInfoButton from "../components/ShippingInfoButton";
 
 function dollarsToCents(v: string) {
   const n = Number(v);
@@ -936,15 +937,18 @@ export default function EditListingPage() {
                   Location
                 </div>
                 <div className="flex h-10 items-center">
-                  <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 select-none">
-                    <input
-                      type="checkbox"
-                      checked={willingToShip}
-                      onChange={(e) => setWillingToShip(e.target.checked)}
-                      disabled={loading}
-                    />
-                    Willing to ship
-                  </label>
+                  <div className="inline-flex items-center gap-1">
+                    <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 select-none">
+                      <input
+                        type="checkbox"
+                        checked={willingToShip}
+                        onChange={(e) => setWillingToShip(e.target.checked)}
+                        disabled={loading}
+                      />
+                      Willing to ship
+                    </label>
+                    <ShippingInfoButton disabled={loading} />
+                  </div>
                 </div>
               </div>
             </div>

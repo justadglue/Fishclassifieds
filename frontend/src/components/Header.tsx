@@ -126,9 +126,11 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
           Post a listing
         </Link>
 
-        <Link to="/me" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-          My listings
-        </Link>
+        {user ? (
+          <Link to="/me" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+            My listings
+          </Link>
+        ) : null}
 
         {/* Top-right search: icon-only until clicked */}
         <div className="relative" ref={searchRef}>

@@ -34,8 +34,10 @@ export default function FaqPage() {
           <div
             id="fish-shipping"
             className={[
-              "scroll-mt-24 rounded-2xl border bg-white/5 p-5 transition-colors duration-1000",
-              highlightShipping ? "border-amber-200/40 bg-amber-200/10 ring-2 ring-amber-200/20" : "border-white/10",
+              "scroll-mt-24 relative rounded-2xl border bg-white/5 p-5 transition-colors duration-1000",
+              // Fade the glow (ring) with opacity so it matches the border fade timing.
+              "after:pointer-events-none after:absolute after:inset-0 after:rounded-2xl after:content-[''] after:ring-2 after:ring-amber-200/20 after:opacity-0 after:transition-opacity after:duration-1000",
+              highlightShipping ? "border-amber-200/40 bg-amber-200/10 after:opacity-100" : "border-white/10",
             ].join(" ")}
           >
             <div className="text-sm font-extrabold">How do I ship fish safely?</div>

@@ -204,25 +204,25 @@ export default function BrowseListings() {
         const data =
           browseType === "sale"
             ? await fetchListings({
-                q: q || undefined,
-                category: category || undefined,
-                species: species || undefined,
-                minPriceCents: minCents,
-                maxPriceCents: maxCents,
-                sort,
-                limit: per,
-                offset,
-              })
+              q: q || undefined,
+              category: category || undefined,
+              species: species || undefined,
+              minPriceCents: minCents,
+              maxPriceCents: maxCents,
+              sort,
+              limit: per,
+              offset,
+            })
             : await fetchWanted({
-                q: q || undefined,
-                category: category || undefined,
-                species: species || undefined,
-                status: wantedStatus,
-                minBudgetCents: minCents,
-                maxBudgetCents: maxCents,
-                limit: per,
-                offset,
-              });
+              q: q || undefined,
+              category: category || undefined,
+              species: species || undefined,
+              status: wantedStatus,
+              minBudgetCents: minCents,
+              maxBudgetCents: maxCents,
+              limit: per,
+              offset,
+            });
 
         if (cancelled) return;
 
@@ -451,9 +451,6 @@ export default function BrowseListings() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-xl font-extrabold text-slate-900">Browse</h1>
-                  <div className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700">
-                    {browseType === "sale" ? "For sale" : "Wanted"}
-                  </div>
                 </div>
                 <div className="mt-1 text-sm text-slate-600">
                   {loading ? "Loading..." : total === 0 ? "0 results" : `Showing ${showingFrom}–${showingTo} of ${total}`}
@@ -517,88 +514,88 @@ export default function BrowseListings() {
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {browseType === "sale"
                 ? saleItems.map((l) => {
-                    const assets = resolveAssets(l.images ?? []);
-                    const hero = assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+                  const assets = resolveAssets(l.images ?? []);
+                  const hero = assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
 
-                    return (
-                      <Link
-                        key={l.id}
-                        to={`/listing/${l.id}`}
-                        state={{
-                          from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "listings" },
-                        }}
-                        className="group overflow-hidden rounded-2xl border border-slate-200 bg-white hover:border-slate-300"
-                      >
-                        <div className="relative aspect-4/3 w-full bg-slate-100">
-                          <StatusPill l={l} />
-                          {hero ? (
-                            <img
-                              src={hero}
-                              alt={l.title}
-                              className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
-                              loading="lazy"
-                              decoding="async"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">
-                              No image
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-extrabold text-slate-900">{l.title}</div>
-                              <div className="mt-1 truncate text-xs font-semibold text-slate-600">
-                                {l.category} • {l.species} • {l.location}
-                              </div>
-                            </div>
-                            <div className="shrink-0 rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold text-white">
-                              {centsToDollars(l.priceCents)}
-                            </div>
-                          </div>
-                          <div className="mt-3 line-clamp-2 text-xs text-slate-700">{l.description}</div>
-                          <div className="mt-3 text-[11px] font-semibold text-slate-500">{relativeTime(l.createdAt)}</div>
-                        </div>
-                      </Link>
-                    );
-                  })
-                : wantedItems.map((w) => (
+                  return (
                     <Link
-                      key={w.id}
-                      to={`/wanted/${w.id}`}
+                      key={l.id}
+                      to={`/listing/${l.id}`}
+                      state={{
+                        from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "listings" },
+                      }}
                       className="group overflow-hidden rounded-2xl border border-slate-200 bg-white hover:border-slate-300"
                     >
+                      <div className="relative aspect-4/3 w-full bg-slate-100">
+                        <StatusPill l={l} />
+                        {hero ? (
+                          <img
+                            src={hero}
+                            alt={l.title}
+                            className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">
+                            No image
+                          </div>
+                        )}
+                      </div>
+
                       <div className="p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-extrabold text-slate-900">{w.title}</div>
+                            <div className="truncate text-sm font-extrabold text-slate-900">{l.title}</div>
                             <div className="mt-1 truncate text-xs font-semibold text-slate-600">
-                              {w.category}
-                              {w.species ? ` • ${w.species}` : ""} • {w.location}
+                              {l.category} • {l.species} • {l.location}
                             </div>
                           </div>
-                          <div
-                            className={[
-                              "shrink-0 rounded-full px-2 py-1 text-[11px] font-bold",
-                              w.status === "open" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700",
-                            ].join(" ")}
-                          >
-                            {w.status === "open" ? "Open" : "Closed"}
+                          <div className="shrink-0 rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold text-white">
+                            {centsToDollars(l.priceCents)}
                           </div>
                         </div>
-
-                        <div className="mt-3 text-xs font-semibold text-slate-700">{budgetLabel(w)}</div>
-                        <div className="mt-3 line-clamp-3 text-xs text-slate-700">{w.description}</div>
-
-                        <div className="mt-3 flex items-center justify-between gap-3 text-[11px] font-semibold text-slate-500">
-                          <div>{relativeTime(w.createdAt)}</div>
-                          <div className="truncate">{w.username ? `Wanted by @${w.username}` : ""}</div>
-                        </div>
+                        <div className="mt-3 line-clamp-2 text-xs text-slate-700">{l.description}</div>
+                        <div className="mt-3 text-[11px] font-semibold text-slate-500">{relativeTime(l.createdAt)}</div>
                       </div>
                     </Link>
-                  ))}
+                  );
+                })
+                : wantedItems.map((w) => (
+                  <Link
+                    key={w.id}
+                    to={`/wanted/${w.id}`}
+                    className="group overflow-hidden rounded-2xl border border-slate-200 bg-white hover:border-slate-300"
+                  >
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-extrabold text-slate-900">{w.title}</div>
+                          <div className="mt-1 truncate text-xs font-semibold text-slate-600">
+                            {w.category}
+                            {w.species ? ` • ${w.species}` : ""} • {w.location}
+                          </div>
+                        </div>
+                        <div
+                          className={[
+                            "shrink-0 rounded-full px-2 py-1 text-[11px] font-bold",
+                            w.status === "open" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700",
+                          ].join(" ")}
+                        >
+                          {w.status === "open" ? "Open" : "Closed"}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 text-xs font-semibold text-slate-700">{budgetLabel(w)}</div>
+                      <div className="mt-3 line-clamp-3 text-xs text-slate-700">{w.description}</div>
+
+                      <div className="mt-3 flex items-center justify-between gap-3 text-[11px] font-semibold text-slate-500">
+                        <div>{relativeTime(w.createdAt)}</div>
+                        <div className="truncate">{w.username ? `Wanted by @${w.username}` : ""}</div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
             </div>
 
             <PaginationBar

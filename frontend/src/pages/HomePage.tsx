@@ -13,9 +13,7 @@ function centsToDollars(cents: number) {
 function featuredHeroUrl(listing: Listing) {
   const assets = resolveAssets(listing.images ?? []);
   const hero = assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
-  if (hero) return hero;
-  // Always-available placeholder image if the listing has no images.
-  return `https://picsum.photos/seed/${encodeURIComponent(listing.id)}/1200/900`;
+  return hero;
 }
 
 function FeaturedCard({ item }: { item: Listing }) {
@@ -23,13 +21,17 @@ function FeaturedCard({ item }: { item: Listing }) {
   return (
     <div className="group min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
       <div className="relative aspect-4/3 w-full bg-slate-100">
-        <img
-          src={hero}
-          alt={item.title}
-          className="h-full w-full object-cover opacity-90 transition-transform duration-300 group-hover:scale-[1.02]"
-          loading="lazy"
-          decoding="async"
-        />
+        {hero ? (
+          <img
+            src={hero}
+            alt={item.title}
+            className="h-full w-full object-cover opacity-90 transition-transform duration-300 group-hover:scale-[1.02]"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">No image</div>
+        )}
         <div className="absolute left-3 top-3 rounded-full bg-slate-900 px-2 py-1 text-[11px] font-bold text-white">
           Featured
         </div>
@@ -406,11 +408,11 @@ export default function HomePage() {
           <section>
             <div className="flex items-end justify-between gap-4">
               <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Featured listings</div>
-                <h2 className="mt-2 text-2xl font-black text-slate-900">Promoted listings</h2>
-                <div className="mt-1 text-sm font-semibold text-slate-600">
-                  These are paid placements. (Placeholder cards for now — we can hook this to real listings later.)
+
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  A curated selection of standout listings
                 </div>
+                <h2 className="text-2xl mt-2 font-black text-slate-900">Featured listings</h2>
               </div>
               <button type="button" onClick={() => goBrowse()} className="text-sm font-extrabold text-slate-700 hover:text-slate-900">
                 View all listings→

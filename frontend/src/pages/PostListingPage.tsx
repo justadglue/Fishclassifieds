@@ -14,7 +14,7 @@ import {
 } from "../api";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
-import { buildSaleDetailsPrefix, encodeSaleDetailsIntoDescription, type PriceUnit } from "../utils/listingDetailsBlock";
+import { buildSaleDetailsPrefix, encodeSaleDetailsIntoDescription, type PriceType } from "../utils/listingDetailsBlock";
 
 function dollarsToCents(v: string) {
   const n = Number(v);
@@ -50,7 +50,8 @@ export default function PostListingPage() {
   const [species, setSpecies] = useState("");
   const [priceDollars, setPriceDollars] = useState("");
   const [quantity, setQuantity] = useState(1);
-  const [priceUnit, setPriceUnit] = useState<PriceUnit>("each");
+  const [priceType, setPriceType] = useState<PriceType>("each");
+  const [customPriceText, setCustomPriceText] = useState("");
   const [willingToShip, setWillingToShip] = useState(false);
   const [location, setLocation] = useState("");
   const [contact, setContact] = useState("");
@@ -345,7 +346,13 @@ export default function PostListingPage() {
       return;
     }
 
-    const detailsPrefix = buildSaleDetailsPrefix({ quantity: qty, priceUnit, willingToShip });
+    const custom = customPriceText.trim();
+    if (priceType === "custom" && !custom) {
+      setErr("Please enter a custom price type (e.g. breeding pair).");
+      return;
+    }
+
+    const detailsPrefix = buildSaleDetailsPrefix({ quantity: qty, priceType, customPriceText: custom, willingToShip });
     const maxBodyLen = Math.max(1, 1000 - detailsPrefix.length);
     if (description.trim().length > maxBodyLen) {
       setErr(`Description is too long. Max ${maxBodyLen} characters when sale details are included.`);
@@ -368,7 +375,7 @@ export default function PostListingPage() {
       }
 
       const finalDescription = encodeSaleDetailsIntoDescription(
-        { quantity: qty, priceUnit, willingToShip },
+        { quantity: qty, priceType, customPriceText: custom, willingToShip },
         description
       );
 
@@ -392,8 +399,8 @@ export default function PostListingPage() {
   }
 
   const detailsPrefix = useMemo(
-    () => buildSaleDetailsPrefix({ quantity, priceUnit, willingToShip }),
-    [quantity, priceUnit, willingToShip]
+    () => buildSaleDetailsPrefix({ quantity, priceType, customPriceText, willingToShip }),
+    [quantity, priceType, customPriceText, willingToShip]
   );
   const maxDescLen = Math.max(1, 1000 - detailsPrefix.length);
 
@@ -461,8 +468,8 @@ export default function PostListingPage() {
             />
           </label>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
+          <div className="grid gap-3 sm:grid-cols-6">
+            <label className="block sm:col-span-2">
               <div className="mb-1 text-xs font-semibold text-slate-700">Category</div>
               <select
                 value={category}
@@ -477,7 +484,7 @@ export default function PostListingPage() {
               </select>
             </label>
 
-            <label className="block">
+            <label className="block sm:col-span-3">
               <div className="mb-1 text-xs font-semibold text-slate-700">Species</div>
               <input
                 value={species}
@@ -489,9 +496,13 @@ export default function PostListingPage() {
                 placeholder="e.g. Betta splendens"
               />
             </label>
+
+            {/* Spacer: keeps Species at 1/2 width while Category is 1/3 */}
+            <div className="hidden sm:block sm:col-span-1" aria-hidden="true" />
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          {/* Row 2: Price + Quantity + Price type */}
+          <div className="grid gap-3 sm:grid-cols-3">
             <label className="block">
               <div className="mb-1 text-xs font-semibold text-slate-700">Price ($)</div>
               <input
@@ -504,21 +515,6 @@ export default function PostListingPage() {
               />
             </label>
 
-            <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
-              <input
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                required
-                minLength={2}
-                maxLength={80}
-                placeholder="e.g. Brisbane"
-              />
-            </label>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
             <label className="block">
               <div className="mb-1 text-xs font-semibold text-slate-700">Quantity</div>
               <input
@@ -535,23 +531,60 @@ export default function PostListingPage() {
             </label>
 
             <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Price is per</div>
+              <div className="mb-1 text-xs font-semibold text-slate-700">Price type</div>
               <select
-                value={priceUnit}
-                onChange={(e) => setPriceUnit(e.target.value as PriceUnit)}
+                value={priceType}
+                onChange={(e) => setPriceType(e.target.value as PriceType)}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
               >
                 <option value="each">Each</option>
-                <option value="pair">Pair</option>
-                <option value="lot">Lot / group</option>
+                <option value="all">All</option>
+                <option value="custom">Custom…</option>
               </select>
             </label>
-
-            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
-              <input type="checkbox" checked={willingToShip} onChange={(e) => setWillingToShip(e.target.checked)} />
-              Willing to ship
-            </label>
           </div>
+
+          {/* Row 3: Location + Shipping */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block">
+              <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                required
+                minLength={2}
+                maxLength={80}
+                placeholder="e.g. Brisbane"
+              />
+            </label>
+
+            <div className="grid sm:col-span-2">
+              {/* Spacer so checkbox aligns with the input row (not the label row) */}
+              <div className="mb-1 text-xs font-semibold text-transparent select-none" aria-hidden="true">
+                Location
+              </div>
+              <div className="flex h-10 items-center">
+                <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 select-none">
+                  <input type="checkbox" checked={willingToShip} onChange={(e) => setWillingToShip(e.target.checked)} />
+                  Willing to ship
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {priceType === "custom" && (
+            <label className="block">
+              <div className="mb-1 text-xs font-semibold text-slate-700">Custom price type</div>
+              <input
+                value={customPriceText}
+                onChange={(e) => setCustomPriceText(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                placeholder="e.g. breeding pair"
+                maxLength={80}
+              />
+            </label>
+          )}
 
           <label className="block">
             <div className="mb-1 text-xs font-semibold text-slate-700">Contact (optional)</div>

@@ -24,7 +24,7 @@ import {
   buildSaleDetailsPrefix,
   decodeSaleDetailsFromDescription,
   encodeSaleDetailsIntoDescription,
-  type PriceUnit,
+  type PriceType,
 } from "../utils/listingDetailsBlock";
 
 function dollarsToCents(v: string) {
@@ -123,7 +123,8 @@ export default function EditListingPage() {
   const [species, setSpecies] = useState("");
   const [priceDollars, setPriceDollars] = useState("");
   const [quantity, setQuantity] = useState(1);
-  const [priceUnit, setPriceUnit] = useState<PriceUnit>("each");
+  const [priceType, setPriceType] = useState<PriceType>("each");
+  const [customPriceText, setCustomPriceText] = useState("");
   const [willingToShip, setWillingToShip] = useState(false);
   const [location, setLocation] = useState("");
   const [contact, setContact] = useState("");
@@ -165,7 +166,8 @@ export default function EditListingPage() {
         setContact(l.contact ?? "");
         const decoded = decodeSaleDetailsFromDescription(l.description);
         setQuantity(decoded.details.quantity);
-        setPriceUnit(decoded.details.priceUnit);
+        setPriceType(decoded.details.priceType);
+        setCustomPriceText(decoded.details.customPriceText);
         setWillingToShip(decoded.details.willingToShip);
         setDescription(decoded.body);
         setPhotos((l.images ?? []).slice(0, 6).map((a, i) => ({ kind: "existing" as const, id: `existing-${i}-${a.fullUrl}`, asset: a })));
@@ -399,7 +401,13 @@ export default function EditListingPage() {
       return;
     }
 
-    const detailsPrefix = buildSaleDetailsPrefix({ quantity: qty, priceUnit, willingToShip });
+    const custom = customPriceText.trim();
+    if (priceType === "custom" && !custom) {
+      setErr("Please enter a custom price type (e.g. breeding pair).");
+      return;
+    }
+
+    const detailsPrefix = buildSaleDetailsPrefix({ quantity: qty, priceType, customPriceText: custom, willingToShip });
     const maxBodyLen = Math.max(1, 1000 - detailsPrefix.length);
     if (description.trim().length > maxBodyLen) {
       setErr(`Description is too long. Max ${maxBodyLen} characters when sale details are included.`);
@@ -424,10 +432,7 @@ export default function EditListingPage() {
       if (relistMode) {
         // Relist: do not modify anything until user clicks Update listing.
         // Create a brand new listing (active/pending depending on server config), then archive the sold one.
-        const finalDescription = encodeSaleDetailsIntoDescription(
-          { quantity: qty, priceUnit, willingToShip },
-          description
-        );
+        const finalDescription = encodeSaleDetailsIntoDescription({ quantity: qty, priceType, customPriceText: custom, willingToShip }, description);
         const created = await createListing({
           title: title.trim(),
           category,
@@ -445,7 +450,7 @@ export default function EditListingPage() {
         return;
       }
 
-      const finalDescription = encodeSaleDetailsIntoDescription({ quantity: qty, priceUnit, willingToShip }, description);
+      const finalDescription = encodeSaleDetailsIntoDescription({ quantity: qty, priceType, customPriceText: custom, willingToShip }, description);
       const updated = await updateListing(id, {
         title: title.trim(),
         category,
@@ -479,7 +484,8 @@ export default function EditListingPage() {
     setContact(l.contact ?? "");
     const decoded = decodeSaleDetailsFromDescription(l.description);
     setQuantity(decoded.details.quantity);
-    setPriceUnit(decoded.details.priceUnit);
+    setPriceType(decoded.details.priceType);
+    setCustomPriceText(decoded.details.customPriceText);
     setWillingToShip(decoded.details.willingToShip);
     setDescription(decoded.body);
     setPhotos((l.images ?? []).slice(0, 6).map((a, i) => ({ kind: "existing" as const, id: `existing-${i}-${a.fullUrl}`, asset: a })));
@@ -537,8 +543,8 @@ export default function EditListingPage() {
 
   const canSave = !loading && !isUploading;
   const detailsPrefix = useMemo(
-    () => buildSaleDetailsPrefix({ quantity, priceUnit, willingToShip }),
-    [quantity, priceUnit, willingToShip]
+    () => buildSaleDetailsPrefix({ quantity, priceType, customPriceText, willingToShip }),
+    [quantity, priceType, customPriceText, willingToShip]
   );
   const maxDescLen = Math.max(1, 1000 - detailsPrefix.length);
 
@@ -797,8 +803,8 @@ export default function EditListingPage() {
               />
             </label>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block">
+            <div className="grid gap-3 sm:grid-cols-6">
+              <label className="block sm:col-span-2">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Category</div>
                 <select
                   value={category}
@@ -814,7 +820,7 @@ export default function EditListingPage() {
                 </select>
               </label>
 
-              <label className="block">
+              <label className="block sm:col-span-3">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Species</div>
                 <input
                   value={species}
@@ -826,9 +832,13 @@ export default function EditListingPage() {
                   disabled={loading}
                 />
               </label>
+
+              {/* Spacer: keeps Species at 1/2 width while Category is 1/3 */}
+              <div className="hidden sm:block sm:col-span-1" aria-hidden="true" />
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            {/* Row 2: Price + Quantity + Price type */}
+            <div className="grid gap-3 sm:grid-cols-3">
               <label className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Price ($)</div>
                 <input
@@ -841,21 +851,6 @@ export default function EditListingPage() {
                 />
               </label>
 
-              <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
-                <input
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                  required
-                  minLength={2}
-                  maxLength={80}
-                  disabled={loading}
-                />
-              </label>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
               <label className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Quantity</div>
                 <input
@@ -873,29 +868,67 @@ export default function EditListingPage() {
               </label>
 
               <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Price is per</div>
+                <div className="mb-1 text-xs font-semibold text-slate-700">Price type</div>
                 <select
-                  value={priceUnit}
-                  onChange={(e) => setPriceUnit(e.target.value as PriceUnit)}
+                  value={priceType}
+                  onChange={(e) => setPriceType(e.target.value as PriceType)}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
                   disabled={loading}
                 >
                   <option value="each">Each</option>
-                  <option value="pair">Pair</option>
-                  <option value="lot">Lot / group</option>
+                  <option value="all">All</option>
+                  <option value="custom">Custom…</option>
                 </select>
               </label>
+            </div>
 
-              <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
+            {/* Row 3: Location + Shipping */}
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className="block">
+                <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
                 <input
-                  type="checkbox"
-                  checked={willingToShip}
-                  onChange={(e) => setWillingToShip(e.target.checked)}
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  required
+                  minLength={2}
+                  maxLength={80}
                   disabled={loading}
                 />
-                Willing to ship
               </label>
+
+              <div className="grid sm:col-span-2">
+                {/* Spacer so checkbox aligns with the input row (not the label row) */}
+                <div className="mb-1 text-xs font-semibold text-transparent select-none" aria-hidden="true">
+                  Location
+                </div>
+                <div className="flex h-10 items-center">
+                  <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 select-none">
+                    <input
+                      type="checkbox"
+                      checked={willingToShip}
+                      onChange={(e) => setWillingToShip(e.target.checked)}
+                      disabled={loading}
+                    />
+                    Willing to ship
+                  </label>
+                </div>
+              </div>
             </div>
+
+            {priceType === "custom" && (
+              <label className="block">
+                <div className="mb-1 text-xs font-semibold text-slate-700">Custom price type</div>
+                <input
+                  value={customPriceText}
+                  onChange={(e) => setCustomPriceText(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  placeholder="e.g. breeding pair"
+                  maxLength={80}
+                  disabled={loading}
+                />
+              </label>
+            )}
 
             <label className="block">
               <div className="mb-1 text-xs font-semibold text-slate-700">Contact (optional)</div>

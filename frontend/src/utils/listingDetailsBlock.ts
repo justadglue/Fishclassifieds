@@ -1,8 +1,9 @@
-export type PriceUnit = "each" | "pair" | "lot";
+export type PriceType = "each" | "all" | "custom";
 
 export type ListingSaleDetails = {
   quantity: number; // integer >= 1
-  priceUnit: PriceUnit;
+  priceType: PriceType;
+  customPriceText: string; // only meaningful when priceType === "custom"
   willingToShip: boolean;
 };
 
@@ -14,16 +15,27 @@ function clampInt(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.floor(n)));
 }
 
+function cleanInlineText(s: unknown, maxLen: number) {
+  const t = String(s ?? "")
+    .replace(/\r?\n/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!t) return "";
+  return t.slice(0, maxLen);
+}
+
 export function buildSaleDetailsPrefix(input: Partial<ListingSaleDetails>): string {
   const quantity = clampInt(Number(input.quantity ?? 1), 1, 9999);
-  const priceUnit: PriceUnit = input.priceUnit === "pair" || input.priceUnit === "lot" ? input.priceUnit : "each";
+  const priceType: PriceType = input.priceType === "all" || input.priceType === "custom" ? input.priceType : "each";
+  const customPriceText = priceType === "custom" ? cleanInlineText(input.customPriceText, 80) : "";
   const willingToShip = Boolean(input.willingToShip);
 
   // Keep this compact: it counts towards the server-side description max length.
   return [
     START,
     `quantity=${quantity}`,
-    `priceUnit=${priceUnit}`,
+    `priceType=${priceType}`,
+    ...(priceType === "custom" && customPriceText ? [`customPriceText=${customPriceText}`] : []),
     `willingToShip=${willingToShip ? 1 : 0}`,
     END,
     "", // blank line separating prefix from body
@@ -47,7 +59,7 @@ export function decodeSaleDetailsFromDescription(description: string): {
   const endIdx = raw.indexOf(END);
   if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) {
     return {
-      details: { quantity: 1, priceUnit: "each", willingToShip: false },
+      details: { quantity: 1, priceType: "each", customPriceText: "", willingToShip: false },
       body: raw,
       hadPrefix: false,
     };
@@ -58,8 +70,10 @@ export function decodeSaleDetailsFromDescription(description: string): {
   const after = raw.slice(afterEnd);
 
   let quantity = 1;
-  let priceUnit: PriceUnit = "each";
+  let priceType: PriceType = "each";
+  let customPriceText = "";
   let willingToShip = false;
+  let legacyPriceUnit: "each" | "pair" | "lot" | "" = "";
 
   for (const line of block.split("\n")) {
     const t = line.trim();
@@ -70,15 +84,33 @@ export function decodeSaleDetailsFromDescription(description: string): {
     const v = t.slice(eq + 1).trim();
 
     if (k === "quantity") quantity = clampInt(Number(v), 1, 9999);
-    else if (k === "priceUnit" && (v === "each" || v === "pair" || v === "lot")) priceUnit = v;
+    else if (k === "priceType" && (v === "each" || v === "all" || v === "custom")) priceType = v;
+    else if (k === "customPriceText") customPriceText = cleanInlineText(v, 80);
     else if (k === "willingToShip") willingToShip = v === "1" || v.toLowerCase() === "true";
+    else if (k === "priceUnit" && (v === "each" || v === "pair" || v === "lot")) legacyPriceUnit = v;
   }
+
+  // Backwards compatibility: earlier versions stored priceUnit=each|pair|lot.
+  if (!block.includes("priceType=") && legacyPriceUnit) {
+    if (legacyPriceUnit === "each") {
+      priceType = "each";
+      customPriceText = "";
+    } else if (legacyPriceUnit === "lot") {
+      priceType = "all";
+      customPriceText = "";
+    } else {
+      priceType = "custom";
+      customPriceText = legacyPriceUnit; // "pair"
+    }
+  }
+
+  if (priceType !== "custom") customPriceText = "";
 
   // Remove leading blank lines after the prefix.
   const body = after.replace(/^\s*\n/, "").replace(/^\s*\n/, "").trim();
 
   return {
-    details: { quantity, priceUnit, willingToShip },
+    details: { quantity, priceType, customPriceText, willingToShip },
     body,
     hadPrefix: true,
   };

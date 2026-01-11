@@ -91,7 +91,6 @@ export default function ListingPage() {
           : "(custom)";
   const qtyLabel = `Qty ${details.quantity}`;
   const postedAgo = item?.createdAt ? timeAgo(item.createdAt) : "";
-  const phoneDigits = (item?.phone ?? "").toString().replace(/[^\d+]/g, "");
 
   function DefaultAvatar() {
     return (
@@ -372,13 +371,9 @@ export default function ListingPage() {
                   {!item.phone ? (
                     <div className="mt-2 text-sm font-semibold text-slate-700">Phone not available.</div>
                   ) : phoneRevealed ? (
-                    <a
-                      className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 hover:bg-slate-50"
-                      href={`tel:${phoneDigits}`}
-                    >
+                    <div className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-extrabold text-slate-900">
                       {item.phone}
-                      <span className="text-xs font-semibold text-slate-600">(tap to call)</span>
-                    </a>
+                    </div>
                   ) : (
                     <>
                       <button

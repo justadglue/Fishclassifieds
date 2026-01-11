@@ -73,7 +73,7 @@ export default function ProfilePage() {
           sizeClassName,
         ].join(" ")}
       >
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <path d="M20 21a8 8 0 0 0-16 0" />
           <circle cx="12" cy="8" r="4" />
         </svg>
@@ -395,10 +395,10 @@ export default function ProfilePage() {
                       <img
                         src={avatarPreview}
                         alt="Avatar"
-                        className="h-14 w-14 rounded-full border border-slate-200 object-cover"
+                        className="h-[84px] w-[84px] rounded-full border border-slate-200 object-cover"
                       />
                     ) : (
-                      <DefaultAvatar sizeClassName="h-14 w-14" />
+                      <DefaultAvatar sizeClassName="h-[84px] w-[84px]" />
                     )}
 
                     <input
@@ -596,10 +596,10 @@ export default function ProfilePage() {
                 <img
                   src={avatarPreview}
                   alt="Avatar preview"
-                  className="h-14 w-14 rounded-full border border-slate-200 object-cover"
+                  className="h-[84px] w-[84px] rounded-full border border-slate-200 object-cover"
                 />
               ) : (
-                <DefaultAvatar sizeClassName="h-14 w-14" />
+                <DefaultAvatar sizeClassName="h-[84px] w-[84px]" />
               )}
               <div className="min-w-0">
                 <div className="truncate text-sm font-extrabold text-slate-900">@{readOnlyUsername || "username"}</div>

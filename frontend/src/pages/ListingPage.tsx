@@ -95,8 +95,8 @@ export default function ListingPage() {
 
   function DefaultAvatar() {
     return (
-      <div className="grid h-14 w-14 place-items-center rounded-full border border-slate-200 bg-slate-50 text-slate-600">
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <div className="grid h-[84px] w-[84px] place-items-center rounded-full border border-slate-200 bg-slate-50 text-slate-600">
+        <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <path d="M20 21a8 8 0 0 0-16 0" />
           <circle cx="12" cy="8" r="4" />
         </svg>
@@ -355,7 +355,7 @@ export default function ListingPage() {
                       <img
                         src={item.sellerAvatarUrl}
                         alt=""
-                        className="h-14 w-14 rounded-full border border-slate-200 object-cover"
+                        className="h-[84px] w-[84px] rounded-full border border-slate-200 object-cover"
                         loading="lazy"
                         decoding="async"
                       />

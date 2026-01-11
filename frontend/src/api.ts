@@ -379,7 +379,6 @@ export async function fetchProfile() {
 export async function updateProfile(input: {
   firstName?: string;
   lastName?: string;
-  avatarUrl?: string | null;
   location?: string | null;
   phone?: string | null;
   website?: string | null;
@@ -390,6 +389,16 @@ export async function updateProfile(input: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
+}
+
+export async function uploadProfileAvatar(file: File) {
+  const fd = new FormData();
+  fd.append("image", file);
+  return apiFetch<ProfileResponse>(`/api/profile/avatar`, { method: "POST", body: fd });
+}
+
+export async function deleteProfileAvatar() {
+  return apiFetch<ProfileResponse>(`/api/profile/avatar`, { method: "DELETE" });
 }
 
 export async function deleteAccount(input: { username: string; password: string }) {

@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
-import { deleteAccount, fetchProfile, resolveImageUrl, updateProfile, type ProfileResponse } from "../api";
+import {
+  deleteAccount,
+  deleteProfileAvatar,
+  fetchProfile,
+  resolveImageUrl,
+  updateProfile,
+  uploadProfileAvatar,
+  type ProfileResponse,
+} from "../api";
 import { useAuth } from "../auth";
 
 function normNullable(s: string): string | null {
@@ -10,6 +18,7 @@ function normNullable(s: string): string | null {
 }
 
 export default function ProfilePage() {
+  const MAX_AVATAR_MB = 4;
   const MAX_BIO_LEN = 200;
   const nav = useNavigate();
   const { user, loading: authLoading, refresh } = useAuth();
@@ -28,6 +37,12 @@ export default function ProfilePage() {
   const [err, setErr] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarErr, setAvatarErr] = useState<string | null>(null);
+  const [avatarDraftFile, setAvatarDraftFile] = useState<File | null>(null);
+  const [avatarDraftUrl, setAvatarDraftUrl] = useState<string>("");
+  const [avatarRemovePending, setAvatarRemovePending] = useState(false);
+
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteUsername, setDeleteUsername] = useState("");
   const [deletePassword, setDeletePassword] = useState("");
@@ -35,11 +50,62 @@ export default function ProfilePage() {
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
   const initialFocusRef = useRef<HTMLInputElement | null>(null);
+  const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const avatarPreview = useMemo(() => {
-    const u = normNullable(avatarUrl);
+    const effective =
+      avatarRemovePending ? "" : avatarDraftUrl ? avatarDraftUrl : normNullable(avatarUrl) ? String(avatarUrl) : "";
+    const u = normNullable(effective);
     return resolveImageUrl(u ?? "") ?? u;
-  }, [avatarUrl]);
+  }, [avatarDraftUrl, avatarRemovePending, avatarUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (avatarDraftUrl) URL.revokeObjectURL(avatarDraftUrl);
+    };
+  }, [avatarDraftUrl]);
+
+  function DefaultAvatar({ sizeClassName }: { sizeClassName: string }) {
+    return (
+      <div
+        className={[
+          "grid place-items-center rounded-full border border-slate-200 bg-slate-50 text-slate-600",
+          sizeClassName,
+        ].join(" ")}
+      >
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M20 21a8 8 0 0 0-16 0" />
+          <circle cx="12" cy="8" r="4" />
+        </svg>
+      </div>
+    );
+  }
+
+  function stageAvatarFile(file: File) {
+    setAvatarErr(null);
+    if (!file) return;
+    if (!file.type?.startsWith("image/")) {
+      setAvatarErr("Please choose an image file.");
+      return;
+    }
+    if (file.size > MAX_AVATAR_MB * 1024 * 1024) {
+      setAvatarErr(`Image must be ≤ ${MAX_AVATAR_MB}MB.`);
+      return;
+    }
+
+    if (avatarDraftUrl) URL.revokeObjectURL(avatarDraftUrl);
+    setAvatarDraftUrl(URL.createObjectURL(file));
+    setAvatarDraftFile(file);
+    setAvatarRemovePending(false);
+  }
+
+  function stageAvatarRemove() {
+    setAvatarErr(null);
+    if (avatarDraftUrl) URL.revokeObjectURL(avatarDraftUrl);
+    setAvatarDraftUrl("");
+    setAvatarDraftFile(null);
+    setAvatarRemovePending(true);
+  }
 
   useEffect(() => {
     if (authLoading) return;
@@ -64,6 +130,11 @@ export default function ProfilePage() {
         setPhone(res.profile.phone ?? "");
         setWebsite(res.profile.website ?? "");
         setBio(res.profile.bio ?? "");
+        setAvatarErr(null);
+        if (avatarDraftUrl) URL.revokeObjectURL(avatarDraftUrl);
+        setAvatarDraftUrl("");
+        setAvatarDraftFile(null);
+        setAvatarRemovePending(false);
       } catch (e: any) {
         if (!cancelled) setErr(e?.message ?? "Failed to load profile");
       } finally {
@@ -100,6 +171,9 @@ export default function ProfilePage() {
     e.preventDefault();
     setErr(null);
     setSavedMsg(null);
+    setAvatarErr(null);
+
+    if (!isDirty) return;
 
     const fn = firstName.trim();
     const ln = lastName.trim();
@@ -114,18 +188,54 @@ export default function ProfilePage() {
 
     setLoading(true);
     try {
-      const res = await updateProfile({
+      const resProfile = await updateProfile({
         firstName: fn,
         lastName: ln,
-        avatarUrl: normNullable(avatarUrl),
         location: normNullable(location),
         phone: normNullable(phone),
         website: normNullable(website),
         bio: normNullable(bio),
       });
-      setData(res);
-      setFirstName(res.account.firstName ?? "");
-      setLastName(res.account.lastName ?? "");
+      setData(resProfile);
+      setFirstName(resProfile.account.firstName ?? "");
+      setLastName(resProfile.account.lastName ?? "");
+
+      let finalRes: ProfileResponse = resProfile;
+
+      // Apply staged avatar changes only when saving
+      if (avatarRemovePending && normNullable(resProfile.profile.avatarUrl ?? "")) {
+        setAvatarBusy(true);
+        try {
+          finalRes = await deleteProfileAvatar();
+          setData(finalRes);
+          setAvatarUrl(finalRes.profile.avatarUrl ?? "");
+          setAvatarRemovePending(false);
+        } finally {
+          setAvatarBusy(false);
+        }
+      } else if (avatarDraftFile) {
+        setAvatarBusy(true);
+        try {
+          finalRes = await uploadProfileAvatar(avatarDraftFile);
+          setData(finalRes);
+          setAvatarUrl(finalRes.profile.avatarUrl ?? "");
+          if (avatarDraftUrl) URL.revokeObjectURL(avatarDraftUrl);
+          setAvatarDraftUrl("");
+          setAvatarDraftFile(null);
+          setAvatarRemovePending(false);
+        } finally {
+          setAvatarBusy(false);
+        }
+      }
+
+      // Sync other profile fields from final response (in case avatar endpoints returned fresher data)
+      setFirstName(finalRes.account.firstName ?? "");
+      setLastName(finalRes.account.lastName ?? "");
+      setLocation(finalRes.profile.location ?? "");
+      setPhone(finalRes.profile.phone ?? "");
+      setWebsite(finalRes.profile.website ?? "");
+      setBio(finalRes.profile.bio ?? "");
+
       setSavedMsg("Saved.");
       await refresh();
     } catch (e: any) {
@@ -172,6 +282,28 @@ export default function ProfilePage() {
   const readOnlyUsername = data?.user.username ?? user?.username ?? "";
 
   const deleteButtonDisabled = deleteLoading || loading || authLoading || !user;
+
+  const isDirty = useMemo(() => {
+    if (!data) return false;
+    const baseFirst = data.account.firstName ?? "";
+    const baseLast = data.account.lastName ?? "";
+    const baseLoc = data.profile.location ?? "";
+    const basePhone = data.profile.phone ?? "";
+    const baseWeb = data.profile.website ?? "";
+    const baseBio = data.profile.bio ?? "";
+    const baseAvatar = data.profile.avatarUrl ?? "";
+
+    if (firstName !== baseFirst) return true;
+    if (lastName !== baseLast) return true;
+    if (location !== baseLoc) return true;
+    if (phone !== basePhone) return true;
+    if (website !== baseWeb) return true;
+    if (bio !== baseBio) return true;
+
+    if (avatarDraftFile) return true;
+    if (avatarRemovePending && normNullable(baseAvatar)) return true;
+    return false;
+  }, [avatarDraftFile, avatarRemovePending, bio, data, firstName, lastName, location, phone, website]);
 
   return (
     <div className="min-h-full">
@@ -256,20 +388,94 @@ export default function ProfilePage() {
               <div className="text-sm font-bold text-slate-900">Profile</div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <label className="block sm:col-span-2">
-                  <div className="mb-1 text-xs font-semibold text-slate-700">Avatar URL</div>
-                  <input
-                    value={avatarUrl}
-                    onChange={(e) => setAvatarUrl(e.target.value)}
-                    placeholder="https://..."
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                    maxLength={500}
-                    disabled={loading}
-                  />
-                  <div className="mt-1 text-[11px] font-semibold text-slate-500">
-                    If you later add avatar uploads, you can store the uploaded URL here.
+                <div className="block sm:col-span-2">
+                  <div className="mb-1 text-xs font-semibold text-slate-700">Avatar</div>
+                  <div className="flex items-center gap-3">
+                    {avatarPreview ? (
+                      <img
+                        src={avatarPreview}
+                        alt="Avatar"
+                        className="h-14 w-14 rounded-full border border-slate-200 object-cover"
+                      />
+                    ) : (
+                      <DefaultAvatar sizeClassName="h-14 w-14" />
+                    )}
+
+                    <input
+                      ref={avatarFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      disabled={loading || avatarBusy}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.currentTarget.value = "";
+                        if (f) stageAvatarFile(f);
+                      }}
+                      className="hidden"
+                    />
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAvatarErr(null);
+                          avatarFileInputRef.current?.click();
+                        }}
+                        disabled={loading || avatarBusy}
+                        className="grid h-10 w-10 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        aria-label="Upload or replace avatar"
+                        title="Upload / replace"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          className="h-5 w-5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 16V4" />
+                          <path d="M7 9l5-5 5 5" />
+                          <path d="M4 20h16" />
+                        </svg>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => stageAvatarRemove()}
+                        disabled={loading || avatarBusy || avatarRemovePending || (!normNullable(avatarUrl) && !avatarDraftFile)}
+                        className="grid h-10 w-10 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        aria-label="Remove avatar"
+                        title="Remove"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          className="h-5 w-5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          aria-hidden="true"
+                        >
+                          <path d="M4 7h16" />
+                          <path d="M10 11v6" />
+                          <path d="M14 11v6" />
+                          <path d="M9 7l1-2h4l1 2" />
+                          <path d="M6 7l1 14h10l1-14" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div className="min-w-0 text-[11px] font-semibold text-slate-500">
+                      JPG/PNG/WebP up to {MAX_AVATAR_MB}MB.
+                    </div>
                   </div>
-                </label>
+
+                  {avatarErr && (
+                    <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                      {avatarErr}
+                    </div>
+                  )}
+                </div>
 
                 <label className="block">
                   <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
@@ -325,13 +531,14 @@ export default function ProfilePage() {
                 </label>
               </div>
 
+              {isDirty && (
               <div className="mt-5 flex items-center gap-2">
                 <button
                   type="submit"
                   disabled={loading || authLoading || !user}
                   className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-60"
                 >
-                  {loading ? "Saving..." : "Save profile"}
+                  {loading ? "Saving..." : "Save changes"}
                 </button>
 
                 <button
@@ -347,6 +554,11 @@ export default function ProfilePage() {
                     setWebsite(data.profile.website ?? "");
                     setBio(data.profile.bio ?? "");
                     setErr(null);
+                    setAvatarErr(null);
+                    if (avatarDraftUrl) URL.revokeObjectURL(avatarDraftUrl);
+                    setAvatarDraftUrl("");
+                    setAvatarDraftFile(null);
+                    setAvatarRemovePending(false);
                     setSavedMsg(null);
                   }}
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
@@ -354,6 +566,7 @@ export default function ProfilePage() {
                   Reset
                 </button>
               </div>
+              )}
 
               <div className="mt-8 border-t border-slate-100 pt-6">
                 <div className="text-sm font-bold text-slate-900">Delete account</div>
@@ -379,13 +592,15 @@ export default function ProfilePage() {
             <div className="text-sm font-bold text-slate-900">Preview</div>
 
             <div className="mt-4 flex items-center gap-3">
-              <div className="h-14 w-14 overflow-hidden rounded-2xl bg-slate-100">
-                {avatarPreview ? (
-                  <img src={avatarPreview} alt="Avatar preview" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-xs font-bold text-slate-500">No</div>
-                )}
-              </div>
+              {avatarPreview ? (
+                <img
+                  src={avatarPreview}
+                  alt="Avatar preview"
+                  className="h-14 w-14 rounded-full border border-slate-200 object-cover"
+                />
+              ) : (
+                <DefaultAvatar sizeClassName="h-14 w-14" />
+              )}
               <div className="min-w-0">
                 <div className="truncate text-sm font-extrabold text-slate-900">@{readOnlyUsername || "username"}</div>
                 <div className="truncate text-xs font-semibold text-slate-600">
@@ -396,10 +611,6 @@ export default function ProfilePage() {
 
             <div className="mt-4 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs text-slate-700">
               {bio.trim() || "Your bio will appear here."}
-            </div>
-
-            <div className="mt-4 text-xs font-semibold text-slate-600">
-              This data is saved server-side per user (not per device).
             </div>
           </aside>
         </form>

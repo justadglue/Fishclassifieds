@@ -102,6 +102,30 @@ const upload = multer({
   },
 });
 
+const avatarUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 4 * 1024 * 1024,
+  },
+  fileFilter: (_req, file, cb) => {
+    const ok = ["image/jpeg", "image/png", "image/webp"].includes(file.mimetype);
+    if (ok) return cb(null, true);
+    return cb(new Error("Only JPG/PNG/WebP images are allowed"));
+  },
+});
+
+function tryDeleteLocalUpload(maybeUploadsUrl: unknown) {
+  try {
+    const raw = typeof maybeUploadsUrl === "string" ? maybeUploadsUrl : "";
+    if (!raw.startsWith("/uploads/")) return;
+    const file = path.basename(raw);
+    const abs = path.join(UPLOADS_DIR, file);
+    if (fs.existsSync(abs)) fs.unlinkSync(abs);
+  } catch {
+    // ignore
+  }
+}
+
 async function makeDerivatives(absPath: string, baseNameNoExt: string): Promise<{ thumb: string; med: string }> {
   const thumbName = `${baseNameNoExt}_thumb.webp`;
   const medName = `${baseNameNoExt}_med.webp`;
@@ -306,7 +330,6 @@ app.get("/api/me", requireAuth, (req, res) => {
 const ProfileSchema = z.object({
   firstName: z.string().min(1).max(80).optional(),
   lastName: z.string().min(1).max(80).optional(),
-  avatarUrl: z.string().max(500).nullable().optional(),
   location: z.string().max(120).nullable().optional(),
   phone: z.string().max(40).nullable().optional(),
   website: z.string().max(300).nullable().optional(),
@@ -352,7 +375,7 @@ app.put("/api/profile", requireAuth, (req, res) => {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
 
-  const { firstName, lastName, avatarUrl, location, phone, website, bio } = parsed.data;
+  const { firstName, lastName, location, phone, website, bio } = parsed.data;
   const now = nowIsoSecurity();
 
   const tx = db.transaction(() => {
@@ -381,15 +404,15 @@ app.put("/api/profile", requireAuth, (req, res) => {
 INSERT INTO user_profiles(user_id,avatar_url,location,phone,website,bio,created_at,updated_at)
 VALUES(?,?,?,?,?,?,?,?)
 `
-      ).run(user.id, avatarUrl ?? null, location ?? null, phone ?? null, website ?? null, bio ?? null, now, now);
+      ).run(user.id, null, location ?? null, phone ?? null, website ?? null, bio ?? null, now, now);
     } else {
       db.prepare(
         `
 UPDATE user_profiles
-SET avatar_url = ?, location = ?, phone = ?, website = ?, bio = ?, updated_at = ?
+SET location = ?, phone = ?, website = ?, bio = ?, updated_at = ?
 WHERE user_id = ?
 `
-      ).run(avatarUrl ?? null, location ?? null, phone ?? null, website ?? null, bio ?? null, now, user.id);
+      ).run(location ?? null, phone ?? null, website ?? null, bio ?? null, now, user.id);
     }
   });
 
@@ -416,6 +439,123 @@ WHERE user_id = ?
     },
     profile: mapProfileRow(p),
   });
+});
+
+app.post("/api/profile/avatar", requireAuth, avatarUpload.single("image"), async (req, res) => {
+  const user = req.user!;
+  try {
+    if (!req.file) return res.status(400).json({ error: "No image uploaded" });
+
+    const now = nowIsoSecurity();
+
+    // Capture previous avatar for cleanup (only if it was a local /uploads/ file)
+    const existing = db.prepare(`SELECT avatar_url FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
+    const prevAvatar = existing?.avatar_url ? String(existing.avatar_url) : null;
+
+    const THUMB_W = Number(process.env.IMG_THUMB_W ?? "440");
+
+    const outName = `avatar_${user.id}_${crypto.randomUUID()}.webp`;
+    const outAbs = path.join(UPLOADS_DIR, outName);
+
+    await sharp(req.file.buffer, { failOn: "none" })
+      .rotate()
+      .resize({
+        width: THUMB_W,
+        height: THUMB_W,
+        fit: "cover",
+        position: "centre",
+        withoutEnlargement: true,
+        kernel: sharp.kernel.lanczos3,
+      })
+      .sharpen(0.6, 0.8, 1.2)
+      .webp({ quality: 80, effort: 6, smartSubsample: true, alphaQuality: 85 })
+      .toFile(outAbs);
+
+    const rel = toRelUploads(outName);
+
+    const tx = db.transaction(() => {
+      const row = db.prepare(`SELECT user_id FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
+      if (!row) {
+        db.prepare(
+          `
+INSERT INTO user_profiles(user_id,avatar_url,location,phone,website,bio,created_at,updated_at)
+VALUES(?,?,?,?,?,?,?,?)
+`
+        ).run(user.id, rel, null, null, null, null, now, now);
+      } else {
+        db.prepare(`UPDATE user_profiles SET avatar_url = ?, updated_at = ? WHERE user_id = ?`).run(rel, now, user.id);
+      }
+    });
+    tx();
+
+    if (prevAvatar && prevAvatar !== rel) tryDeleteLocalUpload(prevAvatar);
+
+    const u = db
+      .prepare(`SELECT id,email,username,first_name,last_name FROM users WHERE id = ?`)
+      .get(user.id) as any | undefined;
+    const p = db.prepare(`SELECT * FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
+
+    return res.json({
+      user: {
+        id: Number(u.id),
+        email: String(u.email),
+        username: String(u.username),
+      },
+      account: {
+        firstName: String(u.first_name),
+        lastName: String(u.last_name),
+      },
+      profile: mapProfileRow(p),
+    });
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? "Failed to upload avatar" });
+  }
+});
+
+app.delete("/api/profile/avatar", requireAuth, (req, res) => {
+  const user = req.user!;
+  try {
+    const now = nowIsoSecurity();
+    const existing = db.prepare(`SELECT avatar_url FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
+    const prevAvatar = existing?.avatar_url ? String(existing.avatar_url) : null;
+
+    const tx = db.transaction(() => {
+      const row = db.prepare(`SELECT user_id FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
+      if (!row) {
+        db.prepare(
+          `
+INSERT INTO user_profiles(user_id,avatar_url,location,phone,website,bio,created_at,updated_at)
+VALUES(?,?,?,?,?,?,?,?)
+`
+        ).run(user.id, null, null, null, null, null, now, now);
+      } else {
+        db.prepare(`UPDATE user_profiles SET avatar_url = ?, updated_at = ? WHERE user_id = ?`).run(null, now, user.id);
+      }
+    });
+    tx();
+
+    if (prevAvatar) tryDeleteLocalUpload(prevAvatar);
+
+    const u = db
+      .prepare(`SELECT id,email,username,first_name,last_name FROM users WHERE id = ?`)
+      .get(user.id) as any | undefined;
+    const p = db.prepare(`SELECT * FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
+
+    return res.json({
+      user: {
+        id: Number(u.id),
+        email: String(u.email),
+        username: String(u.username),
+      },
+      account: {
+        firstName: String(u.first_name),
+        lastName: String(u.last_name),
+      },
+      profile: mapProfileRow(p),
+    });
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? "Failed to remove avatar" });
+  }
 });
 
 const DeleteAccountSchema = z.object({

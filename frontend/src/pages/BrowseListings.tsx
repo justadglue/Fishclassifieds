@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { fetchListings, fetchWanted, resolveAssets, type Category, type Listing, type WantedPost, type WantedStatus } from "../api";
 import Header from "../components/Header";
 
@@ -139,6 +139,7 @@ function StatusPill({ l }: { l: Listing }) {
 }
 
 export default function BrowseListings() {
+  const routerLocation = useLocation();
   const [sp, setSp] = useSearchParams();
   const topRef = useRef<HTMLDivElement | null>(null);
 
@@ -523,6 +524,9 @@ export default function BrowseListings() {
                       <Link
                         key={l.id}
                         to={`/listing/${l.id}`}
+                        state={{
+                          from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "listings" },
+                        }}
                         className="group overflow-hidden rounded-2xl border border-slate-200 bg-white hover:border-slate-300"
                       >
                         <div className="relative aspect-4/3 w-full bg-slate-100">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   MoveDown,
   MoveUp,
@@ -248,6 +248,7 @@ function ActionLink(props: { to: string; label: string; icon?: React.ReactNode }
 
 export default function MyListingsPage() {
   const nav = useNavigate();
+  const routerLocation = useLocation();
   const { user, loading: authLoading } = useAuth();
 
   const [items, setItems] = useState<Listing[]>([]);
@@ -505,6 +506,13 @@ export default function MyListingsPage() {
                         <div className="flex min-h-20 items-center gap-3">
                           <Link
                             to={`/listing/${l.id}`}
+                            state={{
+                              from: {
+                                pathname: routerLocation.pathname,
+                                search: routerLocation.search,
+                                label: "my listings",
+                              },
+                            }}
                             onClick={(e) => e.stopPropagation()}
                             className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
                           >
@@ -516,6 +524,13 @@ export default function MyListingsPage() {
                           <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
                             <Link
                               to={`/listing/${l.id}`}
+                              state={{
+                                from: {
+                                  pathname: routerLocation.pathname,
+                                  search: routerLocation.search,
+                                  label: "my listings",
+                                },
+                              }}
                               onClick={(e) => e.stopPropagation()}
                               className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
                             >

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { fetchListings, resolveAssets, type Listing } from "../api";
 import { useAuth } from "../auth";
 import Header from "../components/Header";
@@ -114,6 +114,7 @@ function FeaturedPromoCard() {
 
 export default function HomePage() {
   const nav = useNavigate();
+  const routerLocation = useLocation();
   const { user, loading: authLoading } = useAuth();
   const [featured, setFeatured] = useState<Listing[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
@@ -573,7 +574,18 @@ export default function HomePage() {
                                   if (!t) return null;
                                   if (t.kind === "listing") {
                                     return (
-                                      <Link key={t.listing.id} to={`/listing/${t.listing.id}`} className="block min-w-0">
+                                      <Link
+                                        key={t.listing.id}
+                                        to={`/listing/${t.listing.id}`}
+                                        state={{
+                                          from: {
+                                            pathname: routerLocation.pathname,
+                                            search: routerLocation.search,
+                                            label: "homepage",
+                                          },
+                                        }}
+                                        className="block min-w-0"
+                                      >
                                         <FeaturedCard item={t.listing} />
                                       </Link>
                                     );
@@ -608,7 +620,18 @@ export default function HomePage() {
                                     if (!t) return null;
                                     if (t.kind === "listing") {
                                       return (
-                                        <Link key={t.listing.id} to={`/listing/${t.listing.id}`} className="block min-w-0">
+                                        <Link
+                                          key={t.listing.id}
+                                          to={`/listing/${t.listing.id}`}
+                                          state={{
+                                            from: {
+                                              pathname: routerLocation.pathname,
+                                              search: routerLocation.search,
+                                              label: "homepage",
+                                            },
+                                          }}
+                                          className="block min-w-0"
+                                        >
                                           <FeaturedCard item={t.listing} />
                                         </Link>
                                       );

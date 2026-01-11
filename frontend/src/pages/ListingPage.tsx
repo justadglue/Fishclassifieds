@@ -1,6 +1,6 @@
 // frontend/src/pages/ListingPage.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { fetchListing, resolveAssets, type Listing } from "../api";
 import Header from "../components/Header";
 import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
@@ -34,6 +34,7 @@ function timeAgo(iso: string) {
 
 export default function ListingPage() {
   const { id } = useParams();
+  const location = useLocation();
   const [item, setItem] = useState<Listing | null>(null);
   const [active, setActive] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -94,7 +95,7 @@ export default function ListingPage() {
 
   function DefaultAvatar() {
     return (
-      <div className="grid h-10 w-10 place-items-center rounded-full border border-slate-200 bg-slate-50 text-slate-600">
+      <div className="grid h-14 w-14 place-items-center rounded-full border border-slate-200 bg-slate-50 text-slate-600">
         <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <path d="M20 21a8 8 0 0 0-16 0" />
           <circle cx="12" cy="8" r="4" />
@@ -177,9 +178,18 @@ export default function ListingPage() {
     <div className="min-h-full">
       <Header maxWidth="5xl" />
       <main className="mx-auto max-w-5xl px-4 py-6">
-        <Link to="/browse?type=sale" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-          ← Back to listings
-        </Link>
+        {(() => {
+          const from = (location.state as any)?.from as
+            | { pathname: string; search?: string; label?: string }
+            | undefined;
+          const label = (from?.label ?? "").trim() || "listings";
+          const to = from?.pathname ? `${from.pathname}${from.search ?? ""}` : "/browse?type=sale";
+          return (
+            <Link to={to} className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+              ← Back to {label}
+            </Link>
+          );
+        })()}
 
         {loading && <div className="mt-4 text-sm text-slate-600">Loading…</div>}
 
@@ -345,7 +355,7 @@ export default function ListingPage() {
                       <img
                         src={item.sellerAvatarUrl}
                         alt=""
-                        className="h-10 w-10 rounded-full border border-slate-200 object-cover"
+                        className="h-14 w-14 rounded-full border border-slate-200 object-cover"
                         loading="lazy"
                         decoding="async"
                       />

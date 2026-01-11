@@ -953,7 +953,7 @@ export default function EditListingPage() {
               <div className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Price type</div>
                 {priceType === "custom" ? (
-                  <div>
+                  <div className="relative">
                     <div className="flex items-center gap-2">
                       <input
                         ref={customPriceInputRef}
@@ -975,7 +975,8 @@ export default function EditListingPage() {
                         <Undo2 aria-hidden="true" className="h-4 w-4" />
                       </button>
                     </div>
-                    <div className="mt-1 text-[11px] font-semibold text-slate-500">
+                    {/* Absolutely position into the vertical gap so layout doesn't shift */}
+                    <div className="pointer-events-none absolute left-0 top-full text-[11px] leading-4 font-semibold text-slate-500">
                       ({customPriceText.trim().length}/{MAX_CUSTOM_PRICE_TYPE_LEN})
                     </div>
                   </div>

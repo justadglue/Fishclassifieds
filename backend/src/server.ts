@@ -61,6 +61,24 @@ const HAS_LISTINGS_USER_ID = (() => {
   }
 })();
 
+const HAS_LISTINGS_PHONE = (() => {
+  try {
+    const rows = db.pragma("table_info(listings)") as Array<{ name: string }>;
+    return rows.some((r) => r.name === "phone");
+  } catch {
+    return false;
+  }
+})();
+
+const HAS_LISTINGS_SEX = (() => {
+  try {
+    const rows = db.pragma("table_info(listings)") as Array<{ name: string }>;
+    return rows.some((r) => r.name === "sex");
+  } catch {
+    return false;
+  }
+})();
+
 const HAS_USERS_FIRST_LAST = (() => {
   try {
     const rows = db.pragma("table_info(users)") as Array<{ name: string }>;
@@ -291,14 +309,17 @@ function normalizeImages(input: (string | ImageAsset)[]): ImageAsset[] {
   });
 }
 
+const ListingSexSchema = z.enum(["Male", "Female", "Various", "Unknown"]).default("Unknown");
+
 const CreateListingSchema = z.object({
   title: z.string().min(3).max(80),
   category: z.enum(["Fish", "Shrimp", "Snails", "Plants", "Equipment"]).default("Fish"),
   species: z.string().min(2).max(60),
+  sex: ListingSexSchema,
   priceCents: z.number().int().min(0).max(5_000_000),
   location: z.string().min(2).max(80),
   description: z.string().min(1).max(1000),
-  contact: z.string().max(200).optional().nullable(),
+  phone: z.string().min(6).max(30),
   images: ImagesInputSchema,
   imageUrl: z.string().optional().nullable(),
   status: z.enum(["draft", "active"]).optional(),
@@ -308,10 +329,11 @@ const UpdateListingSchema = z.object({
   title: z.string().min(3).max(80).optional(),
   category: z.enum(["Fish", "Shrimp", "Snails", "Plants", "Equipment"]).optional(),
   species: z.string().min(2).max(60).optional(),
+  sex: ListingSexSchema.optional(),
   priceCents: z.number().int().min(0).max(5_000_000).optional(),
   location: z.string().min(2).max(80).optional(),
   description: z.string().min(1).max(1000).optional(),
-  contact: z.string().max(200).nullable().optional(),
+  phone: z.string().min(6).max(30).optional(),
   images: ImagesInputSchema.optional(),
   imageUrl: z.string().nullable().optional(),
   featured: z.boolean().optional(),
@@ -532,6 +554,16 @@ app.post("/api/listings", requireAuth, (req, res) => {
       error: "DB is missing listings.user_id. Run: npm --prefix backend run db:migration",
     });
   }
+  if (!HAS_LISTINGS_PHONE) {
+    return res.status(400).json({
+      error: "DB is missing listings.phone. Run: npm --prefix backend run db:migration",
+    });
+  }
+  if (!HAS_LISTINGS_SEX) {
+    return res.status(400).json({
+      error: "DB is missing listings.sex. Run: npm --prefix backend run db:migration",
+    });
+  }
   const parsed = CreateListingSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
@@ -545,15 +577,15 @@ app.post("/api/listings", requireAuth, (req, res) => {
   const requireApproval = String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
   const user = req.user!;
 
-  const { title, category, species, priceCents, location, description, contact, images, imageUrl } = parsed.data;
+  const { title, category, species, sex, priceCents, location, description, phone, images, imageUrl } = parsed.data;
   const requestedStatus = parsed.data.status;
   const status: ListingStatus = requestedStatus === "draft" ? "draft" : requireApproval ? "pending" : "active";
 
   db.prepare(
     `INSERT INTO listings(
-id,user_id,owner_token,title,category,species,price_cents,location,description,contact,image_url,
+id,user_id,owner_token,title,category,species,sex,price_cents,location,description,phone,image_url,
 status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
-)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
     id,
     user.id,
@@ -561,10 +593,11 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
     title,
     category,
     species,
+    sex,
     priceCents,
     location,
     description,
-    contact ?? null,
+    phone,
     imageUrl ?? null,
     status,
     expiresAt,
@@ -743,6 +776,16 @@ app.get("/api/listings/:id", optionalAuth, (req, res) => {
 
 app.patch("/api/listings/:id", requireAuth, (req, res) => {
   runAutoExpirePass();
+  if (!HAS_LISTINGS_PHONE) {
+    return res.status(400).json({
+      error: "DB is missing listings.phone. Run: npm --prefix backend run db:migration",
+    });
+  }
+  if (!HAS_LISTINGS_SEX) {
+    return res.status(400).json({
+      error: "DB is missing listings.sex. Run: npm --prefix backend run db:migration",
+    });
+  }
   const id = req.params.id;
   const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
@@ -764,10 +807,11 @@ app.patch("/api/listings/:id", requireAuth, (req, res) => {
     title: p.title,
     category: p.category,
     species: p.species,
+    sex: p.sex,
     price_cents: p.priceCents,
     location: p.location,
     description: p.description,
-    contact: p.contact,
+    phone: p.phone,
     image_url: p.imageUrl,
   };
 
@@ -1220,6 +1264,16 @@ app.post("/api/listings/:id/relist", requireAuth, (req, res) => {
       error: "DB is missing listings.user_id. Run: npm --prefix backend run db:migration",
     });
   }
+  if (!HAS_LISTINGS_PHONE) {
+    return res.status(400).json({
+      error: "DB is missing listings.phone. Run: npm --prefix backend run db:migration",
+    });
+  }
+  if (!HAS_LISTINGS_SEX) {
+    return res.status(400).json({
+      error: "DB is missing listings.sex. Run: npm --prefix backend run db:migration",
+    });
+  }
 
   const id = req.params.id;
   const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
@@ -1255,9 +1309,9 @@ ORDER BY sort_order ASC`
     // Create new paused listing (hidden) for final edits before resuming to active.
     db.prepare(
       `INSERT INTO listings(
-id,user_id,owner_token,title,category,species,price_cents,location,description,contact,image_url,
+id,user_id,owner_token,title,category,species,sex,price_cents,location,description,phone,image_url,
 status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
-) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(
       newId,
       Number(row.user_id),
@@ -1265,10 +1319,11 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
       row.title,
       row.category,
       row.species,
+      (row as any).sex ?? "Unknown",
       row.price_cents,
       row.location,
       row.description,
-      row.contact ?? null,
+      String((row as any).phone ?? "").trim() || String((row as any).contact ?? "").trim() || "",
       row.image_url ?? null,
       "paused",
       expiresAt,
@@ -1333,10 +1388,11 @@ function mapListing(req: express.Request, row: ListingRow & any) {
     title: row.title,
     category: row.category,
     species: row.species,
+    sex: String((row as any).sex ?? "Unknown"),
     priceCents: row.price_cents,
     location: row.location,
     description: row.description,
-    contact: row.contact ?? null,
+    phone: String((row as any).phone ?? ""),
     imageUrl: row.image_url ?? null,
     images,
     status,

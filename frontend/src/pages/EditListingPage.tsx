@@ -17,6 +17,7 @@ import {
   type Category,
   type Listing,
   type ImageAsset,
+  type ListingSex,
 } from "../api";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
@@ -54,6 +55,8 @@ function expiresInShort(iso: string) {
 }
 
 const CATEGORIES: Category[] = ["Fish", "Shrimp", "Snails", "Plants", "Equipment"];
+const SEXES: ListingSex[] = ["Male", "Female", "Various", "Unknown"];
+const MAX_CUSTOM_PRICE_TYPE_LEN = 20;
 
 type PendingImage = {
   id: string;
@@ -122,13 +125,14 @@ export default function EditListingPage() {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<Category>("Fish");
   const [species, setSpecies] = useState("");
+  const [sex, setSex] = useState<ListingSex>("Unknown");
   const [priceDollars, setPriceDollars] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [priceType, setPriceType] = useState<PriceType>("each");
   const [customPriceText, setCustomPriceText] = useState("");
   const [willingToShip, setWillingToShip] = useState(false);
   const [location, setLocation] = useState("");
-  const [contact, setContact] = useState("");
+  const [phone, setPhone] = useState("");
   const [description, setDescription] = useState("");
 
   const customPriceInputRef = useRef<HTMLInputElement | null>(null);
@@ -167,9 +171,10 @@ export default function EditListingPage() {
         setTitle(l.title);
         setCategory(l.category);
         setSpecies(l.species);
+        setSex(l.sex ?? "Unknown");
         setPriceDollars(centsToDollarsString(l.priceCents));
         setLocation(l.location);
-        setContact(l.contact ?? "");
+        setPhone(l.phone ?? "");
         const decoded = decodeSaleDetailsFromDescription(l.description);
         setQuantity(decoded.details.quantity);
         setPriceType(decoded.details.priceType);
@@ -441,6 +446,24 @@ export default function EditListingPage() {
       setErr("Please enter a custom price type (e.g. breeding pair).");
       return;
     }
+    if (priceType === "custom" && custom.length > MAX_CUSTOM_PRICE_TYPE_LEN) {
+      setErr(`Custom price type must be ${MAX_CUSTOM_PRICE_TYPE_LEN} characters or less.`);
+      return;
+    }
+
+    const phoneTrim = phone.trim();
+    if (!phoneTrim) {
+      setErr("Phone number is required.");
+      return;
+    }
+    if (phoneTrim.length < 6) {
+      setErr("Phone number looks too short.");
+      return;
+    }
+    if (phoneTrim.length > 30) {
+      setErr("Phone number is too long.");
+      return;
+    }
 
     const detailsPrefix = buildSaleDetailsPrefix({ quantity: qty, priceType, customPriceText: custom, willingToShip });
     const maxBodyLen = Math.max(1, 1000 - detailsPrefix.length);
@@ -472,10 +495,11 @@ export default function EditListingPage() {
           title: title.trim(),
           category,
           species: species.trim(),
+          sex,
           priceCents,
           location: location.trim(),
           description: finalDescription,
-          contact: contact.trim() ? contact.trim() : null,
+          phone: phoneTrim,
           images: merged,
           status: "active",
         });
@@ -490,10 +514,11 @@ export default function EditListingPage() {
         title: title.trim(),
         category,
         species: species.trim(),
+        sex,
         priceCents,
         location: location.trim(),
         description: finalDescription,
-        contact: contact.trim() ? contact.trim() : null,
+        phone: phoneTrim,
         images: merged,
       });
 
@@ -514,9 +539,10 @@ export default function EditListingPage() {
     setTitle(l.title);
     setCategory(l.category);
     setSpecies(l.species);
+    setSex(l.sex ?? "Unknown");
     setPriceDollars(centsToDollarsString(l.priceCents));
     setLocation(l.location);
-    setContact(l.contact ?? "");
+    setPhone(l.phone ?? "");
     const decoded = decodeSaleDetailsFromDescription(l.description);
     setQuantity(decoded.details.quantity);
     setPriceType(decoded.details.priceType);
@@ -868,8 +894,21 @@ export default function EditListingPage() {
                 />
               </label>
 
-              {/* Spacer: keeps Species at 1/2 width while Category is 1/3 */}
-              <div className="hidden sm:block sm:col-span-1" aria-hidden="true" />
+              <label className="block sm:col-span-1">
+                <div className="mb-1 text-xs font-semibold text-slate-700">Sex</div>
+                <select
+                  value={sex}
+                  onChange={(e) => setSex(e.target.value as ListingSex)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  disabled={loading}
+                >
+                  {SEXES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
 
             {/* Row 2: Price + Quantity + Price type */}
@@ -905,26 +944,31 @@ export default function EditListingPage() {
               <div className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Price type</div>
                 {priceType === "custom" ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      ref={customPriceInputRef}
-                      value={customPriceText}
-                      onChange={(e) => setCustomPriceText(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                      placeholder="e.g. breeding pair"
-                      maxLength={80}
-                      disabled={loading}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setPriceType("each")}
-                      className="shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                      title="Return to dropdown options"
-                      aria-label="Return to dropdown options"
-                      disabled={loading}
-                    >
-                      <Undo2 aria-hidden="true" className="h-4 w-4" />
-                    </button>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={customPriceInputRef}
+                        value={customPriceText}
+                        onChange={(e) => setCustomPriceText(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                        placeholder="e.g. breeding pair"
+                        maxLength={MAX_CUSTOM_PRICE_TYPE_LEN}
+                        disabled={loading}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPriceType("each")}
+                        className="shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                        title="Return to dropdown options"
+                        aria-label="Return to dropdown options"
+                        disabled={loading}
+                      >
+                        <Undo2 aria-hidden="true" className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="mt-1 text-[11px] font-semibold text-slate-500">
+                      ({customPriceText.trim().length}/{MAX_CUSTOM_PRICE_TYPE_LEN})
+                    </div>
                   </div>
                 ) : (
                   <select
@@ -997,13 +1041,17 @@ export default function EditListingPage() {
             </div>
 
             <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Contact (optional)</div>
+              <div className="mb-1 text-xs font-semibold text-slate-700">Phone number</div>
               <input
-                value={contact}
-                onChange={(e) => setContact(e.target.value)}
-                placeholder="e.g. phone, email, or 'DM on FB: ...'"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="e.g. 0400 123 456"
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                maxLength={200}
+                required
+                minLength={6}
+                maxLength={30}
                 disabled={loading}
               />
             </label>

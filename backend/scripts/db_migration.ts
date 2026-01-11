@@ -203,6 +203,33 @@ FROM deleted_accounts;
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_user_id ON listings(user_id);`);
 
+  // Listing sale metadata: sex + phone contact
+  if (!hasColumn(db, "listings", "sex")) {
+    db.exec(`ALTER TABLE listings ADD COLUMN sex TEXT NOT NULL DEFAULT 'Unknown';`);
+    migrations.push("Added listings.sex");
+  } else {
+    migrations.push("listings.sex already exists");
+  }
+
+  if (!hasColumn(db, "listings", "phone")) {
+    // Required field going forward; default allows adding to existing rows.
+    db.exec(`ALTER TABLE listings ADD COLUMN phone TEXT NOT NULL DEFAULT '';`);
+    migrations.push("Added listings.phone");
+
+    // Best-effort backfill from legacy contact column if it exists.
+    if (hasColumn(db, "listings", "contact")) {
+      db.exec(`
+UPDATE listings
+SET phone = COALESCE(NULLIF(trim(contact), ''), phone)
+WHERE (phone IS NULL OR trim(phone) = '')
+AND contact IS NOT NULL;
+`);
+      migrations.push("Backfilled listings.phone from legacy listings.contact where possible");
+    }
+  } else {
+    migrations.push("listings.phone already exists");
+  }
+
   // Wanted posts (buyer requests)
   db.exec(`
 CREATE TABLE IF NOT EXISTS wanted_posts(

@@ -18,10 +18,11 @@ export type ListingRow = {
   title: string;
   category: string;
   species: string;
+  sex: string;
   price_cents: number;
   location: string;
   description: string;
-  contact: string | null;
+  phone: string;
   image_url: string | null;
   status: ListingStatus;
   expires_at: string | null;
@@ -156,10 +157,11 @@ CREATE TABLE IF NOT EXISTS listings(
   title TEXT NOT NULL,
   category TEXT NOT NULL DEFAULT 'Fish',
   species TEXT NOT NULL,
+  sex TEXT NOT NULL DEFAULT 'Unknown',
   price_cents INTEGER NOT NULL,
   location TEXT NOT NULL,
   description TEXT NOT NULL,
-  contact TEXT,
+  phone TEXT NOT NULL DEFAULT '',
   image_url TEXT,
   status TEXT NOT NULL DEFAULT 'active',
   expires_at TEXT,

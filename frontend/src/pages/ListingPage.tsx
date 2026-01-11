@@ -249,7 +249,10 @@ export default function ListingPage() {
               <div className="p-5">
                 <h1 className="text-2xl font-extrabold text-slate-900">{item.title}</h1>
                 <div className="mt-2 text-sm font-semibold text-slate-600">
-                  {item.category} • {item.species} • {item.location}
+                  {item.category} • {item.species}
+                  {item.sex && item.sex !== "Unknown" ? ` • ${item.sex}` : ""}
+                  {" • "}
+                  {item.location}
                 </div>
 
                 <div className="mt-4 whitespace-pre-wrap text-sm text-slate-800">{item.description}</div>
@@ -272,12 +275,17 @@ export default function ListingPage() {
               <div className="mt-1 text-3xl font-extrabold text-slate-900">{centsToDollars(item.priceCents)}</div>
 
               <div className="mt-4 rounded-xl bg-slate-50 p-4">
-                <div className="text-sm font-bold text-slate-900">Contact seller</div>
+                <div className="text-sm font-bold text-slate-900">Phone</div>
 
-                {item.contact ? (
-                  <div className="mt-2 whitespace-pre-wrap text-sm font-semibold text-slate-800">{item.contact}</div>
+                {item.phone ? (
+                  <a
+                    className="mt-2 block whitespace-pre-wrap text-sm font-semibold text-slate-800 underline underline-offset-2 hover:text-slate-900"
+                    href={`tel:${String(item.phone).replace(/[^\d+]/g, "")}`}
+                  >
+                    {item.phone}
+                  </a>
                 ) : (
-                  <div className="mt-1 text-sm text-slate-700">Seller didn’t provide contact info.</div>
+                  <div className="mt-1 text-sm text-slate-700">Seller didn’t provide a phone number.</div>
                 )}
               </div>
 

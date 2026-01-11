@@ -1,6 +1,7 @@
 export type Category = "Fish" | "Shrimp" | "Snails" | "Plants" | "Equipment";
 export type ListingStatus = "draft" | "pending" | "active" | "paused" | "expired" | "deleted";
 export type ListingResolution = "none" | "sold";
+export type ListingSex = "Male" | "Female" | "Various" | "Unknown";
 
 export type ImageAsset = {
   fullUrl: string;
@@ -16,10 +17,11 @@ export type Listing = {
   title: string;
   category: Category;
   species: string;
+  sex: ListingSex;
   priceCents: number;
   location: string;
   description: string;
-  contact: string | null;
+  phone: string;
   imageUrl: string | null;
   images: ImageAsset[];
   status: ListingStatus;
@@ -216,10 +218,11 @@ export async function createListing(input: {
   title: string;
   category: Category;
   species: string;
+  sex: ListingSex;
   priceCents: number;
   location: string;
   description: string;
-  contact?: string | null;
+  phone: string;
   images?: Array<string | ImageAsset>;
   imageUrl?: string | null;
   status?: "draft" | "active";
@@ -239,10 +242,11 @@ export async function updateListing(
     title?: string;
     category?: Category;
     species?: string;
+    sex?: ListingSex;
     priceCents?: number;
     location?: string;
     description?: string;
-    contact?: string | null;
+    phone?: string;
     images?: Array<string | ImageAsset>;
     imageUrl?: string | null;
     featured?: boolean;

@@ -7,6 +7,8 @@ export type ListingSaleDetails = {
   willingToShip: boolean;
 };
 
+const MAX_CUSTOM_PRICE_TEXT_LEN = 15;
+
 const START = "[[FC_SALE_DETAILS]]";
 const END = "[[/FC_SALE_DETAILS]]";
 
@@ -27,7 +29,7 @@ function cleanInlineText(s: unknown, maxLen: number) {
 export function buildSaleDetailsPrefix(input: Partial<ListingSaleDetails>): string {
   const quantity = clampInt(Number(input.quantity ?? 1), 1, 9999);
   const priceType: PriceType = input.priceType === "all" || input.priceType === "custom" ? input.priceType : "each";
-  const customPriceText = priceType === "custom" ? cleanInlineText(input.customPriceText, 80) : "";
+  const customPriceText = priceType === "custom" ? cleanInlineText(input.customPriceText, MAX_CUSTOM_PRICE_TEXT_LEN) : "";
   const willingToShip = Boolean(input.willingToShip);
 
   // Keep this compact: it counts towards the server-side description max length.
@@ -84,7 +86,7 @@ export function decodeSaleDetailsFromDescription(description: string): {
 
     if (k === "quantity") quantity = clampInt(Number(v), 1, 9999);
     else if (k === "priceType" && (v === "each" || v === "all" || v === "custom")) priceType = v;
-    else if (k === "customPriceText") customPriceText = cleanInlineText(v, 80);
+    else if (k === "customPriceText") customPriceText = cleanInlineText(v, MAX_CUSTOM_PRICE_TEXT_LEN);
     else if (k === "willingToShip") willingToShip = v === "1" || v.toLowerCase() === "true";
   }
 

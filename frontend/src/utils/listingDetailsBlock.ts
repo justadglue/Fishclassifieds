@@ -73,7 +73,6 @@ export function decodeSaleDetailsFromDescription(description: string): {
   let priceType: PriceType = "each";
   let customPriceText = "";
   let willingToShip = false;
-  let legacyPriceUnit: "each" | "pair" | "lot" | "" = "";
 
   for (const line of block.split("\n")) {
     const t = line.trim();
@@ -87,21 +86,6 @@ export function decodeSaleDetailsFromDescription(description: string): {
     else if (k === "priceType" && (v === "each" || v === "all" || v === "custom")) priceType = v;
     else if (k === "customPriceText") customPriceText = cleanInlineText(v, 80);
     else if (k === "willingToShip") willingToShip = v === "1" || v.toLowerCase() === "true";
-    else if (k === "priceUnit" && (v === "each" || v === "pair" || v === "lot")) legacyPriceUnit = v;
-  }
-
-  // Backwards compatibility: earlier versions stored priceUnit=each|pair|lot.
-  if (!block.includes("priceType=") && legacyPriceUnit) {
-    if (legacyPriceUnit === "each") {
-      priceType = "each";
-      customPriceText = "";
-    } else if (legacyPriceUnit === "lot") {
-      priceType = "all";
-      customPriceText = "";
-    } else {
-      priceType = "custom";
-      customPriceText = legacyPriceUnit; // "pair"
-    }
   }
 
   if (priceType !== "custom") customPriceText = "";

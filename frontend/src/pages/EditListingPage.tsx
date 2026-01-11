@@ -144,6 +144,26 @@ export default function EditListingPage() {
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  type FieldKey =
+    | "title"
+    | "category"
+    | "species"
+    | "sex"
+    | "price"
+    | "quantity"
+    | "priceType"
+    | "customPriceText"
+    | "location"
+    | "phone"
+    | "description";
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
+
+  function clearFieldError(k: FieldKey) {
+    setFieldErrors((prev) => {
+      if (!prev[k]) return prev;
+      return { ...prev, [k]: undefined };
+    });
+  }
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
@@ -428,54 +448,51 @@ export default function EditListingPage() {
     e.preventDefault();
     setErr(null);
     if (!id) return;
+    setFieldErrors({});
 
-    const priceCents = dollarsToCents(priceDollars);
-    if (priceCents === null) {
-      setErr("Please enter a valid non-negative price.");
-      return;
-    }
-
-    const qty = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
-    if (qty < 1) {
-      setErr("Quantity must be at least 1.");
-      return;
-    }
-
-    const custom = customPriceText.trim();
-    if (priceType === "custom" && !custom) {
-      setErr("Please enter a custom price type (e.g. breeding pair).");
-      return;
-    }
-    if (priceType === "custom" && custom.length > MAX_CUSTOM_PRICE_TYPE_LEN) {
-      setErr(`Custom price type must be ${MAX_CUSTOM_PRICE_TYPE_LEN} characters or less.`);
-      return;
-    }
-
-    if (!sex) {
-      setErr("Please select Sex.");
-      return;
-    }
+    const nextErrors: Partial<Record<FieldKey, string>> = {};
+    if (!title.trim()) nextErrors.title = "Required field";
+    if (!category) nextErrors.category = "Required field";
+    if (!species.trim()) nextErrors.species = "Required field";
+    if (!sex) nextErrors.sex = "Required field";
+    if (!location.trim()) nextErrors.location = "Required field";
 
     const phoneTrim = phone.trim();
-    if (!phoneTrim) {
-      setErr("Phone number is required.");
-      return;
-    }
-    if (phoneTrim.length < 6) {
-      setErr("Phone number looks too short.");
-      return;
-    }
-    if (phoneTrim.length > 30) {
-      setErr("Phone number is too long.");
-      return;
+    if (!phoneTrim) nextErrors.phone = "Required field";
+    else if (phoneTrim.length < 6) nextErrors.phone = "Phone number looks too short.";
+    else if (phoneTrim.length > 30) nextErrors.phone = "Phone number is too long.";
+
+    const priceCents = dollarsToCents(priceDollars);
+    if (priceCents === null) nextErrors.price = "Please enter a valid non-negative price.";
+
+    const qty = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
+    if (qty < 1) nextErrors.quantity = "Quantity must be at least 1.";
+
+    if (!priceType) nextErrors.priceType = "Required field";
+    const custom = customPriceText.trim();
+    if (priceType === "custom" && !custom) nextErrors.customPriceText = "Required field";
+    else if (priceType === "custom" && custom.length > MAX_CUSTOM_PRICE_TYPE_LEN) {
+      nextErrors.customPriceText = `Custom price type must be ${MAX_CUSTOM_PRICE_TYPE_LEN} characters or less.`;
     }
 
-    const detailsPrefix = buildSaleDetailsPrefix({ quantity: qty, priceType, customPriceText: custom, willingToShip });
-    const maxBodyLen = Math.max(1, 1000 - detailsPrefix.length);
-    if (description.trim().length > maxBodyLen) {
-      setErr(`Description is too long. Max ${maxBodyLen} characters when sale details are included.`);
+    if (!description.trim()) nextErrors.description = "Required field";
+
+    if (!nextErrors.description && !nextErrors.customPriceText && priceCents !== null && sex) {
+      const detailsPrefix = buildSaleDetailsPrefix({ quantity: qty, priceType, customPriceText: custom, willingToShip });
+      const maxBodyLen = Math.max(1, 1000 - detailsPrefix.length);
+      if (description.trim().length > maxBodyLen) {
+        nextErrors.description = `Description is too long. Max ${maxBodyLen} characters when sale details are included.`;
+      }
+    }
+
+    if (Object.values(nextErrors).some(Boolean)) {
+      setFieldErrors(nextErrors);
+      setErr("Please fill out the required fields.");
       return;
     }
+    // Narrow types for TS (should be unreachable due to validation above).
+    if (priceCents === null) return;
+    if (!sex) return;
 
     setLoading(true);
     try {
@@ -491,6 +508,11 @@ export default function EditListingPage() {
         })
         .filter((x): x is ImageAsset => !!x)
         .slice(0, 6);
+
+      if (merged.length === 0) {
+        const ok = window.confirm("You haven't added any photos. Update this listing without photos?");
+        if (!ok) return;
+      }
 
       if (relistMode) {
         // Relist: do not modify anything until user clicks Update listing.
@@ -756,12 +778,12 @@ export default function EditListingPage() {
           )}
         </div>
 
-        {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
+        {err && !orig && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
         {loading && !orig && <div className="mt-4 text-sm text-slate-600">Loading...</div>}
 
         {orig && (
-          <form onSubmit={onSave} className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
+          <form onSubmit={onSave} noValidate className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
             {/* Listing state (only for normal edit, not relist) */}
             {!relistMode && (
               <div className="rounded-2xl border border-slate-200 p-4">
@@ -857,26 +879,44 @@ export default function EditListingPage() {
 
             {/* Fields */}
             <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Title</div>
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.title ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Title <span className="text-red-600">*</span>
+              </div>
               <input
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  clearFieldError("title");
+                }}
+                className={[
+                  "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                  fieldErrors.title ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                ].join(" ")}
                 required
                 minLength={3}
                 maxLength={80}
                 disabled={loading}
               />
+              {fieldErrors.title && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.title}</div>}
             </label>
 
             <div className="grid gap-3 sm:grid-cols-6">
               <label className="block sm:col-span-2">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Category</div>
+                <div className={["mb-1 text-xs font-semibold", fieldErrors.category ? "text-red-700" : "text-slate-700"].join(" ")}>
+                  Category <span className="text-red-600">*</span>
+                </div>
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value as Category)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  onChange={(e) => {
+                    setCategory(e.target.value as Category);
+                    clearFieldError("category");
+                  }}
+                  className={[
+                    "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                    fieldErrors.category ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  ].join(" ")}
                   disabled={loading}
+                  required
                 >
                   {CATEGORIES.map((c) => (
                     <option key={c} value={c}>
@@ -884,27 +924,45 @@ export default function EditListingPage() {
                     </option>
                   ))}
                 </select>
+                {fieldErrors.category && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.category}</div>}
               </label>
 
               <label className="block sm:col-span-3">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Species</div>
+                <div className={["mb-1 text-xs font-semibold", fieldErrors.species ? "text-red-700" : "text-slate-700"].join(" ")}>
+                  Species <span className="text-red-600">*</span>
+                </div>
                 <input
                   value={species}
-                  onChange={(e) => setSpecies(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  onChange={(e) => {
+                    setSpecies(e.target.value);
+                    clearFieldError("species");
+                  }}
+                  className={[
+                    "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                    fieldErrors.species ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  ].join(" ")}
                   required
                   minLength={2}
                   maxLength={60}
                   disabled={loading}
                 />
+                {fieldErrors.species && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.species}</div>}
               </label>
 
               <label className="block sm:col-span-1">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Sex</div>
+                <div className={["mb-1 text-xs font-semibold", fieldErrors.sex ? "text-red-700" : "text-slate-700"].join(" ")}>
+                  Sex <span className="text-red-600">*</span>
+                </div>
                 <select
                   value={sex}
-                  onChange={(e) => setSex(e.target.value as ListingSex)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  onChange={(e) => {
+                    setSex(e.target.value as ListingSex);
+                    clearFieldError("sex");
+                  }}
+                  className={[
+                    "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                    fieldErrors.sex ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  ].join(" ")}
                   disabled={loading}
                   required
                 >
@@ -917,49 +975,75 @@ export default function EditListingPage() {
                     </option>
                   ))}
                 </select>
+                {fieldErrors.sex && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.sex}</div>}
               </label>
             </div>
 
             {/* Row 2: Price + Quantity + Price type */}
             <div className="grid gap-3 sm:grid-cols-3">
               <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Price ($)</div>
+                <div className={["mb-1 text-xs font-semibold", fieldErrors.price ? "text-red-700" : "text-slate-700"].join(" ")}>
+                  Price ($) <span className="text-red-600">*</span>
+                </div>
                 <input
                   value={priceDollars}
-                  onChange={(e) => setPriceDollars(e.target.value)}
+                  onChange={(e) => {
+                    setPriceDollars(e.target.value);
+                    clearFieldError("price");
+                  }}
                   inputMode="decimal"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  className={[
+                    "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                    fieldErrors.price ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  ].join(" ")}
                   required
                   disabled={loading}
                 />
+                {fieldErrors.price && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.price}</div>}
               </label>
 
               <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Quantity</div>
+                <div className={["mb-1 text-xs font-semibold", fieldErrors.quantity ? "text-red-700" : "text-slate-700"].join(" ")}>
+                  Quantity <span className="text-red-600">*</span>
+                </div>
                 <input
                   value={String(quantity)}
                   onChange={(e) => {
                     const n = Number(e.target.value);
                     if (!Number.isFinite(n)) return setQuantity(1);
                     setQuantity(Math.max(1, Math.floor(n)));
+                    clearFieldError("quantity");
                   }}
                   inputMode="numeric"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  className={[
+                    "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                    fieldErrors.quantity ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  ].join(" ")}
                   required
                   disabled={loading}
                 />
+                {fieldErrors.quantity && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.quantity}</div>}
               </label>
 
               <div className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Price type</div>
+                <div className={["mb-1 text-xs font-semibold", fieldErrors.priceType || fieldErrors.customPriceText ? "text-red-700" : "text-slate-700"].join(" ")}>
+                  Price type <span className="text-red-600">*</span>
+                </div>
                 {priceType === "custom" ? (
                   <div className="relative">
                     <div className="flex items-center gap-2">
                       <input
                         ref={customPriceInputRef}
                         value={customPriceText}
-                        onChange={(e) => setCustomPriceText(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                        onChange={(e) => {
+                          setCustomPriceText(e.target.value);
+                          clearFieldError("customPriceText");
+                          clearFieldError("priceType");
+                        }}
+                        className={[
+                          "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                          fieldErrors.customPriceText ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                        ].join(" ")}
                         placeholder="e.g. breeding pair"
                         maxLength={MAX_CUSTOM_PRICE_TYPE_LEN}
                         disabled={loading}
@@ -979,35 +1063,55 @@ export default function EditListingPage() {
                     <div className="pointer-events-none absolute left-0 top-full text-[11px] leading-4 font-semibold text-slate-500">
                       ({customPriceText.trim().length}/{MAX_CUSTOM_PRICE_TYPE_LEN})
                     </div>
+                    {fieldErrors.customPriceText && (
+                      <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.customPriceText}</div>
+                    )}
                   </div>
                 ) : (
                   <select
                     value={priceType}
-                    onChange={(e) => setPriceType(e.target.value as PriceType)}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                    onChange={(e) => {
+                      setPriceType(e.target.value as PriceType);
+                      clearFieldError("priceType");
+                    }}
+                    className={[
+                      "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                      fieldErrors.priceType ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                    ].join(" ")}
                     disabled={loading}
+                    required
                   >
                     <option value="each">Each</option>
                     <option value="all">All</option>
                     <option value="custom">Custom</option>
                   </select>
                 )}
+                {fieldErrors.priceType && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.priceType}</div>}
               </div>
             </div>
 
             {/* Row 3: Location + Shipping */}
             <div className="grid gap-3 sm:grid-cols-3">
               <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
+                <div className={["mb-1 text-xs font-semibold", fieldErrors.location ? "text-red-700" : "text-slate-700"].join(" ")}>
+                  Location <span className="text-red-600">*</span>
+                </div>
                 <input
                   value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  onChange={(e) => {
+                    setLocation(e.target.value);
+                    clearFieldError("location");
+                  }}
+                  className={[
+                    "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                    fieldErrors.location ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  ].join(" ")}
                   required
                   minLength={2}
                   maxLength={80}
                   disabled={loading}
                 />
+                {fieldErrors.location && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.location}</div>}
               </label>
 
               <div className="grid sm:col-span-2">
@@ -1052,42 +1156,60 @@ export default function EditListingPage() {
 
             <div className="grid gap-3 sm:grid-cols-3">
               <label className="block sm:col-span-1">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Phone number</div>
+                <div className={["mb-1 text-xs font-semibold", fieldErrors.phone ? "text-red-700" : "text-slate-700"].join(" ")}>
+                  Phone number <span className="text-red-600">*</span>
+                </div>
                 <input
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                    clearFieldError("phone");
+                  }}
                   inputMode="tel"
                   autoComplete="tel"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  className={[
+                    "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                    fieldErrors.phone ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  ].join(" ")}
                   required
                   minLength={6}
                   maxLength={30}
                   disabled={loading}
                 />
+                {fieldErrors.phone && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.phone}</div>}
               </label>
               <div className="hidden sm:block sm:col-span-2" aria-hidden="true" />
             </div>
 
             <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Description</div>
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.description ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Description <span className="text-red-600">*</span>
+              </div>
               <textarea
                 ref={descriptionRef}
                 value={description}
                 onChange={(e) => {
                   setDescription(e.target.value);
                   resizeDescription(e.currentTarget);
+                  clearFieldError("description");
                 }}
                 onInput={(e) => resizeDescription(e.currentTarget as HTMLTextAreaElement)}
-                className="min-h-[140px] w-full resize-none overflow-hidden rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                className={[
+                  "min-h-[140px] w-full resize-none overflow-hidden rounded-xl border px-3 py-2 text-sm outline-none",
+                  fieldErrors.description ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                ].join(" ")}
                 required
                 minLength={1}
                 maxLength={maxDescLen}
                 disabled={loading}
               />
+              {fieldErrors.description && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.description}</div>}
               <div className="mt-1 text-[11px] font-semibold text-slate-500">
                 ({description.trim().length}/{maxDescLen})
               </div>
             </label>
+
+            {err && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
             <div className="flex gap-2">
               <button

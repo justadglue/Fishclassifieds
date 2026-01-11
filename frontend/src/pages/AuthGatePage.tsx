@@ -46,7 +46,7 @@ function ctxCopy(ctx: AuthGateCtx | null) {
     case "edit_listing":
       return {
         title: "Sign in to edit your listing",
-        body: "For security, editing listings requires an account. Sign in below to continue.",
+        body: "Your listings are tied to your account. Sign in below to edit them.",
       };
     case "feature_listing":
       return {

@@ -14,6 +14,7 @@ import {
 } from "../api";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
+import { buildSaleDetailsPrefix, encodeSaleDetailsIntoDescription, type PriceUnit } from "../utils/listingDetailsBlock";
 
 function dollarsToCents(v: string) {
   const n = Number(v);
@@ -48,6 +49,9 @@ export default function PostListingPage() {
   const [category, setCategory] = useState<Category>("Fish");
   const [species, setSpecies] = useState("");
   const [priceDollars, setPriceDollars] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [priceUnit, setPriceUnit] = useState<PriceUnit>("each");
+  const [willingToShip, setWillingToShip] = useState(false);
   const [location, setLocation] = useState("");
   const [contact, setContact] = useState("");
   const [description, setDescription] = useState("");
@@ -335,6 +339,19 @@ export default function PostListingPage() {
       return;
     }
 
+    const qty = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
+    if (qty < 1) {
+      setErr("Quantity must be at least 1.");
+      return;
+    }
+
+    const detailsPrefix = buildSaleDetailsPrefix({ quantity: qty, priceUnit, willingToShip });
+    const maxBodyLen = Math.max(1, 1000 - detailsPrefix.length);
+    if (description.trim().length > maxBodyLen) {
+      setErr(`Description is too long. Max ${maxBodyLen} characters when sale details are included.`);
+      return;
+    }
+
     setLoading(true);
     try {
       if (photos.some((i) => i.status !== "uploaded")) {
@@ -350,13 +367,18 @@ export default function PostListingPage() {
         throw new Error("Images were selected but none uploaded successfully. Remove broken images or retry upload.");
       }
 
+      const finalDescription = encodeSaleDetailsIntoDescription(
+        { quantity: qty, priceUnit, willingToShip },
+        description
+      );
+
       const created = await createListing({
         title: title.trim(),
         category,
         species: species.trim(),
         priceCents,
         location: location.trim(),
-        description: description.trim(),
+        description: finalDescription,
         contact: contact.trim() ? contact.trim() : null,
         images: uploadedAssets,
       });
@@ -368,6 +390,12 @@ export default function PostListingPage() {
       setLoading(false);
     }
   }
+
+  const detailsPrefix = useMemo(
+    () => buildSaleDetailsPrefix({ quantity, priceUnit, willingToShip }),
+    [quantity, priceUnit, willingToShip]
+  );
+  const maxDescLen = Math.max(1, 1000 - detailsPrefix.length);
 
   return (
     <div className="min-h-full">
@@ -490,6 +518,41 @@ export default function PostListingPage() {
             </label>
           </div>
 
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block">
+              <div className="mb-1 text-xs font-semibold text-slate-700">Quantity</div>
+              <input
+                value={String(quantity)}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (!Number.isFinite(n)) return setQuantity(1);
+                  setQuantity(Math.max(1, Math.floor(n)));
+                }}
+                inputMode="numeric"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                required
+              />
+            </label>
+
+            <label className="block">
+              <div className="mb-1 text-xs font-semibold text-slate-700">Price is per</div>
+              <select
+                value={priceUnit}
+                onChange={(e) => setPriceUnit(e.target.value as PriceUnit)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+              >
+                <option value="each">Each</option>
+                <option value="pair">Pair</option>
+                <option value="lot">Lot / group</option>
+              </select>
+            </label>
+
+            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
+              <input type="checkbox" checked={willingToShip} onChange={(e) => setWillingToShip(e.target.checked)} />
+              Willing to ship
+            </label>
+          </div>
+
           <label className="block">
             <div className="mb-1 text-xs font-semibold text-slate-700">Contact (optional)</div>
             <input
@@ -509,9 +572,12 @@ export default function PostListingPage() {
               className="min-h-[140px] w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
               required
               minLength={1}
-              maxLength={1000}
+              maxLength={maxDescLen}
               placeholder="Add details like age/size, water params, pickup, etc."
             />
+            <div className="mt-1 text-[11px] font-semibold text-slate-500">
+              ({description.trim().length}/{maxDescLen})
+            </div>
           </label>
 
           <div className="flex gap-2">

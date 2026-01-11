@@ -58,14 +58,15 @@ export default function ListingPage() {
 
   const bodyDescription = decoded?.hadPrefix ? decoded.body : item?.description ?? "";
   const details = decoded?.details ?? { quantity: 1, priceType: "each" as const, customPriceText: "", willingToShip: false };
-  const priceTypeLabel =
+  const priceSuffix =
     details.priceType === "each"
-      ? "Each"
+      ? "each"
       : details.priceType === "all"
-        ? "All"
+        ? "for all"
         : details.customPriceText
-          ? details.customPriceText
-          : "Custom";
+          ? `(${details.customPriceText})`
+          : "(custom)";
+  const qtyLabel = `Qty ${details.quantity}`;
   const phoneDigits = (item?.phone ?? "").toString().replace(/[^\d+]/g, "");
 
   function DefaultAvatar() {
@@ -309,9 +310,12 @@ export default function ListingPage() {
             {/* Right column: seller + contact + listing details */}
             <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-5 lg:sticky lg:top-24">
               <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Price</div>
-              <div className="mt-1 text-3xl font-extrabold text-slate-900">{centsToDollars(item.priceCents)}</div>
+              <div className="mt-1 flex items-baseline gap-2">
+                <div className="text-3xl font-extrabold text-slate-900">{centsToDollars(item.priceCents)}</div>
+                <div className="text-sm font-semibold text-slate-600">{priceSuffix}</div>
+              </div>
               <div className="mt-2 text-sm font-semibold text-slate-700">
-                <span className="text-slate-500">Quantity:</span> {details.quantity}
+                <span className="text-slate-500">{qtyLabel}</span>
               </div>
 
               <div className="mt-5 border-t border-slate-200 pt-4">
@@ -386,7 +390,7 @@ export default function ListingPage() {
                   </div>
                   <div className="flex items-baseline justify-between gap-4">
                     <dt className="font-semibold text-slate-600">Price type</dt>
-                    <dd className="font-semibold text-slate-900">{priceTypeLabel}</dd>
+                    <dd className="font-semibold text-slate-900">{priceSuffix}</dd>
                   </div>
                   <div className="flex items-baseline justify-between gap-4">
                     <dt className="font-semibold text-slate-600">Shipping</dt>

@@ -10,6 +10,7 @@ function normNullable(s: string): string | null {
 }
 
 export default function ProfilePage() {
+  const MAX_BIO_LEN = 200;
   const nav = useNavigate();
   const { user, loading: authLoading, refresh } = useAuth();
 
@@ -313,9 +314,14 @@ export default function ProfilePage() {
                     onChange={(e) => setBio(e.target.value)}
                     placeholder="Tell buyers about yourself (pickup times, breeding experience, etc.)"
                     className="min-h-[140px] w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                    maxLength={1000}
+                    maxLength={MAX_BIO_LEN}
                     disabled={loading}
                   />
+                  <div className="mt-1 flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                    <div>
+                      {bio.length}/{MAX_BIO_LEN}
+                    </div>
+                  </div>
                 </label>
               </div>
 

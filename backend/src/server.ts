@@ -310,7 +310,7 @@ const ProfileSchema = z.object({
   location: z.string().max(120).nullable().optional(),
   phone: z.string().max(40).nullable().optional(),
   website: z.string().max(300).nullable().optional(),
-  bio: z.string().max(1000).nullable().optional(),
+  bio: z.string().max(200).nullable().optional(),
 });
 
 function mapProfileRow(row: any) {

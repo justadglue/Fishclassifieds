@@ -132,6 +132,8 @@ export default function EditListingPage() {
   const [description, setDescription] = useState("");
 
   const customPriceInputRef = useRef<HTMLInputElement | null>(null);
+  const [showShipHint, setShowShipHint] = useState(false);
+  const [shipHintVisible, setShipHintVisible] = useState(false);
 
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
 
@@ -192,6 +194,17 @@ export default function EditListingPage() {
     if (loading) return;
     window.setTimeout(() => customPriceInputRef.current?.focus(), 0);
   }, [priceType, loading]);
+
+  useEffect(() => {
+    if (willingToShip) {
+      setShowShipHint(true);
+      window.requestAnimationFrame(() => setShipHintVisible(true));
+      return;
+    }
+    setShipHintVisible(false);
+    const t = window.setTimeout(() => setShowShipHint(false), 250);
+    return () => window.clearTimeout(t);
+  }, [willingToShip]);
 
   const photoPreviews = useMemo(() => {
     return photos.map((p, idx) => {
@@ -937,7 +950,7 @@ export default function EditListingPage() {
                   Location
                 </div>
                 <div className="flex h-10 items-center">
-                  <div className="inline-flex items-center gap-1">
+                  <div className="inline-flex items-center gap-1 min-w-0">
                     <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 select-none">
                       <input
                         type="checkbox"
@@ -948,6 +961,24 @@ export default function EditListingPage() {
                       Willing to ship
                     </label>
                     <ShippingInfoButton disabled={loading} />
+                    {showShipHint && (
+                      <div
+                        className={[
+                          "ml-1 min-w-0 text-xs font-semibold text-slate-500 transition-opacity duration-250 ease-out",
+                          shipHintVisible ? "opacity-100" : "opacity-0",
+                        ].join(" ")}
+                        aria-hidden={!shipHintVisible}
+                      >
+                        Ship safely.{" "}
+                        <Link
+                          to="/faq#fish-shipping"
+                          tabIndex={shipHintVisible ? 0 : -1}
+                          className="text-slate-700 underline underline-offset-2 hover:text-slate-900"
+                        >
+                          Fish shipping FAQ
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

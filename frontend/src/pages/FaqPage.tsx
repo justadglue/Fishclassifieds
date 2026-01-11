@@ -35,7 +35,7 @@ export default function FaqPage() {
             id="fish-shipping"
             className={[
               "scroll-mt-24 rounded-2xl border bg-white/5 p-5 transition-colors duration-1000",
-              highlightShipping ? "border-white bg-amber ring-2 ring-amber-200/20" : "border-white/10",
+              highlightShipping ? "border-amber-200/40 bg-amber-200/10 ring-2 ring-amber-200/20" : "border-white/10",
             ].join(" ")}
           >
             <div className="text-sm font-extrabold">How do I ship fish safely?</div>

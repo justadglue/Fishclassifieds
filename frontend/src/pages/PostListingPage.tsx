@@ -485,7 +485,7 @@ export default function PostListingPage() {
     if (priceCents === null) return;
     if (bioFieldsRequired && !sex) return;
     const sexToSubmit: ListingSex = ((bioFieldsEnabled && sex ? sex : "Unknown") as ListingSex) ?? "Unknown";
-    const speciesToSubmit = bioFieldsEnabled ? species.trim() || String(category).trim() : String(category).trim();
+    const speciesToSubmit = bioFieldsEnabled ? species.trim() : "";
 
     if (photos.length === 0) {
       const ok = window.confirm("You haven't added any photos. Post this listing without photos?");

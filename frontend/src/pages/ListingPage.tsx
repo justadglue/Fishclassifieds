@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { Flag } from "lucide-react";
-import { fetchListing, resolveAssets, type Listing } from "../api";
+import { fetchListing, getListingOptionsCached, resolveAssets, type Listing } from "../api";
 import Header from "../components/Header";
 import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
 
@@ -45,6 +45,9 @@ export default function ListingPage() {
   // Lightbox
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
+  const [bioRequiredCategories, setBioRequiredCategories] = useState<Set<string>>(new Set());
+  const [otherCategoryName, setOtherCategoryName] = useState("Other");
+
   useEffect(() => {
     let cancelled = false;
     async function run() {
@@ -70,6 +73,22 @@ export default function ListingPage() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getListingOptionsCached()
+      .then((opts) => {
+        if (cancelled) return;
+        setBioRequiredCategories(new Set(((opts as any).bioFieldsRequiredCategories as string[]) ?? []));
+        setOtherCategoryName(String((opts as any).otherCategory ?? "Other"));
+      })
+      .catch(() => {
+        // ignore
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const assets = useMemo(() => {
     if (!item) return [];
@@ -414,18 +433,45 @@ export default function ListingPage() {
                 <div className="mt-4 border-t border-slate-200 pt-4">
                   <div className="text-sm font-extrabold text-slate-900">Listing details</div>
                   <dl className="mt-3 space-y-2 text-sm">
+                    {(() => {
+                      const cat = String(item.category ?? "");
+                      const rulesReady = bioRequiredCategories.size > 0;
+                      const isOther = rulesReady ? cat === String(otherCategoryName) : false;
+                      const bioDisabled = rulesReady ? Boolean(cat) && !bioRequiredCategories.has(cat) && !isOther : false;
+
+                      const species = String(item.species ?? "").trim();
+                      const sex = String(item.sex ?? "").trim();
+                      const waterType = item.waterType ? String(item.waterType).trim() : "";
+
+                      // Hide species for legacy "species === category" rows (e.g. Equipment) even if rules haven't loaded yet.
+                      const showSpecies = !bioDisabled && Boolean(species) && species !== cat;
+                      const showSex = !bioDisabled && Boolean(sex) && sex !== "Unknown";
+                      const showWaterType = !bioDisabled && Boolean(waterType);
+
+                      return (
+                        <>
                     <div className="flex items-baseline justify-between gap-4">
                       <dt className="font-semibold text-slate-600">Category</dt>
                       <dd className="font-semibold text-slate-900">{item.category}</dd>
                     </div>
-                    <div className="flex items-baseline justify-between gap-4">
-                      <dt className="font-semibold text-slate-600">Species</dt>
-                      <dd className="font-semibold text-slate-900">{item.species}</dd>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-4">
-                      <dt className="font-semibold text-slate-600">Sex</dt>
-                      <dd className="font-semibold text-slate-900">{item.sex}</dd>
-                    </div>
+                    {showSpecies ? (
+                      <div className="flex items-baseline justify-between gap-4">
+                        <dt className="font-semibold text-slate-600">Species</dt>
+                        <dd className="font-semibold text-slate-900">{species}</dd>
+                      </div>
+                    ) : null}
+                    {showSex ? (
+                      <div className="flex items-baseline justify-between gap-4">
+                        <dt className="font-semibold text-slate-600">Sex</dt>
+                        <dd className="font-semibold text-slate-900">{sex}</dd>
+                      </div>
+                    ) : null}
+                    {showWaterType ? (
+                      <div className="flex items-baseline justify-between gap-4">
+                        <dt className="font-semibold text-slate-600">Water type</dt>
+                        <dd className="font-semibold text-slate-900">{waterType}</dd>
+                      </div>
+                    ) : null}
                     <div className="flex items-baseline justify-between gap-4">
                       <dt className="font-semibold text-slate-600">Location</dt>
                       <dd className="font-semibold text-slate-900">{item.location}</dd>
@@ -440,6 +486,9 @@ export default function ListingPage() {
                         {details.willingToShip ? "Shipping offered" : "Local pickup or delivery only"}
                       </dd>
                     </div>
+                        </>
+                      );
+                    })()}
                   </dl>
                 </div>
               </aside>

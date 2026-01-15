@@ -669,7 +669,7 @@ app.post("/api/listings", requireAuth, (req, res) => {
   const isOther = isOtherCategory(category);
   const bioDisabled = !bioRequired && !isOther;
 
-  const speciesFinal = bioDisabled ? String(category) : String(species ?? "").trim() || String(category);
+  const speciesFinal = bioDisabled ? "" : String(species ?? "").trim();
   const sexFinal = bioDisabled ? "Unknown" : String(sex ?? "Unknown");
   const waterTypeFinal = bioDisabled ? null : (waterType ?? null);
 
@@ -902,7 +902,7 @@ app.patch("/api/listings/:id", requireAuth, (req, res) => {
   const isOther = isOtherCategory(nextCategory);
   const bioDisabled = !bioRequired && !isOther;
 
-  const speciesNext = bioDisabled ? nextCategory : String((p.species ?? row.species) ?? "").trim() || nextCategory;
+  const speciesNext = bioDisabled ? "" : String((p.species ?? row.species) ?? "").trim();
   const sexNext = bioDisabled ? "Unknown" : String((p.sex ?? (row as any).sex) ?? "Unknown");
   const waterTypeNext = bioDisabled ? null : (p.waterType !== undefined ? (p.waterType ?? null) : ((row as any).water_type ?? null));
 
@@ -985,6 +985,7 @@ function mapWantedRow(row: any) {
     title: String(row.title),
     category: String(row.category),
     species: row.species && String(row.species).trim() ? String(row.species) : null,
+    waterType: row.water_type && String(row.water_type).trim() ? String(row.water_type) : null,
     budgetMinCents: row.budget_min_cents != null ? Number(row.budget_min_cents) : null,
     budgetMaxCents: row.budget_max_cents != null ? Number(row.budget_max_cents) : null,
     location: String(row.location),
@@ -1446,8 +1447,8 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
       newOwnerToken,
       row.title,
       row.category,
-      row.species,
-      (row as any).sex ?? "Unknown",
+      isBioFieldsRequiredCategory(String(row.category)) || isOtherCategory(String(row.category)) ? row.species : "",
+      isBioFieldsRequiredCategory(String(row.category)) || isOtherCategory(String(row.category)) ? ((row as any).sex ?? "Unknown") : "Unknown",
       row.price_cents,
       row.location,
       row.description,
@@ -1553,6 +1554,7 @@ function mapListing(req: express.Request, row: ListingRow & any) {
     category: row.category,
     species: row.species,
     sex: String((row as any).sex ?? "Unknown"),
+    waterType: (row as any).water_type ?? null,
     priceCents: row.price_cents,
     location: row.location,
     description: row.description,

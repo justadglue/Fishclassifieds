@@ -438,15 +438,17 @@ export default function ListingPage() {
                       const cat = String(item.category ?? "");
                       const rulesReady = bioRequiredCategories.size > 0;
                       const isOther = rulesReady ? cat === String(otherCategoryName) : false;
-                      const bioDisabled = rulesReady ? Boolean(cat) && !bioRequiredCategories.has(cat) && !isOther : false;
+                      const bioEnabled = rulesReady ? Boolean(cat) && (bioRequiredCategories.has(cat) || isOther) : true;
 
                       const species = String(item.species ?? "").trim();
                       const sex = String(item.sex ?? "").trim();
                       const waterType = item.waterType ? String(item.waterType).trim() : "";
 
-                      const showSpecies = !bioDisabled && Boolean(species);
-                      const showSex = !bioDisabled && Boolean(sex) && sex !== "Unknown";
-                      const showWaterType = !bioDisabled && Boolean(waterType);
+                      // Show whatever was actually submitted for this listing.
+                      // For non-bio categories, we still suppress the default "Unknown" sex value (it wasn't user-entered).
+                      const showSpecies = Boolean(species);
+                      const showSex = Boolean(sex) && (bioEnabled || sex !== "Unknown");
+                      const showWaterType = Boolean(waterType);
 
                       return (
                         <>

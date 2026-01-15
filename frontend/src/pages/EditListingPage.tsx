@@ -19,6 +19,7 @@ import {
   type Listing,
   type ImageAsset,
   type ListingSex,
+  type WaterType,
 } from "../api";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
@@ -123,11 +124,15 @@ export default function EditListingPage() {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [sexes, setSexes] = useState<ListingSex[]>([]);
+  const [waterTypes, setWaterTypes] = useState<WaterType[]>([]);
+  const [bioRequiredCategories, setBioRequiredCategories] = useState<Set<string>>(new Set());
+  const [otherCategoryName, setOtherCategoryName] = useState("Other");
 
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<Category>("");
   const [species, setSpecies] = useState("");
   const [sex, setSex] = useState<ListingSex | "">("");
+  const [waterType, setWaterType] = useState<WaterType | "">("");
   const [priceDollars, setPriceDollars] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [priceType, setPriceType] = useState<PriceType>("each");
@@ -144,6 +149,9 @@ export default function EditListingPage() {
         if (cancelled) return;
         setCategories(opts.categories as Category[]);
         setSexes(opts.listingSexes as ListingSex[]);
+        setWaterTypes((opts as any).waterTypes as WaterType[]);
+        setBioRequiredCategories(new Set(((opts as any).bioFieldsRequiredCategories as string[]) ?? []));
+        setOtherCategoryName(String((opts as any).otherCategory ?? "Other"));
       })
       .catch(() => {
         // ignore; backend will validate on save
@@ -166,6 +174,7 @@ export default function EditListingPage() {
     | "title"
     | "category"
     | "species"
+    | "waterType"
     | "sex"
     | "price"
     | "quantity"
@@ -182,6 +191,22 @@ export default function EditListingPage() {
       return { ...prev, [k]: undefined };
     });
   }
+
+  const isOtherCategory = String(category) === String(otherCategoryName);
+  const bioFieldsRequired = bioRequiredCategories.has(String(category));
+  const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
+  const bioFieldsEnabled = !bioFieldsDisabled;
+
+  useEffect(() => {
+    if (!category) return;
+    if (!bioFieldsDisabled) return;
+    setSpecies("");
+    setSex("");
+    setWaterType("");
+    clearFieldError("species");
+    clearFieldError("sex");
+    clearFieldError("waterType");
+  }, [category, bioFieldsDisabled]);
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
@@ -210,6 +235,7 @@ export default function EditListingPage() {
         setCategory(l.category);
         setSpecies(l.species);
         setSex(l.sex ?? "");
+        setWaterType((l as any).waterType ?? "");
         setPriceDollars(centsToDollarsString(l.priceCents));
         setLocation(l.location);
         setPhone(l.phone ?? "");
@@ -471,8 +497,9 @@ export default function EditListingPage() {
     const nextErrors: Partial<Record<FieldKey, string>> = {};
     if (!title.trim()) nextErrors.title = "Required field";
     if (!category) nextErrors.category = "Required field";
-    if (!species.trim()) nextErrors.species = "Required field";
-    if (!sex) nextErrors.sex = "Required field";
+    if (bioFieldsRequired && !species.trim()) nextErrors.species = "Required field";
+    if (bioFieldsRequired && !waterType) nextErrors.waterType = "Required field";
+    if (bioFieldsRequired && !sex) nextErrors.sex = "Required field";
     if (!location.trim()) nextErrors.location = "Required field";
 
     const phoneTrim = phone.trim();
@@ -495,7 +522,7 @@ export default function EditListingPage() {
 
     if (!description.trim()) nextErrors.description = "Required field";
 
-    if (!nextErrors.description && !nextErrors.customPriceText && priceCents !== null && sex) {
+    if (!nextErrors.description && !nextErrors.customPriceText && priceCents !== null) {
       const detailsPrefix = buildSaleDetailsPrefix({ quantity: qty, priceType, customPriceText: custom, willingToShip });
       const maxBodyLen = Math.max(1, 1000 - detailsPrefix.length);
       if (description.trim().length > maxBodyLen) {
@@ -510,7 +537,11 @@ export default function EditListingPage() {
     }
     // Narrow types for TS (should be unreachable due to validation above).
     if (priceCents === null) return;
-    if (!sex) return;
+    if (bioFieldsRequired && !sex) return;
+
+    const sexToSubmit: ListingSex = ((bioFieldsEnabled && sex ? sex : "Unknown") as ListingSex) ?? "Unknown";
+    const speciesToSubmit = bioFieldsEnabled ? species.trim() : "";
+    const waterTypeToSubmit = bioFieldsEnabled && waterType ? waterType : null;
 
     setLoading(true);
     try {
@@ -539,8 +570,9 @@ export default function EditListingPage() {
         const created = await createListing({
           title: title.trim(),
           category,
-          species: species.trim(),
-          sex: sex as ListingSex,
+          species: speciesToSubmit,
+          sex: sexToSubmit,
+          waterType: waterTypeToSubmit,
           priceCents,
           location: location.trim(),
           description: finalDescription,
@@ -558,8 +590,9 @@ export default function EditListingPage() {
       const updated = await updateListing(id, {
         title: title.trim(),
         category,
-        species: species.trim(),
-        sex: sex as ListingSex,
+        species: speciesToSubmit,
+        sex: sexToSubmit,
+        waterType: waterTypeToSubmit,
         priceCents,
         location: location.trim(),
         description: finalDescription,
@@ -585,6 +618,7 @@ export default function EditListingPage() {
     setCategory(l.category);
     setSpecies(l.species);
     setSex(l.sex ?? "");
+    setWaterType((l as any).waterType ?? "");
     setPriceDollars(centsToDollarsString(l.priceCents));
     setLocation(l.location);
     setPhone(l.phone ?? "");
@@ -918,7 +952,7 @@ export default function EditListingPage() {
               {fieldErrors.title && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.title}</div>}
             </label>
 
-            <div className="grid gap-3 sm:grid-cols-6">
+            <div className="grid gap-3 sm:grid-cols-10">
               <label className="block sm:col-span-2">
                 <div className={["mb-1 text-xs font-semibold", fieldErrors.category ? "text-red-700" : "text-slate-700"].join(" ")}>
                   Category <span className="text-red-600">*</span>
@@ -941,19 +975,24 @@ export default function EditListingPage() {
                       Loading…
                     </option>
                   ) : (
-                    categories.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
+                    <>
+                      <option value="" disabled hidden>
+                        Select…
                       </option>
-                    ))
+                      {categories.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </>
                   )}
                 </select>
                 {fieldErrors.category && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.category}</div>}
               </label>
 
-              <label className="block sm:col-span-3">
+              <label className="block sm:col-span-4">
                 <div className={["mb-1 text-xs font-semibold", fieldErrors.species ? "text-red-700" : "text-slate-700"].join(" ")}>
-                  Species <span className="text-red-600">*</span>
+                  Species {bioFieldsRequired && <span className="text-red-600">*</span>}
                 </div>
                 <input
                   value={species}
@@ -964,18 +1003,55 @@ export default function EditListingPage() {
                   className={[
                     "w-full rounded-xl border px-3 py-2 text-sm outline-none",
                     fieldErrors.species ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                    "disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed",
                   ].join(" ")}
-                  required
+                  required={bioFieldsRequired}
                   minLength={2}
                   maxLength={60}
-                  disabled={loading}
+                  disabled={loading || bioFieldsDisabled}
                 />
                 {fieldErrors.species && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.species}</div>}
               </label>
 
-              <label className="block sm:col-span-1">
+              <label className="block sm:col-span-2">
+                <div className={["mb-1 text-xs font-semibold", fieldErrors.waterType ? "text-red-700" : "text-slate-700"].join(" ")}>
+                  Water type {bioFieldsRequired && <span className="text-red-600">*</span>}
+                </div>
+                <select
+                  value={waterType}
+                  onChange={(e) => {
+                    setWaterType(e.target.value as WaterType);
+                    clearFieldError("waterType");
+                  }}
+                  className={[
+                    "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                    fieldErrors.waterType ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                    "disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed",
+                  ].join(" ")}
+                  disabled={loading || bioFieldsDisabled}
+                  required={bioFieldsRequired}
+                >
+                  <option value="" disabled hidden>
+                    Select…
+                  </option>
+                  {!waterTypes.length ? (
+                    <option value="" disabled>
+                      Loading…
+                    </option>
+                  ) : (
+                    waterTypes.map((w) => (
+                      <option key={w} value={w}>
+                        {w}
+                      </option>
+                    ))
+                  )}
+                </select>
+                {fieldErrors.waterType && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.waterType}</div>}
+              </label>
+
+              <label className="block sm:col-span-2">
                 <div className={["mb-1 text-xs font-semibold", fieldErrors.sex ? "text-red-700" : "text-slate-700"].join(" ")}>
-                  Sex <span className="text-red-600">*</span>
+                  Sex {bioFieldsRequired && <span className="text-red-600">*</span>}
                 </div>
                 <select
                   value={sex}
@@ -986,9 +1062,10 @@ export default function EditListingPage() {
                   className={[
                     "w-full rounded-xl border px-3 py-2 text-sm outline-none",
                     fieldErrors.sex ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                    "disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed",
                   ].join(" ")}
-                  disabled={loading}
-                  required
+                  disabled={loading || bioFieldsDisabled}
+                  required={bioFieldsRequired}
                 >
                   <option value="" disabled hidden>
                     Select…

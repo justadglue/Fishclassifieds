@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
-import { fetchWantedPost, getListingOptionsCached, updateWantedPost, type Category, type WantedPost } from "../api";
+import { fetchWantedPost, getListingOptionsCached, updateWantedPost, type Category, type WantedPost, type WaterType } from "../api";
 
 function centsToDollars(cents: number | null) {
   if (cents == null) return "";
@@ -23,6 +23,9 @@ export default function WantedEditPage() {
   const { user, loading } = useAuth();
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [waterTypes, setWaterTypes] = useState<WaterType[]>([]);
+  const [bioRequiredCategories, setBioRequiredCategories] = useState<Set<string>>(new Set());
+  const [otherCategoryName, setOtherCategoryName] = useState("Other");
 
   const [item, setItem] = useState<WantedPost | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -31,6 +34,7 @@ export default function WantedEditPage() {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<Category>("");
   const [species, setSpecies] = useState("");
+  const [waterType, setWaterType] = useState<WaterType | "">("");
   const [location, setLocation] = useState("");
   const [minBudget, setMinBudget] = useState("");
   const [maxBudget, setMaxBudget] = useState("");
@@ -42,6 +46,9 @@ export default function WantedEditPage() {
       .then((opts) => {
         if (cancelled) return;
         setCategories(opts.categories as Category[]);
+        setWaterTypes((opts as any).waterTypes as WaterType[]);
+        setBioRequiredCategories(new Set(((opts as any).bioFieldsRequiredCategories as string[]) ?? []));
+        setOtherCategoryName(String((opts as any).otherCategory ?? "Other"));
       })
       .catch(() => {
         // ignore
@@ -71,6 +78,7 @@ export default function WantedEditPage() {
         setTitle(w.title);
         setCategory(w.category);
         setSpecies(w.species ?? "");
+        setWaterType((w as any).waterType ?? "");
         setLocation(w.location);
         setMinBudget(centsToDollars(w.budgetMinCents));
         setMaxBudget(centsToDollars(w.budgetMaxCents));
@@ -90,6 +98,18 @@ export default function WantedEditPage() {
     return Number(user.id) === Number(item.userId);
   }, [user, item]);
 
+  const isOtherCategory = String(category) === String(otherCategoryName);
+  const bioFieldsRequired = bioRequiredCategories.has(String(category));
+  const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
+  const bioFieldsEnabled = !bioFieldsDisabled;
+
+  useEffect(() => {
+    if (!category) return;
+    if (!bioFieldsDisabled) return;
+    setSpecies("");
+    setWaterType("");
+  }, [category, bioFieldsDisabled]);
+
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
     if (!id) return;
@@ -97,10 +117,13 @@ export default function WantedEditPage() {
     setSaving(true);
     try {
       if (!isOwner) throw new Error("Not owner");
+      if (!category) throw new Error("Category is required.");
+      if (bioFieldsRequired && !waterType) throw new Error("Water type is required.");
       const updated = await updateWantedPost(id, {
         title: title.trim(),
         category,
         species: species.trim() ? species.trim() : null,
+        waterType: bioFieldsEnabled && waterType ? waterType : null,
         budgetMinCents: dollarsToCents(minBudget),
         budgetMaxCents: dollarsToCents(maxBudget),
         location: location.trim(),
@@ -152,17 +175,23 @@ export default function WantedEditPage() {
                   value={category}
                   onChange={(e) => setCategory(e.target.value as Category)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400"
+                  required
                 >
                   {!categories.length ? (
                     <option value="" disabled>
                       Loading…
                     </option>
                   ) : (
-                    categories.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
+                    <>
+                      <option value="" disabled hidden>
+                        Select…
                       </option>
-                    ))
+                      {categories.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </>
                   )}
                 </select>
               </label>
@@ -172,10 +201,37 @@ export default function WantedEditPage() {
                 <input
                   value={species}
                   onChange={(e) => setSpecies(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+                  disabled={bioFieldsDisabled}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </label>
             </div>
+
+            <label className="block">
+              <div className="mb-1 text-xs font-semibold text-slate-700">Water type</div>
+              <select
+                value={waterType}
+                onChange={(e) => setWaterType(e.target.value as WaterType)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                required={bioFieldsRequired}
+                disabled={bioFieldsDisabled}
+              >
+                <option value="" disabled hidden>
+                  Select…
+                </option>
+                {!waterTypes.length ? (
+                  <option value="" disabled>
+                    Loading…
+                  </option>
+                ) : (
+                  waterTypes.map((w) => (
+                    <option key={w} value={w}>
+                      {w}
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
 
             <label className="block">
               <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>

@@ -30,6 +30,7 @@ function normalizeCtx(raw: string | null, next: string | null): AuthGateCtx | nu
   if (next.startsWith("/feature/")) return "feature_listing";
   if (next === "/me") return "my_listings";
   if (next === "/profile") return "profile";
+  if (next === "/post/wanted") return "wanted_post";
   if (next === "/wanted/post") return "wanted_post";
   if (next.startsWith("/wanted/edit/")) return "wanted_edit";
   if (next.startsWith("/wanted/")) return "message";

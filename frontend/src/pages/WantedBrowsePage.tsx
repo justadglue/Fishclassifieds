@@ -163,7 +163,7 @@ export default function WantedBrowsePage() {
             </div>
           </div>
           <Link
-            to="/wanted/post"
+            to="/post/wanted"
             className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800"
           >
             Post a wanted

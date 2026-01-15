@@ -35,7 +35,7 @@ export default function WantedPostPage() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user) nav(`/auth?next=${encodeURIComponent("/wanted/post")}&ctx=wanted_post`);
+    if (!user) nav(`/auth?next=${encodeURIComponent("/post/wanted")}&ctx=wanted_post`);
   }, [loading, user, nav]);
 
   useEffect(() => {

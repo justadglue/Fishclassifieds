@@ -53,7 +53,8 @@ export default function App() {
         <Route path="/feature/:id" element={<FeatureListingPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/wanted" element={<Navigate to="/browse?type=wanted" replace />} />
-        <Route path="/wanted/post" element={<WantedPostPage />} />
+        <Route path="/post/wanted" element={<WantedPostPage />} />
+        <Route path="/wanted/post" element={<Navigate to="/post/wanted" replace />} />
         <Route path="/wanted/:id" element={<WantedDetailPage />} />
         <Route path="/wanted/edit/:id" element={<WantedEditPage />} />
         <Route path="/faq" element={<FaqPage />} />

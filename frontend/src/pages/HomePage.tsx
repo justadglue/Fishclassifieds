@@ -338,7 +338,7 @@ export default function HomePage() {
 
             <button
               type="button"
-              onClick={() => goRequireAuth("/wanted/post")}
+              onClick={() => goRequireAuth("/post/wanted")}
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
               <div className="text-sm font-extrabold text-white">Create a wanted post →</div>

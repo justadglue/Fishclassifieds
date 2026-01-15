@@ -17,7 +17,7 @@ export default function PostChoosePage() {
     const qp = new URLSearchParams();
     if (next) qp.set("next", next);
     const qs = qp.toString();
-    return qs ? `/wanted/post?${qs}` : "/wanted/post";
+    return qs ? `/post/wanted?${qs}` : "/post/wanted";
   })();
 
   return (

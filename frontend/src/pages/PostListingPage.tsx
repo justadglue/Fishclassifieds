@@ -553,7 +553,7 @@ export default function PostListingPage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-sm font-bold text-slate-900">Photos</div>
-                <div className="text-xs text-slate-600">JPG / PNG / WebP up to 6MB each</div>
+                <div className="text-xs text-slate-600">Up to 6 photos.</div>
                 <div className="text-xs text-slate-600">Drag to reorder. The first photo is used as the thumbnail.</div>
               </div>
 

@@ -1139,26 +1139,26 @@ export default function EditListingPage() {
                 {fieldErrors.quantity && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.quantity}</div>}
               </label>
 
-            <label className="block">
-              <div className={["mb-1 text-xs font-semibold", fieldErrors.age ? "text-red-700" : "text-slate-700"].join(" ")}>
-                Age <span className="text-red-600">*</span>
-              </div>
-              <input
-                value={age}
-                onChange={(e) => {
-                  setAge(e.target.value);
-                  clearFieldError("age");
-                }}
-                className={[
-                  "w-full rounded-xl border px-3 py-2 text-sm outline-none",
-                  fieldErrors.age ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
-                ].join(" ")}
-                required
-                maxLength={40}
-                disabled={loading}
-              />
-              {fieldErrors.age && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.age}</div>}
-            </label>
+              <label className="block">
+                <div className={["mb-1 text-xs font-semibold", fieldErrors.age ? "text-red-700" : "text-slate-700"].join(" ")}>
+                  Age <span className="text-red-600">*</span>
+                </div>
+                <input
+                  value={age}
+                  onChange={(e) => {
+                    setAge(e.target.value);
+                    clearFieldError("age");
+                  }}
+                  className={[
+                    "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                    fieldErrors.age ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  ].join(" ")}
+                  required
+                  maxLength={40}
+                  disabled={loading}
+                />
+                {fieldErrors.age && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.age}</div>}
+              </label>
 
               <div className="block">
                 <div className={["mb-1 text-xs font-semibold", fieldErrors.priceType || fieldErrors.customPriceText ? "text-red-700" : "text-slate-700"].join(" ")}>

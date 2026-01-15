@@ -1,6 +1,7 @@
 // frontend/src/pages/ListingPage.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import { Flag } from "lucide-react";
 import { fetchListing, resolveAssets, type Listing } from "../api";
 import Header from "../components/Header";
 import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
@@ -206,15 +207,25 @@ export default function ListingPage() {
               <div className="space-y-5">
                 <div>
                   <h1 className="text-2xl font-extrabold text-slate-900">{item.title}</h1>
-                  <div className="mt-2 text-xs font-semibold text-slate-500">
-                    Posted {postedAgo ? `${postedAgo} • ` : ""}
-                    {new Date(item.createdAt).toLocaleString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-500">
+                    <div>
+                      Posted {postedAgo ? `${postedAgo} • ` : ""}
+                      {new Date(item.createdAt).toLocaleString(undefined, {
+                        year: "numeric",
+                        month: "short",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-red-400"
+                      title="Report this ad"
+                    >
+                      <Flag aria-hidden="true" className="h-3.5 w-3.5" />
+                      <span>Report this listing</span>
+                    </button>
                   </div>
                 </div>
 

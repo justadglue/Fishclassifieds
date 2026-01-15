@@ -2,9 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
-import { fetchWantedPost, updateWantedPost, type Category, type WantedPost } from "../api";
-
-const CATEGORIES: Category[] = ["Fish", "Shrimp", "Snails", "Plants", "Equipment"];
+import { fetchWantedPost, getListingOptionsCached, updateWantedPost, type Category, type WantedPost } from "../api";
 
 function centsToDollars(cents: number | null) {
   if (cents == null) return "";
@@ -24,17 +22,35 @@ export default function WantedEditPage() {
   const nav = useNavigate();
   const { user, loading } = useAuth();
 
+  const [categories, setCategories] = useState<Category[]>([]);
+
   const [item, setItem] = useState<WantedPost | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<Category>("Fish");
+  const [category, setCategory] = useState<Category>("");
   const [species, setSpecies] = useState("");
   const [location, setLocation] = useState("");
   const [minBudget, setMinBudget] = useState("");
   const [maxBudget, setMaxBudget] = useState("");
   const [description, setDescription] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    getListingOptionsCached()
+      .then((opts) => {
+        if (cancelled) return;
+        setCategories(opts.categories as Category[]);
+        setCategory((prev) => (prev ? prev : ((opts.categories[0] ?? "") as Category)));
+      })
+      .catch(() => {
+        // ignore
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (loading) return;
@@ -138,11 +154,17 @@ export default function WantedEditPage() {
                   onChange={(e) => setCategory(e.target.value as Category)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400"
                 >
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
+                  {!categories.length ? (
+                    <option value="" disabled>
+                      Loading…
                     </option>
-                  ))}
+                  ) : (
+                    categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))
+                  )}
                 </select>
               </label>
 

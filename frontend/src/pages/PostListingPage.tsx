@@ -7,6 +7,7 @@ import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@d
 import { CSS } from "@dnd-kit/utilities";
 import {
   createListing,
+  getListingOptionsCached,
   uploadImage,
   resolveImageUrl,
   type Category,
@@ -24,8 +25,6 @@ function dollarsToCents(v: string) {
   return Math.round(n * 100);
 }
 
-const CATEGORIES: Category[] = ["Fish", "Shrimp", "Snails", "Plants", "Equipment"];
-const SEXES: ListingSex[] = ["Male", "Female", "Various", "Unknown"];
 const MAX_CUSTOM_PRICE_TYPE_LEN = 20;
 
 type PendingImage = {
@@ -49,8 +48,11 @@ export default function PostListingPage() {
     if (!user) nav(`/auth?next=${encodeURIComponent("/post")}&ctx=create_listing`);
   }, [authLoading, user, nav]);
 
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [sexes, setSexes] = useState<ListingSex[]>([]);
+
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<Category>("Fish");
+  const [category, setCategory] = useState<Category>("");
   const [species, setSpecies] = useState("");
   const [sex, setSex] = useState<ListingSex | "">("");
   const [priceDollars, setPriceDollars] = useState("");
@@ -85,6 +87,23 @@ export default function PostListingPage() {
     | "phone"
     | "description";
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    getListingOptionsCached()
+      .then((opts) => {
+        if (cancelled) return;
+        setCategories(opts.categories as Category[]);
+        setSexes(opts.listingSexes as ListingSex[]);
+        setCategory((prev) => (prev ? prev : ((opts.categories[0] ?? "") as Category)));
+      })
+      .catch(() => {
+        // ignore; backend will validate on submit
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function clearFieldError(k: FieldKey) {
     setFieldErrors((prev) => {
@@ -576,11 +595,17 @@ export default function PostListingPage() {
                 ].join(" ")}
                 required
               >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                {!categories.length ? (
+                  <option value="" disabled>
+                    Loading…
                   </option>
-                ))}
+                ) : (
+                  categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))
+                )}
               </select>
               {fieldErrors.category && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.category}</div>}
             </label>
@@ -625,11 +650,17 @@ export default function PostListingPage() {
                 <option value="" disabled hidden>
                   Select…
                 </option>
-                {SEXES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                {!sexes.length ? (
+                  <option value="" disabled>
+                    Loading…
                   </option>
-                ))}
+                ) : (
+                  sexes.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))
+                )}
               </select>
               {fieldErrors.sex && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.sex}</div>}
             </label>

@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
-import type { Category } from "../api";
-import { fetchWanted, type WantedPost } from "../api";
+import { fetchWanted, getListingOptionsCached, type Category, type WantedPost } from "../api";
 
 type PageSize = 12 | 24 | 48 | 96;
 
-const CATEGORIES: ("" | Category)[] = ["", "Fish", "Shrimp", "Snails", "Plants", "Equipment"];
 const PAGE_SIZES: PageSize[] = [12, 24, 48, 96];
 
 function relativeTime(iso: string) {
@@ -59,6 +57,24 @@ export default function WantedBrowsePage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const categoryOptions = useMemo(() => ["", ...categories] as Array<"" | Category>, [categories]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getListingOptionsCached()
+      .then((opts) => {
+        if (cancelled) return;
+        setCategories(opts.categories as Category[]);
+      })
+      .catch(() => {
+        // ignore
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const minBudgetCents = useMemo(() => {
     const s = String(minDollars ?? "").trim();
@@ -181,7 +197,7 @@ export default function WantedBrowsePage() {
                   onChange={(e) => setParam("category", e.target.value)}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
                 >
-                  {CATEGORIES.map((c) => (
+                  {categoryOptions.map((c) => (
                     <option key={c || "Any"} value={c}>
                       {c ? c : "Any"}
                     </option>

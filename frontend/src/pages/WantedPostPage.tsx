@@ -2,9 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
-import { createWantedPost, type Category } from "../api";
-
-const CATEGORIES: Category[] = ["Fish", "Shrimp", "Snails", "Plants", "Equipment"];
+import { createWantedPost, getListingOptionsCached, type Category } from "../api";
 
 function dollarsToCents(s: string) {
   const t = String(s ?? "").trim();
@@ -18,8 +16,10 @@ export default function WantedPostPage() {
   const nav = useNavigate();
   const { user, loading } = useAuth();
 
+  const [categories, setCategories] = useState<Category[]>([]);
+
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<Category>("Fish");
+  const [category, setCategory] = useState<Category>("");
   const [species, setSpecies] = useState("");
   const [location, setLocation] = useState("");
   const [minBudget, setMinBudget] = useState("");
@@ -33,6 +33,22 @@ export default function WantedPostPage() {
     if (loading) return;
     if (!user) nav(`/auth?next=${encodeURIComponent("/wanted/post")}&ctx=wanted_post`);
   }, [loading, user, nav]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getListingOptionsCached()
+      .then((opts) => {
+        if (cancelled) return;
+        setCategories(opts.categories as Category[]);
+        setCategory((prev) => (prev ? prev : ((opts.categories[0] ?? "") as Category)));
+      })
+      .catch(() => {
+        // ignore
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const budgetMinCents = useMemo(() => dollarsToCents(minBudget), [minBudget]);
   const budgetMaxCents = useMemo(() => dollarsToCents(maxBudget), [maxBudget]);
@@ -90,11 +106,17 @@ export default function WantedPostPage() {
                 onChange={(e) => setCategory(e.target.value as Category)}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400"
               >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                {!categories.length ? (
+                  <option value="" disabled>
+                    Loading…
                   </option>
-                ))}
+                ) : (
+                  categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))
+                )}
               </select>
             </label>
 

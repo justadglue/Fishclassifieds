@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { fetchListings, fetchWanted, resolveAssets, type Category, type Listing, type WantedPost, type WantedStatus } from "../api";
+import { fetchListings, fetchWanted, getListingOptionsCached, resolveAssets, type Category, type Listing, type WantedPost, type WantedStatus } from "../api";
 import Header from "../components/Header";
 import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
 
@@ -31,7 +31,6 @@ function descriptionPreview(raw: string) {
   return body.replace(/\s+/g, " ").trim();
 }
 
-const CATEGORIES: ("" | Category)[] = ["", "Fish", "Shrimp", "Snails", "Plants", "Equipment"];
 const PAGE_SIZES: PageSize[] = [12, 24, 48, 96];
 
 function budgetLabel(w: WantedPost) {
@@ -163,11 +162,29 @@ export default function BrowseListings() {
   const page = clampInt(sp.get("page"), 1, 1, 999999);
   const per = clampInt(sp.get("per"), 24, 12, 200) as PageSize;
 
+  const [categories, setCategories] = useState<Category[]>([]);
+  const categoryOptions = useMemo(() => ["", ...categories] as Array<"" | Category>, [categories]);
+
   const [saleItems, setSaleItems] = useState<Listing[]>([]);
   const [wantedItems, setWantedItems] = useState<WantedPost[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getListingOptionsCached()
+      .then((opts) => {
+        if (cancelled) return;
+        setCategories(opts.categories as Category[]);
+      })
+      .catch(() => {
+        // ignore
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const minCents = useMemo(() => {
     const s = String(minDollars ?? "").trim();
@@ -385,7 +402,7 @@ export default function BrowseListings() {
                   onChange={(e) => setParam("category", e.target.value)}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
                 >
-                  {CATEGORIES.map((c) => (
+                  {categoryOptions.map((c) => (
                     <option key={c || "Any"} value={c}>
                       {c ? c : "Any"}
                     </option>

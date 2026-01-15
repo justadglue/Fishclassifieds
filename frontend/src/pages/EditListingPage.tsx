@@ -8,6 +8,7 @@ import {
   deleteListing,
   fetchListing,
   createListing,
+  getListingOptionsCached,
   resolveImageUrl,
   updateListing,
   uploadImage,
@@ -54,8 +55,6 @@ function expiresInShort(iso: string) {
   return `${Math.max(1, Math.ceil(diffMs / dayMs))}d`;
 }
 
-const CATEGORIES: Category[] = ["Fish", "Shrimp", "Snails", "Plants", "Equipment"];
-const SEXES: ListingSex[] = ["Male", "Female", "Various", "Unknown"];
 const MAX_CUSTOM_PRICE_TYPE_LEN = 20;
 
 type PendingImage = {
@@ -122,8 +121,11 @@ export default function EditListingPage() {
 
   const [orig, setOrig] = useState<Listing | null>(null);
 
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [sexes, setSexes] = useState<ListingSex[]>([]);
+
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<Category>("Fish");
+  const [category, setCategory] = useState<Category>("");
   const [species, setSpecies] = useState("");
   const [sex, setSex] = useState<ListingSex | "">("");
   const [priceDollars, setPriceDollars] = useState("");
@@ -134,6 +136,23 @@ export default function EditListingPage() {
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
   const [description, setDescription] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    getListingOptionsCached()
+      .then((opts) => {
+        if (cancelled) return;
+        setCategories(opts.categories as Category[]);
+        setSexes(opts.listingSexes as ListingSex[]);
+        setCategory((prev) => (prev ? prev : ((opts.categories[0] ?? "") as Category)));
+      })
+      .catch(() => {
+        // ignore; backend will validate on save
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const customPriceInputRef = useRef<HTMLInputElement | null>(null);
   const [showShipHint, setShowShipHint] = useState(false);
@@ -918,11 +937,17 @@ export default function EditListingPage() {
                   disabled={loading}
                   required
                 >
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
+                  {!categories.length ? (
+                    <option value="" disabled>
+                      Loading…
                     </option>
-                  ))}
+                  ) : (
+                    categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))
+                  )}
                 </select>
                 {fieldErrors.category && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.category}</div>}
               </label>
@@ -969,11 +994,17 @@ export default function EditListingPage() {
                   <option value="" disabled hidden>
                     Select…
                   </option>
-                  {SEXES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
+                  {!sexes.length ? (
+                    <option value="" disabled>
+                      Loading…
                     </option>
-                  ))}
+                  ) : (
+                    sexes.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))
+                  )}
                 </select>
                 {fieldErrors.sex && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.sex}</div>}
               </label>

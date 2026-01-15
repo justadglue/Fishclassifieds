@@ -17,6 +17,7 @@ import { requireAuth } from "./auth/requireAuth.js";
 import { optionalAuth } from "./auth/optionalAuth.js";
 import { clearAuthCookies } from "./auth/cookies.js";
 import { nowIso as nowIsoSecurity } from "./security.js";
+import { LISTING_CATEGORIES, LISTING_SEXES } from "./listingOptions.js";
 import argon2 from "argon2";
 
 assertConfig();
@@ -55,6 +56,14 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
+// Public meta/options endpoint for dropdowns (single source of truth).
+app.get("/api/meta/options", (_req, res) => {
+  return res.json({
+    categories: LISTING_CATEGORIES,
+    listingSexes: LISTING_SEXES,
+  });
+});
 
 const UPLOADS_DIR = path.join(process.cwd(), "data", "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -268,11 +277,11 @@ function normalizeImages(input: (string | ImageAsset)[]): ImageAsset[] {
   });
 }
 
-const ListingSexSchema = z.enum(["Male", "Female", "Various", "Unknown"]).default("Unknown");
+const ListingSexSchema = z.enum(LISTING_SEXES).default("Unknown");
 
 const CreateListingSchema = z.object({
   title: z.string().min(3).max(80),
-  category: z.enum(["Fish", "Shrimp", "Snails", "Plants", "Equipment"]).default("Fish"),
+  category: z.enum(LISTING_CATEGORIES).default("Fish"),
   species: z.string().min(2).max(60),
   sex: ListingSexSchema,
   priceCents: z.number().int().min(0).max(5_000_000),
@@ -286,7 +295,7 @@ const CreateListingSchema = z.object({
 
 const UpdateListingSchema = z.object({
   title: z.string().min(3).max(80).optional(),
-  category: z.enum(["Fish", "Shrimp", "Snails", "Plants", "Equipment"]).optional(),
+  category: z.enum(LISTING_CATEGORIES).optional(),
   species: z.string().min(2).max(60).optional(),
   sex: ListingSexSchema.optional(),
   priceCents: z.number().int().min(0).max(5_000_000).optional(),
@@ -303,7 +312,7 @@ const WantedStatusSchema = z.enum(["open", "closed"]);
 
 const CreateWantedSchema = z.object({
   title: z.string().min(3).max(80),
-  category: z.enum(["Fish", "Shrimp", "Snails", "Plants", "Equipment"]).default("Fish"),
+  category: z.enum(LISTING_CATEGORIES).default("Fish"),
   species: z.string().min(2).max(60).optional().nullable(),
   budgetMinCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
   budgetMaxCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
@@ -313,7 +322,7 @@ const CreateWantedSchema = z.object({
 
 const UpdateWantedSchema = z.object({
   title: z.string().min(3).max(80).optional(),
-  category: z.enum(["Fish", "Shrimp", "Snails", "Plants", "Equipment"]).optional(),
+  category: z.enum(LISTING_CATEGORIES).optional(),
   species: z.string().min(2).max(60).nullable().optional(),
   budgetMinCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
   budgetMaxCents: z.number().int().min(0).max(5_000_000).nullable().optional(),

@@ -1,7 +1,9 @@
-export type Category = "Fish" | "Shrimp" | "Snails" | "Plants" | "Equipment";
+// Single source of truth for dropdown options is the backend endpoint:
+// GET /api/meta/options
+export type Category = string;
 export type ListingStatus = "draft" | "pending" | "active" | "paused" | "expired" | "deleted";
 export type ListingResolution = "none" | "sold";
-export type ListingSex = "Male" | "Female" | "Various" | "Unknown";
+export type ListingSex = string;
 
 export type ImageAsset = {
   fullUrl: string;
@@ -73,6 +75,22 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const ct = res.headers.get("content-type") || "";
   if (!ct.includes("application/json")) return undefined as unknown as T;
   return (await res.json()) as T;
+}
+
+export type ListingOptions = {
+  categories: string[];
+  listingSexes: string[];
+};
+
+let listingOptionsPromise: Promise<ListingOptions> | null = null;
+
+export function fetchListingOptions() {
+  return apiFetch<ListingOptions>(`/api/meta/options`);
+}
+
+export function getListingOptionsCached() {
+  listingOptionsPromise ??= fetchListingOptions();
+  return listingOptionsPromise;
 }
 
 export function resolveImageUrl(u: string | null | undefined) {

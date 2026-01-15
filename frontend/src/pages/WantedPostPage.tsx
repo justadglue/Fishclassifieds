@@ -102,8 +102,8 @@ export default function WantedPostPage() {
     <div className="min-h-full">
       <Header maxWidth="6xl" />
       <main className="mx-auto max-w-3xl px-4 py-8">
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Post a wanted</h1>
-        <p className="mt-1 text-sm text-slate-600">Describe what you’re looking to buy. Sellers will be able to message you (coming soon).</p>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Post a wanted listing</h1>
+        <p className="mt-1 text-sm text-slate-600">Add details, photos, and pricing to publish your listing.</p>
 
         {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 

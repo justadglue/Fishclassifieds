@@ -48,7 +48,7 @@ export default function PostChoosePage() {
             className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
           >
             <div className="text-sm font-bold text-slate-500">Wanted</div>
-            <div className="mt-2 text-xl font-extrabold text-slate-900">Post a wanted ad →</div>
+            <div className="mt-2 text-xl font-extrabold text-slate-900">Post a wanted listing →</div>
             <div className="mt-2 text-sm font-semibold text-slate-600">
               Tell sellers what you’re looking to buy.
             </div>

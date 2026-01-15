@@ -541,7 +541,7 @@ export default function PostListingPage() {
       <Header maxWidth="3xl" />
       <main className="mx-auto max-w-3xl px-4 py-6">
         <h1 className="text-2xl font-extrabold text-slate-900">Post a listing</h1>
-        <div className="mt-1 text-sm text-slate-600">Add up to 6 photos.</div>
+        <div className="mt-1 text-sm text-slate-600">Add details, photos, and pricing to publish your listing.</div>
 
         <form onSubmit={onSubmit} noValidate className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
           {/* Images */}

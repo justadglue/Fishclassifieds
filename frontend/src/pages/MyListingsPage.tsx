@@ -122,8 +122,16 @@ function StatusText({ l }: { l: Listing }) {
                 : s === "deleted"
                   ? "text-red-700"
                   : "text-slate-700";
+  const showActiveTime = s === "active" && r === "none";
+  const expiresShort = showActiveTime ? expiresInShort(l.expiresAt) : null;
+  const showExpires = expiresShort && expiresShort !== "—" && expiresShort !== "Expired";
 
-  return <span className={`text-sm font-semibold ${cls}`}>{statusLabel(l)}</span>;
+  return (
+    <div className={`text-sm font-semibold ${cls}`}>
+      <div>{statusLabel(l)}</div>
+      {showExpires ? <div className="text-[11px] font-semibold leading-none">({expiresShort} left)</div> : null}
+    </div>
+  );
 }
 
 function sortListings(items: Listing[], sortKey: SortKey, sortDir: SortDir, nowMs: number) {

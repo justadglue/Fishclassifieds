@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { fetchListings, fetchWanted, resolveAssets, type Category, type Listing, type WantedPost, type WantedStatus } from "../api";
 import Header from "../components/Header";
+import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
 
 type SortMode = "newest" | "price_asc" | "price_desc";
 type PageSize = 12 | 24 | 48 | 96;
@@ -22,6 +23,12 @@ function relativeTime(iso: string) {
   if (h < 48) return `${h}h ago`;
   const days = Math.floor(h / 24);
   return `${days}d ago`;
+}
+
+function descriptionPreview(raw: string) {
+  const decoded = decodeSaleDetailsFromDescription(raw);
+  const body = decoded.hadPrefix ? decoded.body : raw;
+  return body.replace(/\s+/g, " ").trim();
 }
 
 const CATEGORIES: ("" | Category)[] = ["", "Fish", "Shrimp", "Snails", "Plants", "Equipment"];
@@ -555,7 +562,9 @@ export default function BrowseListings() {
                             {centsToDollars(l.priceCents)}
                           </div>
                         </div>
-                        <div className="mt-3 line-clamp-2 text-xs text-slate-700">{l.description}</div>
+                        <div className="mt-3 line-clamp-2 text-xs text-slate-700">
+                          {descriptionPreview(l.description) || "No description."}
+                        </div>
                         <div className="mt-3 text-[11px] font-semibold text-slate-500">{relativeTime(l.createdAt)}</div>
                       </div>
                     </Link>

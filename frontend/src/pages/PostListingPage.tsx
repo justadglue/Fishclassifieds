@@ -46,7 +46,7 @@ export default function PostListingPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) nav(`/auth?next=${encodeURIComponent("/post")}&ctx=create_listing`);
+    if (!user) nav(`/auth?next=${encodeURIComponent("/post/listing")}&ctx=create_listing`);
   }, [authLoading, user, nav]);
 
   const [categories, setCategories] = useState<Category[]>([]);

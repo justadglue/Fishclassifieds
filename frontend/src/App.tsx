@@ -6,6 +6,7 @@ import LoginPage from "./pages/LoginPage";
 import SignUpPage from "./pages/SignUpPage";
 import AuthGatePage from "./pages/AuthGatePage";
 import ListingPage from "./pages/ListingPage";
+import PostChoosePage from "./pages/PostChoosePage";
 import PostListingPage from "./pages/PostListingPage";
 import MyListingsPage from "./pages/MyListingsPage";
 import EditListingPage from "./pages/EditListingPage";
@@ -45,7 +46,8 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/browse" element={<BrowseListings />} />
         <Route path="/listing/:id" element={<ListingPage />} />
-        <Route path="/post" element={<PostListingPage />} />
+        <Route path="/post" element={<PostChoosePage />} />
+        <Route path="/post/listing" element={<PostListingPage />} />
         <Route path="/me" element={<MyListingsPage />} />
         <Route path="/edit/:id" element={<EditListingPage />} />
         <Route path="/feature/:id" element={<FeatureListingPage />} />

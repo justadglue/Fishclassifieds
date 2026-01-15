@@ -16,7 +16,17 @@ export default function WantedPostPage() {
   const nav = useNavigate();
   const { user, loading } = useAuth();
 
-  type FieldKey = "title" | "category" | "species" | "waterType" | "sex" | "quantity" | "location" | "phone" | "description";
+  type FieldKey =
+    | "title"
+    | "category"
+    | "species"
+    | "waterType"
+    | "sex"
+    | "age"
+    | "quantity"
+    | "location"
+    | "phone"
+    | "description";
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [waterTypes, setWaterTypes] = useState<WaterType[]>([]);
@@ -29,6 +39,7 @@ export default function WantedPostPage() {
   const [species, setSpecies] = useState("");
   const [waterType, setWaterType] = useState<WaterType | "">("");
   const [sex, setSex] = useState<ListingSex | "">("");
+  const [age, setAge] = useState("");
   const [quantity, setQuantity] = useState<number>(1);
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
@@ -117,6 +128,7 @@ export default function WantedPostPage() {
     if (bioFieldsRequiredForUser && !species.trim()) nextErrors.species = "Required field";
     if (bioFieldsRequiredForUser && !waterType) nextErrors.waterType = "Required field";
     if (bioFieldsRequiredForUser && !sex) nextErrors.sex = "Required field";
+    if (!age.trim()) nextErrors.age = "Required field";
 
     const qty = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
     if (qty < 1) nextErrors.quantity = "Quantity must be at least 1.";
@@ -145,6 +157,7 @@ export default function WantedPostPage() {
         species: bioFieldsEnabled ? (species.trim() ? species.trim() : null) : null,
         waterType: bioFieldsEnabled && waterType ? waterType : null,
         sex: bioFieldsEnabled && sex ? sex : null,
+        age: age.trim(),
         quantity: qty,
         budgetMinCents,
         budgetMaxCents,
@@ -310,7 +323,7 @@ export default function WantedPostPage() {
             </label>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.quantity ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Quantity <span className="text-red-600">*</span>
@@ -331,6 +344,26 @@ export default function WantedPostPage() {
                 required
               />
               {fieldErrors.quantity && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.quantity}</div>}
+            </label>
+
+            <label className="block">
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.age ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Age <span className="text-red-600">*</span>
+              </div>
+              <input
+                value={age}
+                onChange={(e) => {
+                  setAge(e.target.value);
+                  clearFieldError("age");
+                }}
+                required
+                maxLength={40}
+                className={[
+                  "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                  fieldErrors.age ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                ].join(" ")}
+              />
+              {fieldErrors.age && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.age}</div>}
             </label>
 
             <label className="block">

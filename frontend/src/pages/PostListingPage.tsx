@@ -60,6 +60,7 @@ export default function PostListingPage() {
   const [species, setSpecies] = useState("");
   const [sex, setSex] = useState<ListingSex | "">("");
   const [waterType, setWaterType] = useState<WaterType | "">("");
+  const [age, setAge] = useState("");
   const [priceDollars, setPriceDollars] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [priceType, setPriceType] = useState<PriceType>("each");
@@ -85,6 +86,7 @@ export default function PostListingPage() {
     | "species"
     | "waterType"
     | "sex"
+    | "age"
     | "price"
     | "quantity"
     | "priceType"
@@ -443,6 +445,7 @@ export default function PostListingPage() {
     if (bioFieldsRequired && !species.trim()) nextErrors.species = "Required field";
     if (bioFieldsRequired && !waterType) nextErrors.waterType = "Required field";
     if (bioFieldsRequired && !sex) nextErrors.sex = "Required field";
+    if (!age.trim()) nextErrors.age = "Required field";
     if (!location.trim()) nextErrors.location = "Required field";
 
     const phoneTrim = phone.trim();
@@ -515,6 +518,7 @@ export default function PostListingPage() {
         species: speciesToSubmit,
         sex: sexToSubmit,
         waterType: bioFieldsEnabled && waterType ? waterType : null,
+        age: age.trim(),
         priceCents,
         location: location.trim(),
         description: finalDescription,
@@ -733,8 +737,8 @@ export default function PostListingPage() {
             </label>
           </div>
 
-          {/* Row 2: Price + Quantity + Price type */}
-          <div className="grid gap-3 sm:grid-cols-3">
+          {/* Row 2: Price + Quantity + Age + Price type */}
+          <div className="grid gap-3 sm:grid-cols-4">
             <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.price ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Price ($) <span className="text-red-600">*</span>
@@ -775,6 +779,26 @@ export default function PostListingPage() {
                 required
               />
               {fieldErrors.quantity && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.quantity}</div>}
+            </label>
+
+            <label className="block">
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.age ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Age <span className="text-red-600">*</span>
+              </div>
+              <input
+                value={age}
+                onChange={(e) => {
+                  setAge(e.target.value);
+                  clearFieldError("age");
+                }}
+                className={[
+                  "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                  fieldErrors.age ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                ].join(" ")}
+                required
+                maxLength={40}
+              />
+              {fieldErrors.age && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.age}</div>}
             </label>
 
             <div className="block">

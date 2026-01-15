@@ -125,6 +125,7 @@ export default function WantedDetailPage() {
                   {item.species ? ` • ${item.species}` : ""}
                   {item.waterType ? ` • ${item.waterType}` : ""}
                   {item.sex ? ` • ${item.sex}` : ""}
+                  {item.age ? ` • Age: ${item.age}` : ""}
                   {Number.isFinite(item.quantity) ? ` • Qty: ${item.quantity}` : ""}
                   {" • "}
                   {item.location}

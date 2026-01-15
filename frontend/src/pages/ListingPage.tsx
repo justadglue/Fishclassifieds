@@ -443,12 +443,14 @@ export default function ListingPage() {
                       const species = String(item.species ?? "").trim();
                       const sex = String(item.sex ?? "").trim();
                       const waterType = item.waterType ? String(item.waterType).trim() : "";
+                      const age = String(item.age ?? "").trim();
 
                       // Show whatever was actually submitted for this listing.
                       // For non-bio categories, we still suppress the default "Unknown" sex value (it wasn't user-entered).
                       const showSpecies = Boolean(species);
                       const showSex = Boolean(sex) && (bioEnabled || sex !== "Unknown");
                       const showWaterType = Boolean(waterType);
+                      const showAge = Boolean(age);
 
                       return (
                         <>
@@ -472,6 +474,12 @@ export default function ListingPage() {
                             <div className="flex items-baseline justify-between gap-4">
                               <dt className="font-semibold text-slate-600">Water type</dt>
                               <dd className="font-semibold text-slate-900">{waterType}</dd>
+                            </div>
+                          ) : null}
+                          {showAge ? (
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="font-semibold text-slate-600">Age</dt>
+                              <dd className="font-semibold text-slate-900">{age}</dd>
                             </div>
                           ) : null}
                           <div className="flex items-baseline justify-between gap-4">

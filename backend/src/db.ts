@@ -21,6 +21,7 @@ export type ListingRow = {
   species: string;
   sex: string;
   water_type?: string | null;
+  age?: string;
   quantity?: number;
   price_cents: number;
   budget_min_cents?: number | null;
@@ -150,6 +151,7 @@ CREATE TABLE IF NOT EXISTS listings(
   species TEXT NOT NULL,
   sex TEXT NOT NULL DEFAULT 'Unknown',
   water_type TEXT,
+  age TEXT NOT NULL DEFAULT '',
   quantity INTEGER NOT NULL DEFAULT 1,
   -- Sell price. Wanted posts store 0 here and use budget_* fields instead.
   price_cents INTEGER NOT NULL,

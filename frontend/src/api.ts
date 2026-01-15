@@ -25,6 +25,7 @@ export type Listing = {
   species: string;
   sex: ListingSex;
   waterType?: WaterType | null;
+  age: string;
   priceCents: number;
   location: string;
   description: string;
@@ -51,6 +52,7 @@ export type WantedPost = {
   species: string | null;
   waterType?: WaterType | null;
   sex: ListingSex;
+  age: string;
   quantity: number;
   budgetMinCents: number | null;
   budgetMaxCents: number | null;
@@ -191,6 +193,7 @@ export async function createWantedPost(input: {
   species?: string | null;
   waterType?: WaterType | null;
   sex?: ListingSex | null;
+  age: string;
   quantity?: number;
   budgetMinCents?: number | null;
   budgetMaxCents?: number | null;
@@ -213,6 +216,7 @@ export async function updateWantedPost(
     species?: string | null;
     waterType?: WaterType | null;
     sex?: ListingSex | null;
+    age?: string;
     quantity?: number;
     budgetMinCents?: number | null;
     budgetMaxCents?: number | null;
@@ -258,6 +262,7 @@ export async function createListing(input: {
   species: string;
   sex: ListingSex;
   waterType?: WaterType | null;
+  age: string;
   priceCents: number;
   location: string;
   description: string;
@@ -283,6 +288,7 @@ export async function updateListing(
     species?: string;
     sex?: ListingSex;
     waterType?: WaterType | null;
+    age?: string;
     priceCents?: number;
     location?: string;
     description?: string;

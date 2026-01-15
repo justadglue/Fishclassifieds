@@ -45,6 +45,7 @@ export default function WantedEditPage() {
   const [species, setSpecies] = useState("");
   const [waterType, setWaterType] = useState<WaterType | "">("");
   const [sex, setSex] = useState<ListingSex | "">("");
+  const [age, setAge] = useState("");
   const [quantity, setQuantity] = useState<number>(1);
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
@@ -93,6 +94,7 @@ export default function WantedEditPage() {
         setSpecies(w.species ?? "");
         setWaterType((w as any).waterType ?? "");
         setSex((w as any).sex ?? "");
+        setAge((w as any).age ?? "");
         setQuantity(Number.isFinite(Number((w as any).quantity)) ? Math.max(1, Math.floor(Number((w as any).quantity))) : 1);
         setLocation(w.location);
         setPhone((w as any).phone ?? "");
@@ -145,6 +147,7 @@ export default function WantedEditPage() {
       if (bioFieldsRequiredForUser && !species.trim()) throw new Error("Species is required.");
       if (bioFieldsRequiredForUser && !waterType) throw new Error("Water type is required.");
       if (bioFieldsRequiredForUser && !sex) throw new Error("Sex is required.");
+      if (!age.trim()) throw new Error("Age is required.");
 
       const qty = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
       if (qty < 1) throw new Error("Quantity must be at least 1.");
@@ -160,6 +163,7 @@ export default function WantedEditPage() {
         species: bioFieldsEnabled ? (species.trim() ? species.trim() : null) : null,
         waterType: bioFieldsEnabled && waterType ? waterType : null,
         sex: bioFieldsEnabled && sex ? sex : null,
+        age: age.trim(),
         quantity: qty,
         budgetMinCents: dollarsToCents(minBudget),
         budgetMaxCents: dollarsToCents(maxBudget),
@@ -304,7 +308,7 @@ export default function WantedEditPage() {
               </label>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <label className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Quantity</div>
                 <input
@@ -314,6 +318,17 @@ export default function WantedEditPage() {
                   value={Number.isFinite(quantity) ? quantity : 1}
                   onChange={(e) => setQuantity(Number(e.target.value))}
                   required
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+                />
+              </label>
+
+              <label className="block">
+                <div className="mb-1 text-xs font-semibold text-slate-700">Age</div>
+                <input
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                  required
+                  maxLength={40}
                   className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
                 />
               </label>

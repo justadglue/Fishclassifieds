@@ -222,6 +222,14 @@ FROM deleted_accounts;
     migrations.push("listings.quantity already exists");
   }
 
+  if (!hasColumn(db, "listings", "age")) {
+    // Free-form age string (e.g. "6 months", "Adult", "2y"). Keep default for existing rows.
+    db.exec(`ALTER TABLE listings ADD COLUMN age TEXT NOT NULL DEFAULT '';`);
+    migrations.push("Added listings.age");
+  } else {
+    migrations.push("listings.age already exists");
+  }
+
   // Link sale listings to user accounts
   if (!hasColumn(db, "listings", "user_id")) {
     // SQLite allows adding a column with a REFERENCES clause, which becomes a FK constraint.

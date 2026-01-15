@@ -144,7 +144,6 @@ export default function EditListingPage() {
         if (cancelled) return;
         setCategories(opts.categories as Category[]);
         setSexes(opts.listingSexes as ListingSex[]);
-        setCategory((prev) => (prev ? prev : ((opts.categories[0] ?? "") as Category)));
       })
       .catch(() => {
         // ignore; backend will validate on save

@@ -4,6 +4,7 @@ export type Category = string;
 export type ListingStatus = "draft" | "pending" | "active" | "paused" | "expired" | "deleted";
 export type ListingResolution = "none" | "sold";
 export type ListingSex = string;
+export type WaterType = string;
 
 export type ImageAsset = {
   fullUrl: string;
@@ -23,6 +24,7 @@ export type Listing = {
   category: Category;
   species: string;
   sex: ListingSex;
+  waterType?: WaterType | null;
   priceCents: number;
   location: string;
   description: string;
@@ -47,6 +49,7 @@ export type WantedPost = {
   title: string;
   category: Category;
   species: string | null;
+  waterType?: WaterType | null;
   budgetMinCents: number | null;
   budgetMaxCents: number | null;
   location: string;
@@ -80,6 +83,9 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export type ListingOptions = {
   categories: string[];
   listingSexes: string[];
+  waterTypes: string[];
+  bioFieldsRequiredCategories: string[];
+  otherCategory: string;
 };
 
 let listingOptionsPromise: Promise<ListingOptions> | null = null;
@@ -180,6 +186,7 @@ export async function createWantedPost(input: {
   title: string;
   category: Category;
   species?: string | null;
+  waterType?: WaterType | null;
   budgetMinCents?: number | null;
   budgetMaxCents?: number | null;
   location: string;
@@ -198,6 +205,7 @@ export async function updateWantedPost(
     title?: string;
     category?: Category;
     species?: string | null;
+    waterType?: WaterType | null;
     budgetMinCents?: number | null;
     budgetMaxCents?: number | null;
     location?: string;
@@ -240,6 +248,7 @@ export async function createListing(input: {
   category: Category;
   species: string;
   sex: ListingSex;
+  waterType?: WaterType | null;
   priceCents: number;
   location: string;
   description: string;
@@ -264,6 +273,7 @@ export async function updateListing(
     category?: Category;
     species?: string;
     sex?: ListingSex;
+    waterType?: WaterType | null;
     priceCents?: number;
     location?: string;
     description?: string;

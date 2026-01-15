@@ -17,7 +17,7 @@ import { requireAuth } from "./auth/requireAuth.js";
 import { optionalAuth } from "./auth/optionalAuth.js";
 import { clearAuthCookies } from "./auth/cookies.js";
 import { nowIso as nowIsoSecurity } from "./security.js";
-import { LISTING_CATEGORIES, LISTING_SEXES } from "./listingOptions.js";
+import { BIO_FIELDS_REQUIRED_CATEGORIES, LISTING_CATEGORIES, LISTING_SEXES, OTHER_CATEGORY, WATER_TYPES } from "./listingOptions.js";
 import argon2 from "argon2";
 
 assertConfig();
@@ -62,6 +62,9 @@ app.get("/api/meta/options", (_req, res) => {
   return res.json({
     categories: LISTING_CATEGORIES,
     listingSexes: LISTING_SEXES,
+    waterTypes: WATER_TYPES,
+    bioFieldsRequiredCategories: BIO_FIELDS_REQUIRED_CATEGORIES,
+    otherCategory: OTHER_CATEGORY,
   });
 });
 
@@ -278,12 +281,31 @@ function normalizeImages(input: (string | ImageAsset)[]): ImageAsset[] {
 }
 
 const ListingSexSchema = z.enum(LISTING_SEXES).default("Unknown");
+const WaterTypeSchema = z.enum(WATER_TYPES);
+const OptionalWaterTypeSchema = z.preprocess(
+  (v) => {
+    if (v === null || v === undefined) return undefined;
+    if (typeof v === "string" && v.trim() === "") return undefined;
+    return v;
+  },
+  WaterTypeSchema.optional()
+);
+
+function isBioFieldsRequiredCategory(category: string) {
+  return (BIO_FIELDS_REQUIRED_CATEGORIES as readonly string[]).includes(String(category));
+}
+
+function isOtherCategory(category: string) {
+  return String(category) === OTHER_CATEGORY;
+}
 
 const CreateListingSchema = z.object({
   title: z.string().min(3).max(80),
   category: z.enum(LISTING_CATEGORIES).default("Fish"),
-  species: z.string().min(2).max(60),
-  sex: ListingSexSchema,
+  // Species/sex/waterType requirements are enforced conditionally by category.
+  species: z.string().max(60).optional().default(""),
+  sex: ListingSexSchema.optional().default("Unknown"),
+  waterType: OptionalWaterTypeSchema.optional(),
   priceCents: z.number().int().min(0).max(5_000_000),
   location: z.string().min(2).max(80),
   description: z.string().min(1).max(1000),
@@ -296,8 +318,9 @@ const CreateListingSchema = z.object({
 const UpdateListingSchema = z.object({
   title: z.string().min(3).max(80).optional(),
   category: z.enum(LISTING_CATEGORIES).optional(),
-  species: z.string().min(2).max(60).optional(),
+  species: z.string().max(60).optional(),
   sex: ListingSexSchema.optional(),
+  waterType: OptionalWaterTypeSchema.optional().nullable(),
   priceCents: z.number().int().min(0).max(5_000_000).optional(),
   location: z.string().min(2).max(80).optional(),
   description: z.string().min(1).max(1000).optional(),
@@ -314,6 +337,7 @@ const CreateWantedSchema = z.object({
   title: z.string().min(3).max(80),
   category: z.enum(LISTING_CATEGORIES).default("Fish"),
   species: z.string().min(2).max(60).optional().nullable(),
+  waterType: OptionalWaterTypeSchema.optional().nullable(),
   budgetMinCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
   budgetMaxCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
   location: z.string().min(2).max(80),
@@ -324,6 +348,7 @@ const UpdateWantedSchema = z.object({
   title: z.string().min(3).max(80).optional(),
   category: z.enum(LISTING_CATEGORIES).optional(),
   species: z.string().min(2).max(60).nullable().optional(),
+  waterType: OptionalWaterTypeSchema.optional().nullable(),
   budgetMinCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
   budgetMaxCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
   location: z.string().min(2).max(80).optional(),
@@ -636,9 +661,22 @@ app.post("/api/listings", requireAuth, (req, res) => {
   const requireApproval = String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
   const user = req.user!;
 
-  const { title, category, species, sex, priceCents, location, description, phone, images, imageUrl } = parsed.data;
+  const { title, category, species, sex, waterType, priceCents, location, description, phone, images, imageUrl } = parsed.data;
   const requestedStatus = parsed.data.status;
   const status: ListingStatus = requestedStatus === "draft" ? "draft" : requireApproval ? "pending" : "active";
+
+  const bioRequired = isBioFieldsRequiredCategory(category);
+  const isOther = isOtherCategory(category);
+  const bioDisabled = !bioRequired && !isOther;
+
+  const speciesFinal = bioDisabled ? String(category) : String(species ?? "").trim() || String(category);
+  const sexFinal = bioDisabled ? "Unknown" : String(sex ?? "Unknown");
+  const waterTypeFinal = bioDisabled ? null : (waterType ?? null);
+
+  if (bioRequired) {
+    if (!speciesFinal || speciesFinal.trim().length < 2) return res.status(400).json({ error: "Species is required" });
+    if (!waterTypeFinal) return res.status(400).json({ error: "Water type is required" });
+  }
 
   db.prepare(
     `INSERT INTO listings(
@@ -651,8 +689,8 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
     ownerToken,
     title,
     category,
-    species,
-    sex,
+    speciesFinal,
+    sexFinal,
     priceCents,
     location,
     description,
@@ -666,6 +704,10 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
     now,
     null
   );
+
+  // water_type is optional; stored separately from description.
+  db.prepare(`UPDATE listings SET water_type = ? WHERE id = ?`).run(waterTypeFinal, id);
+
   const insertImg = db.prepare(
     `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
 VALUES(?,?,?,?,?,?)`
@@ -846,12 +888,35 @@ app.patch("/api/listings/:id", requireAuth, (req, res) => {
     category: p.category,
     species: p.species,
     sex: p.sex,
+    water_type: p.waterType,
     price_cents: p.priceCents,
     location: p.location,
     description: p.description,
     phone: p.phone,
     image_url: p.imageUrl,
   };
+
+  // Enforce category-driven rules for bio fields on update.
+  const nextCategory = String(p.category ?? row.category);
+  const bioRequired = isBioFieldsRequiredCategory(nextCategory);
+  const isOther = isOtherCategory(nextCategory);
+  const bioDisabled = !bioRequired && !isOther;
+
+  const speciesNext = bioDisabled ? nextCategory : String((p.species ?? row.species) ?? "").trim() || nextCategory;
+  const sexNext = bioDisabled ? "Unknown" : String((p.sex ?? (row as any).sex) ?? "Unknown");
+  const waterTypeNext = bioDisabled ? null : (p.waterType !== undefined ? (p.waterType ?? null) : ((row as any).water_type ?? null));
+
+  if (bioRequired) {
+    if (!speciesNext || speciesNext.trim().length < 2) return res.status(400).json({ error: "Species is required" });
+    if (!waterTypeNext) return res.status(400).json({ error: "Water type is required" });
+  }
+
+  const shouldWriteBio = p.category !== undefined || p.species !== undefined || p.sex !== undefined || p.waterType !== undefined;
+  if (shouldWriteBio || bioDisabled) {
+    map.species = speciesNext;
+    map.sex = sexNext;
+    map.water_type = waterTypeNext;
+  }
 
   if (p.featuredUntil !== undefined) {
     map.featured_until = p.featuredUntil;
@@ -1050,10 +1115,16 @@ app.post("/api/wanted", requireAuth, (req, res) => {
   const parsed = CreateWantedSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
 
-  const { title, category, location, description } = parsed.data;
+  const { title, category, location, description, waterType } = parsed.data;
   const species = parsed.data.species ? String(parsed.data.species).trim() : "";
   const budgetMinCents = parsed.data.budgetMinCents ?? null;
   const budgetMaxCents = parsed.data.budgetMaxCents ?? null;
+
+  const bioRequired = isBioFieldsRequiredCategory(category);
+  const isOther = isOtherCategory(category);
+  const bioDisabled = !bioRequired && !isOther;
+  const waterTypeFinal = bioDisabled ? null : (waterType ?? null);
+  if (bioRequired && !waterTypeFinal) return res.status(400).json({ error: "Water type is required" });
 
   if (budgetMinCents != null && budgetMaxCents != null && budgetMinCents > budgetMaxCents) {
     return res.status(400).json({ error: "Budget min cannot be greater than budget max" });
@@ -1101,6 +1172,8 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     null
   );
 
+  db.prepare(`UPDATE listings SET water_type = ? WHERE id = ?`).run(waterTypeFinal, id);
+
   const row = db
     .prepare(
       `
@@ -1142,9 +1215,25 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
     location: p.location,
     description: p.description,
     species: p.species === undefined ? undefined : p.species ? String(p.species).trim() : "",
+    water_type: p.waterType,
     budget_min_cents: p.budgetMinCents,
     budget_max_cents: p.budgetMaxCents,
   };
+
+  const nextCategory = String(p.category ?? row.category);
+  const bioRequired = isBioFieldsRequiredCategory(nextCategory);
+  const isOther = isOtherCategory(nextCategory);
+  const bioDisabled = !bioRequired && !isOther;
+
+  const waterTypeNext = bioDisabled ? null : (p.waterType !== undefined ? (p.waterType ?? null) : (row.water_type ?? null));
+  if (bioRequired && !waterTypeNext) return res.status(400).json({ error: "Water type is required" });
+
+  if (bioDisabled) {
+    map.species = "";
+    map.water_type = null;
+  } else if (p.category !== undefined || p.waterType !== undefined) {
+    map.water_type = waterTypeNext;
+  }
 
   for (const [k, v] of Object.entries(map)) {
     if (v !== undefined) {

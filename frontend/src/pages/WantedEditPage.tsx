@@ -42,7 +42,6 @@ export default function WantedEditPage() {
       .then((opts) => {
         if (cancelled) return;
         setCategories(opts.categories as Category[]);
-        setCategory((prev) => (prev ? prev : ((opts.categories[0] ?? "") as Category)));
       })
       .catch(() => {
         // ignore

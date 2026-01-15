@@ -13,6 +13,7 @@ import {
   type Category,
   type ImageAsset,
   type ListingSex,
+  type WaterType,
 } from "../api";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
@@ -23,21 +24,6 @@ function dollarsToCents(v: string) {
   const n = Number(v);
   if (!Number.isFinite(n) || n < 0) return null;
   return Math.round(n * 100);
-}
-
-const WATER_TYPES = ["Freshwater", "Saltwater", "Brackish"] as const;
-// Whitelist of categories that should show biological fields (species/sex/water).
-// Everything else (e.g. Equipment, Accessories, Services) greys them out.
-const BIO_FIELDS_CATEGORIES = new Set<string>(["Fish", "Shrimp", "Snails", "Crabs", "Crayfish", "Clams & Mussels", "Plants", "Corals"]);
-
-function applyWaterTypeToDescription(body: string, waterType: string) {
-  const cleaned = String(body ?? "").trim();
-  const wt = String(waterType ?? "").trim();
-  if (!wt) return cleaned;
-  const line = `Water type: ${wt}`;
-  // Avoid duplicating if user already typed it in manually.
-  if (/^water type\s*:/im.test(cleaned)) return cleaned;
-  return cleaned ? `${cleaned}\n\n${line}` : line;
 }
 
 const MAX_CUSTOM_PRICE_TYPE_LEN = 20;
@@ -65,12 +51,15 @@ export default function PostListingPage() {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [sexes, setSexes] = useState<ListingSex[]>([]);
+  const [waterTypes, setWaterTypes] = useState<WaterType[]>([]);
+  const [bioRequiredCategories, setBioRequiredCategories] = useState<Set<string>>(new Set());
+  const [otherCategoryName, setOtherCategoryName] = useState("Other");
 
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<Category>("");
   const [species, setSpecies] = useState("");
   const [sex, setSex] = useState<ListingSex | "">("");
-  const [waterType, setWaterType] = useState<(typeof WATER_TYPES)[number] | "">("");
+  const [waterType, setWaterType] = useState<WaterType | "">("");
   const [priceDollars, setPriceDollars] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [priceType, setPriceType] = useState<PriceType>("each");
@@ -105,8 +94,8 @@ export default function PostListingPage() {
     | "description";
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
 
-  const isOtherCategory = String(category) === "Other";
-  const bioFieldsRequired = BIO_FIELDS_CATEGORIES.has(String(category));
+  const isOtherCategory = String(category) === String(otherCategoryName);
+  const bioFieldsRequired = bioRequiredCategories.has(String(category));
   const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
   const bioFieldsEnabled = !bioFieldsDisabled;
 
@@ -129,7 +118,9 @@ export default function PostListingPage() {
         if (cancelled) return;
         setCategories(opts.categories as Category[]);
         setSexes(opts.listingSexes as ListingSex[]);
-        setCategory((prev) => (prev ? prev : ((opts.categories[0] ?? "") as Category)));
+        setWaterTypes((opts as any).waterTypes as WaterType[]);
+        setBioRequiredCategories(new Set(((opts as any).bioFieldsRequiredCategories as string[]) ?? []));
+        setOtherCategoryName(String((opts as any).otherCategory ?? "Other"));
       })
       .catch(() => {
         // ignore; backend will validate on submit
@@ -474,14 +465,13 @@ export default function PostListingPage() {
 
     if (!description.trim()) nextErrors.description = "Required field";
 
-    const bodyWithWater =
-      bioFieldsEnabled && waterType ? applyWaterTypeToDescription(description, waterType) : String(description ?? "").trim();
+    const body = String(description ?? "").trim();
 
     // Length check (only if we have enough info to construct the details block).
     if (!nextErrors.description && !nextErrors.customPriceText && priceCents !== null) {
       const detailsPrefix = buildSaleDetailsPrefix({ quantity: qty, priceType, customPriceText: custom, willingToShip });
       const maxBodyLen = Math.max(1, 1000 - detailsPrefix.length);
-      if (bodyWithWater.trim().length > maxBodyLen) {
+      if (body.trim().length > maxBodyLen) {
         nextErrors.description = `Description is too long. Max ${maxBodyLen} characters when sale details are included.`;
       }
     }
@@ -517,16 +507,14 @@ export default function PostListingPage() {
         throw new Error("Images were selected but none uploaded successfully. Remove broken images or retry upload.");
       }
 
-      const finalDescription = encodeSaleDetailsIntoDescription(
-        { quantity: qty, priceType, customPriceText: custom, willingToShip },
-        bodyWithWater
-      );
+      const finalDescription = encodeSaleDetailsIntoDescription({ quantity: qty, priceType, customPriceText: custom, willingToShip }, body);
 
       const created = await createListing({
         title: title.trim(),
         category,
         species: speciesToSubmit,
         sex: sexToSubmit,
+        waterType: bioFieldsEnabled && waterType ? waterType : null,
         priceCents,
         location: location.trim(),
         description: finalDescription,
@@ -546,8 +534,7 @@ export default function PostListingPage() {
     () => buildSaleDetailsPrefix({ quantity, priceType, customPriceText, willingToShip }),
     [quantity, priceType, customPriceText, willingToShip]
   );
-  const waterLineLen = bioFieldsEnabled && waterType ? `Water type: ${waterType}`.length + 2 : 0; // "\n\n" + line
-  const maxDescLen = Math.max(1, 1000 - detailsPrefix.length - waterLineLen);
+  const maxDescLen = Math.max(1, 1000 - detailsPrefix.length);
 
   return (
     <div className="min-h-full">
@@ -641,11 +628,16 @@ export default function PostListingPage() {
                     Loading…
                   </option>
                 ) : (
-                  categories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
+                  <>
+                    <option value="" disabled hidden>
+                      Select…
                     </option>
-                  ))
+                    {categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </>
                 )}
               </select>
               {fieldErrors.category && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.category}</div>}
@@ -681,7 +673,7 @@ export default function PostListingPage() {
               <select
                 value={waterType}
                 onChange={(e) => {
-                  setWaterType(e.target.value as (typeof WATER_TYPES)[number]);
+                  setWaterType(e.target.value as WaterType);
                   clearFieldError("waterType");
                 }}
                 className={[
@@ -695,7 +687,7 @@ export default function PostListingPage() {
                 <option value="" disabled hidden>
                   Select…
                 </option>
-                {WATER_TYPES.map((w) => (
+                {waterTypes.map((w) => (
                   <option key={w} value={w}>
                     {w}
                   </option>

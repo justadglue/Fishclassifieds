@@ -2,19 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
-import { createWantedPost, getListingOptionsCached, type Category } from "../api";
-
-const WATER_TYPES = ["Freshwater", "Saltwater", "Brackish"] as const;
-const BIO_FIELDS_CATEGORIES = new Set<string>(["Fish", "Shrimp", "Snails", "Crabs", "Crayfish", "Clams & Mussels", "Plants", "Corals"]);
-
-function applyWaterTypeToDescription(body: string, waterType: string) {
-  const cleaned = String(body ?? "").trim();
-  const wt = String(waterType ?? "").trim();
-  if (!wt) return cleaned;
-  const line = `Water type: ${wt}`;
-  if (/^water type\s*:/im.test(cleaned)) return cleaned;
-  return cleaned ? `${cleaned}\n\n${line}` : line;
-}
+import { createWantedPost, getListingOptionsCached, type Category, type WaterType } from "../api";
 
 function dollarsToCents(s: string) {
   const t = String(s ?? "").trim();
@@ -29,11 +17,14 @@ export default function WantedPostPage() {
   const { user, loading } = useAuth();
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [waterTypes, setWaterTypes] = useState<WaterType[]>([]);
+  const [bioRequiredCategories, setBioRequiredCategories] = useState<Set<string>>(new Set());
+  const [otherCategoryName, setOtherCategoryName] = useState("Other");
 
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<Category>("");
   const [species, setSpecies] = useState("");
-  const [waterType, setWaterType] = useState<(typeof WATER_TYPES)[number] | "">("");
+  const [waterType, setWaterType] = useState<WaterType | "">("");
   const [location, setLocation] = useState("");
   const [minBudget, setMinBudget] = useState("");
   const [maxBudget, setMaxBudget] = useState("");
@@ -53,7 +44,9 @@ export default function WantedPostPage() {
       .then((opts) => {
         if (cancelled) return;
         setCategories(opts.categories as Category[]);
-        setCategory((prev) => (prev ? prev : ((opts.categories[0] ?? "") as Category)));
+        setWaterTypes((opts as any).waterTypes as WaterType[]);
+        setBioRequiredCategories(new Set(((opts as any).bioFieldsRequiredCategories as string[]) ?? []));
+        setOtherCategoryName(String((opts as any).otherCategory ?? "Other"));
       })
       .catch(() => {
         // ignore
@@ -63,8 +56,8 @@ export default function WantedPostPage() {
     };
   }, []);
 
-  const isOtherCategory = String(category) === "Other";
-  const bioFieldsRequired = BIO_FIELDS_CATEGORIES.has(String(category));
+  const isOtherCategory = String(category) === String(otherCategoryName);
+  const bioFieldsRequired = bioRequiredCategories.has(String(category));
   const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
   const bioFieldsEnabled = !bioFieldsDisabled;
 
@@ -77,24 +70,21 @@ export default function WantedPostPage() {
 
   const budgetMinCents = useMemo(() => dollarsToCents(minBudget), [minBudget]);
   const budgetMaxCents = useMemo(() => dollarsToCents(maxBudget), [maxBudget]);
-  const waterLineLen = bioFieldsEnabled && waterType ? `Water type: ${waterType}`.length + 2 : 0; // "\n\n" + line
-  const maxDescLen = Math.max(1, 1000 - waterLineLen);
+  const maxDescLen = 1000;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
     setSubmitting(true);
     try {
+      if (!category) throw new Error("Category is required.");
       if (bioFieldsRequired && !waterType) throw new Error("Water type is required.");
-      const finalDescription =
-        bioFieldsEnabled && waterType ? applyWaterTypeToDescription(description, waterType) : String(description ?? "").trim();
-      if (finalDescription.length > 1000) {
-        throw new Error(`Description is too long. Max ${maxDescLen} characters when water type is included.`);
-      }
+      const finalDescription = String(description ?? "").trim();
       const w = await createWantedPost({
         title: title.trim(),
         category,
         species: species.trim() ? species.trim() : null,
+        waterType: bioFieldsEnabled && waterType ? waterType : null,
         budgetMinCents,
         budgetMaxCents,
         location: location.trim(),
@@ -138,17 +128,23 @@ export default function WantedPostPage() {
                 value={category}
                 onChange={(e) => setCategory(e.target.value as Category)}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400"
+                required
               >
                 {!categories.length ? (
                   <option value="" disabled>
                     Loading…
                   </option>
                 ) : (
-                  categories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
+                  <>
+                    <option value="" disabled hidden>
+                      Select…
                     </option>
-                  ))
+                    {categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </>
                 )}
               </select>
             </label>
@@ -169,7 +165,7 @@ export default function WantedPostPage() {
             <div className="mb-1 text-xs font-semibold text-slate-700">Water type</div>
             <select
               value={waterType}
-              onChange={(e) => setWaterType(e.target.value as (typeof WATER_TYPES)[number])}
+              onChange={(e) => setWaterType(e.target.value as WaterType)}
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
               required={bioFieldsRequired}
               disabled={bioFieldsDisabled}
@@ -177,7 +173,7 @@ export default function WantedPostPage() {
               <option value="" disabled hidden>
                 Select…
               </option>
-              {WATER_TYPES.map((w) => (
+              {waterTypes.map((w) => (
                 <option key={w} value={w}>
                   {w}
                 </option>
@@ -237,7 +233,7 @@ export default function WantedPostPage() {
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
-                onClick={() => nav("/browse?type=wanted")}
+              onClick={() => nav("/browse?type=wanted")}
               className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 hover:bg-slate-50"
             >
               Cancel

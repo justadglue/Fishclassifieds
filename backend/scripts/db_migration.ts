@@ -1,6 +1,7 @@
 import "dotenv/config";
 import path from "path";
 import Database from "better-sqlite3";
+import { WATER_TYPES } from "../src/listingOptions.js";
 
 type Args = {
   seedFeatured: boolean;
@@ -45,6 +46,22 @@ function isColumnNotNull(db: Database.Database, table: string, col: string): boo
 function hasTable(db: Database.Database, table: string): boolean {
   const row = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name = ?`).get(table) as any | undefined;
   return Boolean(row?.name);
+}
+
+function extractWaterTypeFromDescription(desc: string): string | null {
+  const m = String(desc ?? "").match(/^water type\s*:\s*(.+)\s*$/im);
+  if (!m) return null;
+  const raw = String(m[1] ?? "").trim();
+  if (!raw) return null;
+  // Only accept known values.
+  return (WATER_TYPES as readonly string[]).includes(raw) ? raw : null;
+}
+
+function stripWaterTypeLine(desc: string): string {
+  const s = String(desc ?? "");
+  // Remove the "Water type: ..." line and collapse excessive blank lines.
+  const without = s.replace(/^\s*water type\s*:\s*.+\s*$/gim, "").trim();
+  return without.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function main() {
@@ -214,6 +231,39 @@ FROM deleted_accounts;
     migrations.push("Added listings.sex");
   } else {
     migrations.push("listings.sex already exists");
+  }
+
+  // Listing metadata: water type (optional, used for bio categories)
+  if (!hasColumn(db, "listings", "water_type")) {
+    db.exec(`ALTER TABLE listings ADD COLUMN water_type TEXT;`);
+    migrations.push("Added listings.water_type");
+  } else {
+    migrations.push("listings.water_type already exists");
+  }
+
+  // Backfill water_type from legacy "Water type: ..." line embedded in description.
+  if (hasColumn(db, "listings", "water_type") && hasColumn(db, "listings", "description")) {
+    const rows = db
+      .prepare(
+        `
+SELECT id, description, water_type
+FROM listings
+WHERE (water_type IS NULL OR trim(water_type) = '')
+AND lower(description) LIKE '%water type:%'
+`
+      )
+      .all() as Array<{ id: string; description: string; water_type: string | null }>;
+
+    const upd = db.prepare(`UPDATE listings SET water_type = ?, description = ? WHERE id = ?`);
+    let backfilled = 0;
+    for (const r of rows) {
+      const wt = extractWaterTypeFromDescription(r.description);
+      if (!wt) continue;
+      const cleanedDesc = stripWaterTypeLine(r.description);
+      upd.run(wt, cleanedDesc, r.id);
+      backfilled++;
+    }
+    if (backfilled) migrations.push(`Backfilled listings.water_type for ${backfilled} row(s) and removed legacy description lines`);
   }
 
   if (!hasColumn(db, "listings", "phone")) {

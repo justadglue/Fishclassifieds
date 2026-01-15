@@ -4,6 +4,18 @@ import Header from "../components/Header";
 import { useAuth } from "../auth";
 import { createWantedPost, getListingOptionsCached, type Category } from "../api";
 
+const WATER_TYPES = ["Freshwater", "Saltwater", "Brackish"] as const;
+const BIO_FIELDS_CATEGORIES = new Set<string>(["Fish", "Shrimp", "Snails", "Crabs", "Crayfish", "Clams & Mussels", "Plants", "Corals"]);
+
+function applyWaterTypeToDescription(body: string, waterType: string) {
+  const cleaned = String(body ?? "").trim();
+  const wt = String(waterType ?? "").trim();
+  if (!wt) return cleaned;
+  const line = `Water type: ${wt}`;
+  if (/^water type\s*:/im.test(cleaned)) return cleaned;
+  return cleaned ? `${cleaned}\n\n${line}` : line;
+}
+
 function dollarsToCents(s: string) {
   const t = String(s ?? "").trim();
   if (!t) return null;
@@ -21,6 +33,7 @@ export default function WantedPostPage() {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<Category>("");
   const [species, setSpecies] = useState("");
+  const [waterType, setWaterType] = useState<(typeof WATER_TYPES)[number] | "">("");
   const [location, setLocation] = useState("");
   const [minBudget, setMinBudget] = useState("");
   const [maxBudget, setMaxBudget] = useState("");
@@ -50,14 +63,34 @@ export default function WantedPostPage() {
     };
   }, []);
 
+  const isOtherCategory = String(category) === "Other";
+  const bioFieldsRequired = BIO_FIELDS_CATEGORIES.has(String(category));
+  const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
+  const bioFieldsEnabled = !bioFieldsDisabled;
+
+  useEffect(() => {
+    if (!category) return;
+    if (!bioFieldsDisabled) return;
+    setSpecies("");
+    setWaterType("");
+  }, [category, bioFieldsDisabled]);
+
   const budgetMinCents = useMemo(() => dollarsToCents(minBudget), [minBudget]);
   const budgetMaxCents = useMemo(() => dollarsToCents(maxBudget), [maxBudget]);
+  const waterLineLen = bioFieldsEnabled && waterType ? `Water type: ${waterType}`.length + 2 : 0; // "\n\n" + line
+  const maxDescLen = Math.max(1, 1000 - waterLineLen);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
     setSubmitting(true);
     try {
+      if (bioFieldsRequired && !waterType) throw new Error("Water type is required.");
+      const finalDescription =
+        bioFieldsEnabled && waterType ? applyWaterTypeToDescription(description, waterType) : String(description ?? "").trim();
+      if (finalDescription.length > 1000) {
+        throw new Error(`Description is too long. Max ${maxDescLen} characters when water type is included.`);
+      }
       const w = await createWantedPost({
         title: title.trim(),
         category,
@@ -65,7 +98,7 @@ export default function WantedPostPage() {
         budgetMinCents,
         budgetMaxCents,
         location: location.trim(),
-        description: description.trim(),
+        description: finalDescription,
       });
       nav(`/wanted/${w.id}`);
     } catch (e: any) {
@@ -126,10 +159,31 @@ export default function WantedPostPage() {
                 value={species}
                 onChange={(e) => setSpecies(e.target.value)}
                 placeholder="e.g. betta, cherry shrimp"
-                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+                disabled={bioFieldsDisabled}
+                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
               />
             </label>
           </div>
+
+          <label className="block">
+            <div className="mb-1 text-xs font-semibold text-slate-700">Water type</div>
+            <select
+              value={waterType}
+              onChange={(e) => setWaterType(e.target.value as (typeof WATER_TYPES)[number])}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+              required={bioFieldsRequired}
+              disabled={bioFieldsDisabled}
+            >
+              <option value="" disabled hidden>
+                Select…
+              </option>
+              {WATER_TYPES.map((w) => (
+                <option key={w} value={w}>
+                  {w}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <label className="block">
             <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
@@ -174,7 +228,7 @@ export default function WantedPostPage() {
               onChange={(e) => setDescription(e.target.value)}
               required
               rows={6}
-              maxLength={1000}
+              maxLength={maxDescLen}
               placeholder="Include any details: size, quantity, preferred pickup, timeframe..."
               className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
             />

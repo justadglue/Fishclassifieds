@@ -5,6 +5,7 @@ import { Flag } from "lucide-react";
 import { fetchListing, getListingOptionsCached, resolveAssets, type Listing } from "../api";
 import Header from "../components/Header";
 import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
+import ShippingInfoButton from "../components/ShippingInfoButton";
 
 function centsToDollars(cents: number) {
   return (cents / 100).toLocaleString(undefined, { style: "currency", currency: "AUD" });
@@ -443,49 +444,56 @@ export default function ListingPage() {
                       const sex = String(item.sex ?? "").trim();
                       const waterType = item.waterType ? String(item.waterType).trim() : "";
 
-                      // Hide species for legacy "species === category" rows (e.g. Equipment) even if rules haven't loaded yet.
-                      const showSpecies = !bioDisabled && Boolean(species) && species !== cat;
+                      const showSpecies = !bioDisabled && Boolean(species);
                       const showSex = !bioDisabled && Boolean(sex) && sex !== "Unknown";
                       const showWaterType = !bioDisabled && Boolean(waterType);
 
                       return (
                         <>
-                    <div className="flex items-baseline justify-between gap-4">
-                      <dt className="font-semibold text-slate-600">Category</dt>
-                      <dd className="font-semibold text-slate-900">{item.category}</dd>
-                    </div>
-                    {showSpecies ? (
-                      <div className="flex items-baseline justify-between gap-4">
-                        <dt className="font-semibold text-slate-600">Species</dt>
-                        <dd className="font-semibold text-slate-900">{species}</dd>
-                      </div>
-                    ) : null}
-                    {showSex ? (
-                      <div className="flex items-baseline justify-between gap-4">
-                        <dt className="font-semibold text-slate-600">Sex</dt>
-                        <dd className="font-semibold text-slate-900">{sex}</dd>
-                      </div>
-                    ) : null}
-                    {showWaterType ? (
-                      <div className="flex items-baseline justify-between gap-4">
-                        <dt className="font-semibold text-slate-600">Water type</dt>
-                        <dd className="font-semibold text-slate-900">{waterType}</dd>
-                      </div>
-                    ) : null}
-                    <div className="flex items-baseline justify-between gap-4">
-                      <dt className="font-semibold text-slate-600">Location</dt>
-                      <dd className="font-semibold text-slate-900">{item.location}</dd>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-4">
-                      <dt className="font-semibold text-slate-600">Price type</dt>
-                      <dd className="font-semibold text-slate-900">{priceSuffix}</dd>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-4">
-                      <dt className="font-semibold text-slate-600">Shipping</dt>
-                      <dd className={["font-semibold", details.willingToShip ? "text-emerald-700" : "text-slate-900"].join(" ")}>
-                        {details.willingToShip ? "Shipping offered" : "Local pickup or delivery only"}
-                      </dd>
-                    </div>
+                          <div className="flex items-baseline justify-between gap-4">
+                            <dt className="font-semibold text-slate-600">Category</dt>
+                            <dd className="font-semibold text-slate-900">{item.category}</dd>
+                          </div>
+                          {showSpecies ? (
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="font-semibold text-slate-600">Species</dt>
+                              <dd className="font-semibold text-slate-900">{species}</dd>
+                            </div>
+                          ) : null}
+                          {showSex ? (
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="font-semibold text-slate-600">Sex</dt>
+                              <dd className="font-semibold text-slate-900">{sex}</dd>
+                            </div>
+                          ) : null}
+                          {showWaterType ? (
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="font-semibold text-slate-600">Water type</dt>
+                              <dd className="font-semibold text-slate-900">{waterType}</dd>
+                            </div>
+                          ) : null}
+                          <div className="flex items-baseline justify-between gap-4">
+                            <dt className="font-semibold text-slate-600">Location</dt>
+                            <dd className="font-semibold text-slate-900">{item.location}</dd>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-4">
+                            <dt className="font-semibold text-slate-600">Price type</dt>
+                            <dd className="font-semibold text-slate-900">{priceSuffix}</dd>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-4">
+                            <dt className="flex items-center gap-1 font-semibold text-slate-600">
+                              <span>Shipping</span>
+                              {details.willingToShip ? <ShippingInfoButton mode="receiver" size="sm" /> : null}
+                            </dt>
+                            <dd
+                              className={[
+                                "flex items-center justify-end font-semibold",
+                                details.willingToShip ? "text-emerald-700" : "text-slate-900",
+                              ].join(" ")}
+                            >
+                              <span>{details.willingToShip ? "Shipping offered" : "Local pickup or delivery only"}</span>
+                            </dd>
+                          </div>
                         </>
                       );
                     })()}

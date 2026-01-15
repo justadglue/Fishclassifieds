@@ -5,11 +5,19 @@ import Header from "../components/Header";
 export default function FaqPage() {
   const { hash } = useLocation();
   const [highlightShipping, setHighlightShipping] = useState(false);
+  const [highlightReceiving, setHighlightReceiving] = useState(false);
 
   useEffect(() => {
     if (hash !== "#fish-shipping") return;
     setHighlightShipping(true);
     const t = window.setTimeout(() => setHighlightShipping(false), 1000);
+    return () => window.clearTimeout(t);
+  }, [hash]);
+
+  useEffect(() => {
+    if (hash !== "#receiving-shipped-fish") return;
+    setHighlightReceiving(true);
+    const t = window.setTimeout(() => setHighlightReceiving(false), 1000);
     return () => window.clearTimeout(t);
   }, [hash]);
 
@@ -53,6 +61,26 @@ export default function FaqPage() {
               <div className="text-white/60">
                 Tip: If you’re not confident you can ship correctly, leave “Willing to ship” unchecked.
               </div>
+            </div>
+          </div>
+
+          <div
+            id="receiving-shipped-fish"
+            className={[
+              "scroll-mt-24 relative rounded-2xl border bg-white/5 p-5 transition-colors duration-1000",
+              "after:pointer-events-none after:absolute after:inset-0 after:rounded-2xl after:content-[''] after:ring-2 after:ring-amber-200/20 after:opacity-0 after:transition-opacity after:duration-1000",
+              highlightReceiving ? "border-amber-200/40 bg-amber-200/10 after:opacity-100" : "border-white/10",
+            ].join(" ")}
+          >
+            <div className="text-sm font-extrabold">How do I receive shipped fish safely?</div>
+            <div className="mt-2 space-y-2 text-sm font-semibold text-white/75">
+              <div>This is a placeholder section for now — we can expand it later.</div>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>Be home for delivery and bring the package inside immediately.</li>
+                <li>Match temperature, then acclimate carefully.</li>
+                <li>Have a quarantine/cycled tank ready if possible.</li>
+              </ul>
+              <div className="text-white/60">Tip: Don’t add shipping water to your aquarium.</div>
             </div>
           </div>
 

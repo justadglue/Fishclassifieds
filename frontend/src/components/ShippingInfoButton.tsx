@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Info } from "lucide-react";
+import { CircleHelp, Info } from "lucide-react";
 
-export default function ShippingInfoButton(props: { disabled?: boolean }) {
-  const { disabled } = props;
+export default function ShippingInfoButton(props: { disabled?: boolean; mode?: "sender" | "receiver"; size?: "md" | "sm" }) {
+  const { disabled, mode = "sender", size = "md" } = props;
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -34,11 +34,18 @@ export default function ShippingInfoButton(props: { disabled?: boolean }) {
         type="button"
         disabled={disabled}
         onClick={() => setOpen(true)}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-60"
-        aria-label="Shipping info"
-        title="Shipping info"
+        className={[
+          "inline-flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-60",
+          size === "sm" ? "h-6 w-6 rounded-md" : "h-8 w-8 rounded-lg",
+        ].join(" ")}
+        aria-label={mode === "receiver" ? "Receiving shipped fish info" : "Shipping info"}
+        title={mode === "receiver" ? "Receiving shipped fish info" : "Shipping info"}
       >
-        <Info aria-hidden="true" className="h-4 w-4" />
+        {mode === "receiver" ? (
+          <CircleHelp aria-hidden="true" className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} />
+        ) : (
+          <Info aria-hidden="true" className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} />
+        )}
       </button>
 
       {open && (
@@ -48,31 +55,45 @@ export default function ShippingInfoButton(props: { disabled?: boolean }) {
             ref={panelRef}
             role="dialog"
             aria-modal="true"
-            aria-label="Shipping fish information"
+            aria-label={mode === "receiver" ? "Receiving shipped fish information" : "Shipping fish information"}
             className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
           >
             <div className="border-b border-slate-100 px-5 py-4">
-              <div className="text-base font-extrabold text-slate-900">Shipping fish (important)</div>
+              <div className="text-base font-extrabold text-slate-900">
+                {mode === "receiver" ? "Receiving shipped fish (important)" : "Shipping fish (important)"}
+              </div>
               <div className="mt-1 text-sm font-semibold text-slate-600">
-                Only enable shipping if you’re confident you can pack livestock safely.
+                {mode === "receiver"
+                  ? "If you’re buying shipped livestock, make sure you’re ready on delivery day."
+                  : "Only enable shipping if you’re confident you can pack livestock safely."}
               </div>
             </div>
 
             <div className="px-5 py-4 text-sm text-slate-700">
               <ul className="list-disc space-y-2 pl-5">
-                <li>Shipping requires the right equipment (bags, insulation, heat/cold packs) and correct technique.</li>
-                <li>Incorrect packing can stress or harm fish.</li>
-                <li>Always follow local carrier rules and weather considerations.</li>
+                {mode === "receiver" ? (
+                  <>
+                    <li>Be available for delivery (do not let livestock sit in a hot/cold mailbox).</li>
+                    <li>Have a cycled tank/quarantine ready and match temperature before opening bags.</li>
+                    <li>Plan acclimation and avoid adding shipping water to your aquarium.</li>
+                  </>
+                ) : (
+                  <>
+                    <li>Shipping requires the right equipment (bags, insulation, heat/cold packs) and correct technique.</li>
+                    <li>Incorrect packing can stress or harm fish.</li>
+                    <li>Always follow local carrier rules and weather considerations.</li>
+                  </>
+                )}
               </ul>
 
               <div className="mt-4 text-sm font-semibold">
                 See:{" "}
                 <Link
-                  to="/faq#fish-shipping"
+                  to={mode === "receiver" ? "/faq#receiving-shipped-fish" : "/faq#fish-shipping"}
                   className="text-slate-900 underline underline-offset-4 hover:text-slate-700"
                   onClick={() => setOpen(false)}
                 >
-                  Fish shipping FAQ (placeholder)
+                  {mode === "receiver" ? "Receiving shipped fish FAQ (placeholder)" : "Fish shipping FAQ (placeholder)"}
                 </Link>
               </div>
             </div>

@@ -17,7 +17,7 @@ export const LISTING_CATEGORIES = [
 ] as const;
 export type ListingCategory = (typeof LISTING_CATEGORIES)[number];
 
-export const LISTING_SEXES = ["Male", "Female", "Various", "Unknown"] as const;
+export const LISTING_SEXES = ["Male", "Female", "Various", "Unknown", "Breeding pair"] as const;
 export type ListingSex = (typeof LISTING_SEXES)[number];
 
 export const WATER_TYPES = ["Freshwater", "Saltwater", "Brackish"] as const;

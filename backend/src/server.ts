@@ -312,7 +312,6 @@ const CreateListingSchema = z.object({
   description: z.string().min(1).max(1000),
   phone: z.string().min(6).max(30),
   images: ImagesInputSchema,
-  imageUrl: z.string().optional().nullable(),
   status: z.enum(["draft", "active"]).optional(),
 });
 
@@ -328,7 +327,6 @@ const UpdateListingSchema = z.object({
   description: z.string().min(1).max(1000).optional(),
   phone: z.string().min(6).max(30).optional(),
   images: ImagesInputSchema.optional(),
-  imageUrl: z.string().nullable().optional(),
   featured: z.boolean().optional(),
   featuredUntil: z.number().int().min(0).nullable().optional(),
 });
@@ -669,13 +667,12 @@ app.post("/api/listings", requireAuth, (req, res) => {
 
   const id = crypto.randomUUID();
   const now = nowIso();
-  const ownerToken = crypto.randomUUID();
   const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
   const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
   const requireApproval = String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
   const user = req.user!;
 
-  const { title, category, species, sex, waterType, age, priceCents, location, description, phone, images, imageUrl } = parsed.data;
+  const { title, category, species, sex, waterType, age, priceCents, location, description, phone, images } = parsed.data;
   const requestedStatus = parsed.data.status;
   const status: ListingStatus = requestedStatus === "draft" ? "draft" : requireApproval ? "pending" : "active";
 
@@ -694,13 +691,14 @@ app.post("/api/listings", requireAuth, (req, res) => {
 
   db.prepare(
     `INSERT INTO listings(
-id,user_id,owner_token,title,category,species,sex,price_cents,location,description,phone,image_url,
+id,user_id,listing_type,featured,title,category,species,sex,price_cents,location,description,phone,
 status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
 )VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
     id,
     user.id,
-    ownerToken,
+    0,
+    0,
     title,
     category,
     speciesFinal,
@@ -709,7 +707,6 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
     location,
     description,
     phone,
-    imageUrl ?? null,
     status,
     expiresAt,
     "none",
@@ -728,8 +725,7 @@ VALUES(?,?,?,?,?,?)`
   );
 
   const normalized = normalizeImages(images ?? []);
-  const fallback = imageUrl ? [{ fullUrl: imageUrl, thumbUrl: imageUrl, medUrl: imageUrl }] : [];
-  const finalImages = (normalized.length ? normalized : fallback).slice(0, 6);
+  const finalImages = normalized.slice(0, 6);
 
   finalImages.forEach((img, idx) => {
     insertImg.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx);
@@ -908,7 +904,6 @@ app.patch("/api/listings/:id", requireAuth, (req, res) => {
     location: p.location,
     description: p.description,
     phone: p.phone,
-    image_url: p.imageUrl,
   };
 
   // Enforce category-driven rules for bio fields on update.
@@ -1161,25 +1156,23 @@ app.post("/api/wanted", requireAuth, (req, res) => {
   const id = crypto.randomUUID();
   const now = nowIso();
   const user = req.user!;
-  const ownerToken = `wanted:${user.id}:${crypto.randomUUID()}`;
 
   const ageFinal = String(age ?? "").trim();
 
   db.prepare(
     `
 INSERT INTO listings(
-  id,user_id,owner_token,listing_type,
+  id,user_id,listing_type,
   title,description,category,species,sex,water_type,age,quantity,price_cents,
   budget_min_cents,budget_max_cents,wanted_status,
-  location,phone,image_url,
+  location,phone,
   status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
 )
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 `
   ).run(
     id,
     user.id,
-    ownerToken,
     1,
     title,
     description,
@@ -1195,7 +1188,6 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     "open",
     location,
     phone,
-    null,
     "active",
     null,
     "none",
@@ -1482,7 +1474,6 @@ app.post("/api/listings/:id/relist", requireAuth, (req, res) => {
 
   const now = nowIso();
   const newId = crypto.randomUUID();
-  const newOwnerToken = crypto.randomUUID();
   const phone = String((row as any).phone ?? "").trim();
   if (!phone) return res.status(400).json({ error: "Listing is missing required phone number" });
 
@@ -1505,13 +1496,14 @@ ORDER BY sort_order ASC`
     // Create new paused listing (hidden) for final edits before resuming to active.
     db.prepare(
       `INSERT INTO listings(
-id,user_id,owner_token,title,category,species,sex,price_cents,location,description,phone,image_url,
+id,user_id,listing_type,featured,title,category,species,sex,price_cents,location,description,phone,
 status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
 ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(
       newId,
       Number(row.user_id),
-      newOwnerToken,
+      0,
+      0,
       row.title,
       row.category,
       isBioFieldsRequiredCategory(String(row.category)) || isOtherCategory(String(row.category)) ? row.species : "",
@@ -1520,7 +1512,6 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
       row.location,
       row.description,
       phone,
-      row.image_url ?? null,
       "paused",
       expiresAt,
       "none",
@@ -1630,7 +1621,6 @@ function mapListing(req: express.Request, row: ListingRow & any) {
     location: row.location,
     description: row.description,
     phone: String((row as any).phone ?? ""),
-    imageUrl: row.image_url ?? null,
     images,
     status,
     resolution,

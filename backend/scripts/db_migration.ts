@@ -1,4 +1,5 @@
 import "dotenv/config";
+import crypto from "crypto";
 import path from "path";
 import Database from "better-sqlite3";
 import { WATER_TYPES } from "../src/listingOptions.js";
@@ -46,6 +47,22 @@ function isColumnNotNull(db: Database.Database, table: string, col: string): boo
 function hasTable(db: Database.Database, table: string): boolean {
   const row = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name = ?`).get(table) as any | undefined;
   return Boolean(row?.name);
+}
+
+function ensureListingImagesTable(db: Database.Database) {
+  if (hasTable(db, "listing_images")) return;
+  db.exec(`
+CREATE TABLE IF NOT EXISTS listing_images(
+  id TEXT PRIMARY KEY,
+  listing_id TEXT NOT NULL,
+  url TEXT NOT NULL,
+  thumb_url TEXT,
+  medium_url TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_listing_images_listing_id ON listing_images(listing_id);
+`);
 }
 
 function extractWaterTypeFromDescription(desc: string): string | null {
@@ -352,6 +369,151 @@ AND contact IS NOT NULL;
     migrations.push("Dropped legacy wanted_posts table");
   } else {
     migrations.push("wanted_posts table already removed (or never existed)");
+  }
+
+  // Ensure listing_images exists before we potentially backfill from legacy image_url.
+  ensureListingImagesTable(db);
+
+  // Drop legacy columns on listings (owner_token, image_url) by rebuilding the table.
+  const hasOwnerToken = hasColumn(db, "listings", "owner_token");
+  const hasImageUrl = hasColumn(db, "listings", "image_url");
+
+  if (hasOwnerToken || hasImageUrl) {
+    // Preserve old single-image data by backfilling into listing_images (only when no images exist).
+    if (hasImageUrl) {
+      const rows = db
+        .prepare(
+          `
+SELECT id, image_url
+FROM listings
+WHERE image_url IS NOT NULL
+AND trim(image_url) <> ''
+`
+        )
+        .all() as Array<{ id: string; image_url: string }>;
+
+      const countExisting = db.prepare(`SELECT COUNT(*)as c FROM listing_images WHERE listing_id = ?`);
+      const insertImg = db.prepare(
+        `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
+VALUES(?,?,?,?,?,?)`
+      );
+
+      let inserted = 0;
+      for (const r of rows) {
+        const c = Number((countExisting.get(r.id) as any)?.c ?? 0);
+        if (c > 0) continue;
+        insertImg.run(crypto.randomUUID(), r.id, r.image_url, r.image_url, r.image_url, 0);
+        inserted++;
+      }
+      if (inserted) migrations.push(`Backfilled listing_images from legacy listings.image_url for ${inserted} row(s)`);
+    }
+
+    db.exec(`PRAGMA foreign_keys = OFF;`);
+    const tx = db.transaction(() => {
+      db.exec(`
+CREATE TABLE IF NOT EXISTS listings_new(
+  id TEXT PRIMARY KEY,
+  user_id INTEGER,
+  listing_type INTEGER NOT NULL DEFAULT 0,
+  featured INTEGER NOT NULL DEFAULT 0,
+  featured_until INTEGER,
+  views INTEGER NOT NULL DEFAULT 0,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'Fish',
+  species TEXT NOT NULL,
+  sex TEXT NOT NULL DEFAULT 'Unknown',
+  water_type TEXT,
+  age TEXT NOT NULL DEFAULT '',
+  quantity INTEGER NOT NULL DEFAULT 1,
+  price_cents INTEGER NOT NULL,
+  budget_min_cents INTEGER,
+  budget_max_cents INTEGER,
+  wanted_status TEXT NOT NULL DEFAULT 'open',
+  location TEXT NOT NULL,
+  description TEXT NOT NULL,
+  phone TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active',
+  expires_at TEXT,
+  resolution TEXT NOT NULL DEFAULT 'none',
+  resolved_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`);
+
+      // Copy over all non-legacy columns. (Any legacy columns like owner_token/image_url are dropped.)
+      db.exec(`
+INSERT INTO listings_new(
+  id,user_id,listing_type,
+  featured,featured_until,views,
+  title,category,species,sex,water_type,age,quantity,price_cents,
+  budget_min_cents,budget_max_cents,wanted_status,
+  location,description,phone,
+  status,expires_at,resolution,resolved_at,
+  created_at,updated_at,deleted_at
+)
+SELECT
+  id,
+  user_id,
+  COALESCE(listing_type, 0),
+  COALESCE(featured, 0),
+  featured_until,
+  COALESCE(views, 0),
+  title,
+  COALESCE(category, 'Fish'),
+  COALESCE(species, ''),
+  COALESCE(sex, 'Unknown'),
+  water_type,
+  COALESCE(age, ''),
+  COALESCE(quantity, 1),
+  COALESCE(price_cents, 0),
+  budget_min_cents,
+  budget_max_cents,
+  COALESCE(wanted_status, 'open'),
+  location,
+  description,
+  COALESCE(phone, ''),
+  COALESCE(status, 'active'),
+  expires_at,
+  COALESCE(resolution, 'none'),
+  resolved_at,
+  created_at,
+  COALESCE(updated_at, created_at),
+  deleted_at
+FROM listings;
+`);
+
+      db.exec(`DROP TABLE listings;`);
+      db.exec(`ALTER TABLE listings_new RENAME TO listings;`);
+
+      // Recreate indexes (minus legacy owner_token index).
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_created_at ON listings(created_at);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_updated_at ON listings(updated_at);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_species ON listings(species);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_price ON listings(price_cents);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_category ON listings(category);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_user_id ON listings(user_id);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_featured ON listings(featured);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_featured_until ON listings(featured_until);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_views ON listings(views);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_resolution ON listings(resolution);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_expires_at ON listings(expires_at);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type ON listings(listing_type);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type_created_at ON listings(listing_type, created_at);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type_user_id ON listings(listing_type, user_id);`);
+      db.exec(
+        `CREATE INDEX IF NOT EXISTS idx_listings_listing_type_wanted_status_created_at ON listings(listing_type, wanted_status, created_at);`
+      );
+    });
+
+    tx();
+    db.exec(`PRAGMA foreign_keys = ON;`);
+    migrations.push("Rebuilt listings table to remove legacy listings.owner_token and listings.image_url columns");
+  } else {
+    migrations.push("listings already has no legacy owner_token/image_url columns");
   }
 
   if (args.seedFeatured) {

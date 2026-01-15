@@ -30,7 +30,6 @@ export type Listing = {
   location: string;
   description: string;
   phone: string;
-  imageUrl: string | null;
   images: ImageAsset[];
   status: ListingStatus;
   resolution: ListingResolution;
@@ -271,7 +270,6 @@ export async function createListing(input: {
   description: string;
   phone: string;
   images?: Array<string | ImageAsset>;
-  imageUrl?: string | null;
   status?: "draft" | "active";
 }) {
   const body = JSON.stringify(input);
@@ -297,7 +295,6 @@ export async function updateListing(
     description?: string;
     phone?: string;
     images?: Array<string | ImageAsset>;
-    imageUrl?: string | null;
     featured?: boolean;
     featuredUntil?: number | null;
   }

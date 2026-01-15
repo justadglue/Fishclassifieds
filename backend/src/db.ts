@@ -11,7 +11,6 @@ export type ListingResolution = "none" | "sold";
 export type ListingRow = {
   id: string;
   user_id: number | null;
-  owner_token: string;
   listing_type?: number;
   featured?: number;
   featured_until?: number | null;
@@ -30,7 +29,6 @@ export type ListingRow = {
   location: string;
   description: string;
   phone: string;
-  image_url: string | null;
   status: ListingStatus;
   expires_at: string | null;
   resolution: ListingResolution;
@@ -136,11 +134,10 @@ CREATE INDEX IF NOT EXISTS idx_deleted_accounts_deleted_at ON deleted_accounts(d
 CREATE INDEX IF NOT EXISTS idx_deleted_accounts_email_hash ON deleted_accounts(email_hash);
 CREATE INDEX IF NOT EXISTS idx_deleted_accounts_username_hash ON deleted_accounts(username_hash);
 
--- Sale listings. Account-owned listings set user_id; legacy/device-owned listings use owner_token.
+-- Unified listings table. listing_type=0 is sale, listing_type=1 is wanted.
 CREATE TABLE IF NOT EXISTS listings(
   id TEXT PRIMARY KEY,
   user_id INTEGER,
-  owner_token TEXT NOT NULL,
   -- 0 = sell (default), 1 = wanted
   listing_type INTEGER NOT NULL DEFAULT 0,
   featured INTEGER NOT NULL DEFAULT 0,
@@ -162,7 +159,6 @@ CREATE TABLE IF NOT EXISTS listings(
   location TEXT NOT NULL,
   description TEXT NOT NULL,
   phone TEXT NOT NULL DEFAULT '',
-  image_url TEXT,
   status TEXT NOT NULL DEFAULT 'active',
   expires_at TEXT,
   resolution TEXT NOT NULL DEFAULT 'none',
@@ -188,7 +184,6 @@ CREATE INDEX IF NOT EXISTS idx_listings_updated_at ON listings(updated_at);
 CREATE INDEX IF NOT EXISTS idx_listings_species ON listings(species);
 CREATE INDEX IF NOT EXISTS idx_listings_price ON listings(price_cents);
 CREATE INDEX IF NOT EXISTS idx_listings_category ON listings(category);
-CREATE INDEX IF NOT EXISTS idx_listings_owner_token ON listings(owner_token);
 CREATE INDEX IF NOT EXISTS idx_listings_user_id ON listings(user_id);
 CREATE INDEX IF NOT EXISTS idx_listings_featured ON listings(featured);
 CREATE INDEX IF NOT EXISTS idx_listings_featured_until ON listings(featured_until);

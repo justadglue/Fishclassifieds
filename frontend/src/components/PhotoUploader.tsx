@@ -176,7 +176,7 @@ export default forwardRef<PhotoUploaderHandle, { initialAssets?: ImageAsset[]; d
         if (inFlightUploads.current.has(p.id)) continue;
         inFlightUploads.current.add(p.id);
         try {
-          await uploadOne(p.id, p.file).catch(() => {});
+          await uploadOne(p.id, p.file).catch(() => { });
         } finally {
           inFlightUploads.current.delete(p.id);
         }

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
 import {
+  type ImageAsset,
   fetchWantedPost,
   getListingOptionsCached,
   updateWantedPost,
@@ -11,6 +12,7 @@ import {
   type WantedPost,
   type WaterType,
 } from "../api";
+import PhotoUploader, { type PhotoUploaderHandle } from "../components/PhotoUploader";
 
 function centsToDollars(cents: number | null) {
   if (cents == null) return "";
@@ -29,6 +31,8 @@ export default function WantedEditPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { user, loading } = useAuth();
+  const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
+  const [initialPhotoAssets, setInitialPhotoAssets] = useState<ImageAsset[]>([]);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [waterTypes, setWaterTypes] = useState<WaterType[]>([]);
@@ -101,6 +105,7 @@ export default function WantedEditPage() {
         setMinBudget(centsToDollars(w.budgetMinCents));
         setMaxBudget(centsToDollars(w.budgetMaxCents));
         setDescription(w.description);
+        setInitialPhotoAssets((w as any).images ?? []);
       } catch (e: any) {
         if (!cancelled) setErr(e?.message ?? "Failed to load wanted post");
       }
@@ -140,7 +145,6 @@ export default function WantedEditPage() {
     e.preventDefault();
     if (!id) return;
     setErr(null);
-    setSaving(true);
     try {
       if (!isOwner) throw new Error("Not owner");
       if (!category) throw new Error("Category is required.");
@@ -157,6 +161,19 @@ export default function WantedEditPage() {
       if (phoneTrim.length < 6) throw new Error("Phone number looks too short.");
       if (phoneTrim.length > 30) throw new Error("Phone number is too long.");
 
+      const photoCounts = photoUploaderRef.current?.getCounts() ?? { total: 0, uploaded: 0 };
+      if (photoCounts.total === 0) {
+        const ok = window.confirm("You haven't added any photos. Update this wanted listing without photos?");
+        if (!ok) return;
+      }
+
+      setSaving(true);
+      await photoUploaderRef.current?.ensureUploaded();
+      const uploadedAssets = photoUploaderRef.current?.getAssets() ?? [];
+      if (photoCounts.total > 0 && uploadedAssets.length === 0) {
+        throw new Error("Images were selected but none uploaded successfully. Remove broken images or retry upload.");
+      }
+
       const updated = await updateWantedPost(id, {
         title: title.trim(),
         category,
@@ -170,6 +187,7 @@ export default function WantedEditPage() {
         location: location.trim(),
         phone: phoneTrim,
         description: description.trim(),
+        images: uploadedAssets,
       });
       nav(`/wanted/${updated.id}`);
     } catch (e: any) {
@@ -197,6 +215,8 @@ export default function WantedEditPage() {
                 You can’t edit this wanted post (not the owner).
               </div>
             )}
+
+            <PhotoUploader ref={photoUploaderRef} initialAssets={initialPhotoAssets} disabled={saving || !isOwner} />
 
             <label className="block">
               <div className="mb-1 text-xs font-semibold text-slate-700">Title</div>

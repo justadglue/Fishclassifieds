@@ -60,6 +60,7 @@ export type WantedPost = {
   phone: string;
   status: WantedStatus;
   description: string;
+  images: ImageAsset[];
   createdAt: string;
   updatedAt: string;
 };
@@ -200,6 +201,7 @@ export async function createWantedPost(input: {
   location: string;
   description: string;
   phone: string;
+  images?: Array<string | ImageAsset>;
 }) {
   return apiFetch<WantedPost>(`/api/wanted`, {
     method: "POST",
@@ -223,6 +225,7 @@ export async function updateWantedPost(
     location?: string;
     description?: string;
     phone?: string;
+    images?: Array<string | ImageAsset>;
   }
 ) {
   return apiFetch<WantedPost>(`/api/wanted/${encodeURIComponent(id)}`, {

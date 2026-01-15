@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
 import { createWantedPost, getListingOptionsCached, type Category, type ListingSex, type WaterType } from "../api";
+import PhotoUploader, { type PhotoUploaderHandle } from "../components/PhotoUploader";
 
 function dollarsToCents(s: string) {
   const t = String(s ?? "").trim();
@@ -15,6 +16,7 @@ function dollarsToCents(s: string) {
 export default function WantedPostPage() {
   const nav = useNavigate();
   const { user, loading } = useAuth();
+  const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
 
   type FieldKey =
     | "title"
@@ -148,8 +150,20 @@ export default function WantedPostPage() {
       return;
     }
 
+    const photoCounts = photoUploaderRef.current?.getCounts() ?? { total: 0, uploaded: 0 };
+    if (photoCounts.total === 0) {
+      const ok = window.confirm("You haven't added any photos. Post this wanted listing without photos?");
+      if (!ok) return;
+    }
+
     setSubmitting(true);
     try {
+      await photoUploaderRef.current?.ensureUploaded();
+      const uploadedAssets = photoUploaderRef.current?.getAssets() ?? [];
+      if (photoCounts.total > 0 && uploadedAssets.length === 0) {
+        throw new Error("Images were selected but none uploaded successfully. Remove broken images or retry upload.");
+      }
+
       const finalDescription = String(description ?? "").trim();
       const w = await createWantedPost({
         title: title.trim(),
@@ -164,6 +178,7 @@ export default function WantedPostPage() {
         location: location.trim(),
         phone: phoneTrim,
         description: finalDescription,
+        images: uploadedAssets,
       });
       nav(`/wanted/${w.id}`);
     } catch (e: any) {
@@ -183,6 +198,8 @@ export default function WantedPostPage() {
         {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
         <form onSubmit={onSubmit} noValidate className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6">
+          <PhotoUploader ref={photoUploaderRef} disabled={submitting} />
+
           <label className="block">
             <div className={["mb-1 text-xs font-semibold", fieldErrors.title ? "text-red-700" : "text-slate-700"].join(" ")}>
               Title <span className="text-red-600">*</span>

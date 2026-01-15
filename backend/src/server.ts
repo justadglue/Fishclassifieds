@@ -350,6 +350,7 @@ const CreateWantedSchema = z.object({
   location: z.string().min(2).max(80),
   description: z.string().min(1).max(1000),
   phone: z.string().min(6).max(30),
+  images: ImagesInputSchema.optional(),
 });
 
 const UpdateWantedSchema = z.object({
@@ -365,6 +366,7 @@ const UpdateWantedSchema = z.object({
   location: z.string().min(2).max(80).optional(),
   description: z.string().min(1).max(1000).optional(),
   phone: z.string().min(6).max(30).optional(),
+  images: ImagesInputSchema.optional(),
 });
 
 app.use("/api/auth", authRoutes);
@@ -990,7 +992,8 @@ app.delete("/api/listings/:id", requireAuth, (req, res) => {
   return res.json({ ok: true });
 });
 
-function mapWantedRow(row: any) {
+function mapWantedRow(req: express.Request, row: any) {
+  const images = getImagesForListing(req, String(row.id));
   return {
     id: String(row.id),
     userId: Number(row.user_id),
@@ -1008,6 +1011,7 @@ function mapWantedRow(row: any) {
     phone: String(row.phone ?? ""),
     status: WantedStatusSchema.parse(String(row.wanted_status ?? "open")),
     description: String(row.description),
+    images,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };
@@ -1105,7 +1109,7 @@ LIMIT ? OFFSET ?
     .all(...params, limit, offset) as any[];
 
   return res.json({
-    items: rows.map(mapWantedRow),
+    items: rows.map((r) => mapWantedRow(req, r)),
     total,
     limit,
     offset,
@@ -1126,14 +1130,14 @@ AND l.listing_type = 1
     )
     .get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
-  return res.json(mapWantedRow(row));
+  return res.json(mapWantedRow(req, row));
 });
 
 app.post("/api/wanted", requireAuth, (req, res) => {
   const parsed = CreateWantedSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
 
-  const { title, category, location, description, waterType, sex, age, quantity, phone } = parsed.data;
+  const { title, category, location, description, waterType, sex, age, quantity, phone, images } = parsed.data;
   const species = parsed.data.species ? String(parsed.data.species).trim() : "";
   const budgetMinCents = parsed.data.budgetMinCents ?? null;
   const budgetMaxCents = parsed.data.budgetMaxCents ?? null;
@@ -1201,6 +1205,17 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     null
   );
 
+  if (images !== undefined) {
+    const insertImg = db.prepare(
+      `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
+VALUES(?,?,?,?,?,?)`
+    );
+    const normalized = normalizeImages(images ?? []).slice(0, 6);
+    normalized.forEach((img, idx) => {
+      insertImg.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx);
+    });
+  }
+
   const row = db
     .prepare(
       `
@@ -1213,7 +1228,7 @@ AND l.listing_type = 1
     )
     .get(id) as any | undefined;
 
-  return res.status(201).json(mapWantedRow(row));
+  return res.status(201).json(mapWantedRow(req, row));
 });
 
 app.patch("/api/wanted/:id", requireAuth, (req, res) => {
@@ -1290,6 +1305,18 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
     db.prepare(`UPDATE listings SET ${sets.join(",")} WHERE id = ? AND listing_type = 1`).run(...params, id);
   }
 
+  if (p.images !== undefined) {
+    db.prepare(`DELETE FROM listing_images WHERE listing_id = ?`).run(id);
+
+    const ins = db.prepare(
+      `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
+VALUES(?,?,?,?,?,?)`
+    );
+
+    const normalized = normalizeImages(p.images ?? []).slice(0, 6);
+    normalized.forEach((img, idx) => ins.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx));
+  }
+
   const updated = db
     .prepare(
       `
@@ -1302,7 +1329,7 @@ AND l.listing_type = 1
     )
     .get(id) as any | undefined;
 
-  return res.json(mapWantedRow(updated));
+  return res.json(mapWantedRow(req, updated));
 });
 
 app.post("/api/wanted/:id/close", requireAuth, (req, res) => {
@@ -1326,7 +1353,7 @@ AND l.listing_type = 1
     )
     .get(id) as any | undefined;
 
-  return res.json(mapWantedRow(updated));
+  return res.json(mapWantedRow(req, updated));
 });
 
 app.post("/api/wanted/:id/reopen", requireAuth, (req, res) => {
@@ -1350,7 +1377,7 @@ AND l.listing_type = 1
     )
     .get(id) as any | undefined;
 
-  return res.json(mapWantedRow(updated));
+  return res.json(mapWantedRow(req, updated));
 });
 
 app.delete("/api/wanted/:id", requireAuth, (req, res) => {
@@ -1359,6 +1386,7 @@ app.delete("/api/wanted/:id", requireAuth, (req, res) => {
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
+  db.prepare(`DELETE FROM listing_images WHERE listing_id = ?`).run(id);
   db.prepare(`DELETE FROM listings WHERE id = ? AND listing_type = 1`).run(id);
   return res.json({ ok: true });
 });

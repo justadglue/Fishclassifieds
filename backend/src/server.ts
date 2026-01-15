@@ -332,27 +332,35 @@ const UpdateListingSchema = z.object({
 });
 
 const WantedStatusSchema = z.enum(["open", "closed"]);
+const WANTED_SEXES = [...LISTING_SEXES, "No preference"] as const;
+const WantedSexSchema = z.enum(WANTED_SEXES);
 
 const CreateWantedSchema = z.object({
   title: z.string().min(3).max(80),
   category: z.enum(LISTING_CATEGORIES).default("Fish"),
   species: z.string().min(2).max(60).optional().nullable(),
+  sex: WantedSexSchema.optional().nullable(),
   waterType: OptionalWaterTypeSchema.optional().nullable(),
+  quantity: z.number().int().min(1).max(10_000).optional(),
   budgetMinCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
   budgetMaxCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
   location: z.string().min(2).max(80),
   description: z.string().min(1).max(1000),
+  phone: z.string().min(6).max(30),
 });
 
 const UpdateWantedSchema = z.object({
   title: z.string().min(3).max(80).optional(),
   category: z.enum(LISTING_CATEGORIES).optional(),
   species: z.string().min(2).max(60).nullable().optional(),
+  sex: WantedSexSchema.nullable().optional(),
   waterType: OptionalWaterTypeSchema.optional().nullable(),
+  quantity: z.number().int().min(1).max(10_000).optional(),
   budgetMinCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
   budgetMaxCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
   location: z.string().min(2).max(80).optional(),
   description: z.string().min(1).max(1000).optional(),
+  phone: z.string().min(6).max(30).optional(),
 });
 
 app.use("/api/auth", authRoutes);
@@ -986,9 +994,12 @@ function mapWantedRow(row: any) {
     category: String(row.category),
     species: row.species && String(row.species).trim() ? String(row.species) : null,
     waterType: row.water_type && String(row.water_type).trim() ? String(row.water_type) : null,
+    sex: String(row.sex ?? "Unknown"),
+    quantity: Number.isFinite(Number(row.quantity)) ? Math.max(1, Math.floor(Number(row.quantity))) : 1,
     budgetMinCents: row.budget_min_cents != null ? Number(row.budget_min_cents) : null,
     budgetMaxCents: row.budget_max_cents != null ? Number(row.budget_max_cents) : null,
     location: String(row.location),
+    phone: String(row.phone ?? ""),
     status: WantedStatusSchema.parse(String(row.wanted_status ?? "open")),
     description: String(row.description),
     createdAt: String(row.created_at),
@@ -1116,7 +1127,7 @@ app.post("/api/wanted", requireAuth, (req, res) => {
   const parsed = CreateWantedSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
 
-  const { title, category, location, description, waterType } = parsed.data;
+  const { title, category, location, description, waterType, sex, quantity, phone } = parsed.data;
   const species = parsed.data.species ? String(parsed.data.species).trim() : "";
   const budgetMinCents = parsed.data.budgetMinCents ?? null;
   const budgetMaxCents = parsed.data.budgetMaxCents ?? null;
@@ -1125,7 +1136,13 @@ app.post("/api/wanted", requireAuth, (req, res) => {
   const isOther = isOtherCategory(category);
   const bioDisabled = !bioRequired && !isOther;
   const waterTypeFinal = bioDisabled ? null : (waterType ?? null);
+  const speciesFinal = bioDisabled ? "" : species;
+  const sexFinal = bioDisabled ? "Unknown" : (sex ?? "Unknown");
+  const qtyFinal = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity!)) : 1;
+
   if (bioRequired && !waterTypeFinal) return res.status(400).json({ error: "Water type is required" });
+  if (bioRequired && !isOther && !speciesFinal.trim()) return res.status(400).json({ error: "Species is required" });
+  if (bioRequired && !isOther && !sex) return res.status(400).json({ error: "Sex is required" });
 
   if (budgetMinCents != null && budgetMaxCents != null && budgetMinCents > budgetMaxCents) {
     return res.status(400).json({ error: "Budget min cannot be greater than budget max" });
@@ -1140,12 +1157,12 @@ app.post("/api/wanted", requireAuth, (req, res) => {
     `
 INSERT INTO listings(
   id,user_id,owner_token,listing_type,
-  title,description,category,species,sex,price_cents,
+  title,description,category,species,sex,water_type,quantity,price_cents,
   budget_min_cents,budget_max_cents,wanted_status,
   location,phone,image_url,
   status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
 )
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 `
   ).run(
     id,
@@ -1155,14 +1172,16 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     title,
     description,
     category,
-    species ? species : "",
-    "Unknown",
+    speciesFinal,
+    sexFinal,
+    waterTypeFinal,
+    qtyFinal,
     0,
     budgetMinCents,
     budgetMaxCents,
     "open",
     location,
-    "",
+    phone,
     null,
     "active",
     null,
@@ -1172,8 +1191,6 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     now,
     null
   );
-
-  db.prepare(`UPDATE listings SET water_type = ? WHERE id = ?`).run(waterTypeFinal, id);
 
   const row = db
     .prepare(
@@ -1217,6 +1234,9 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
     description: p.description,
     species: p.species === undefined ? undefined : p.species ? String(p.species).trim() : "",
     water_type: p.waterType,
+    sex: p.sex === undefined ? undefined : (p.sex ?? "Unknown"),
+    phone: p.phone,
+    quantity: p.quantity,
     budget_min_cents: p.budgetMinCents,
     budget_max_cents: p.budgetMaxCents,
   };
@@ -1229,9 +1249,18 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
   const waterTypeNext = bioDisabled ? null : (p.waterType !== undefined ? (p.waterType ?? null) : (row.water_type ?? null));
   if (bioRequired && !waterTypeNext) return res.status(400).json({ error: "Water type is required" });
 
+  const speciesNext = bioDisabled ? "" : (p.species !== undefined ? (p.species ? String(p.species).trim() : "") : String(row.species ?? ""));
+  if (bioRequired && !isOther && !String(speciesNext ?? "").trim()) return res.status(400).json({ error: "Species is required" });
+
+  const sexNext = bioDisabled
+    ? "Unknown"
+    : (p.sex !== undefined ? (p.sex ?? "Unknown") : String(row.sex ?? "Unknown"));
+  if (bioRequired && !isOther && p.sex !== undefined && !p.sex) return res.status(400).json({ error: "Sex is required" });
+
   if (bioDisabled) {
     map.species = "";
     map.water_type = null;
+    map.sex = "Unknown";
   } else if (p.category !== undefined || p.waterType !== undefined) {
     map.water_type = waterTypeNext;
   }

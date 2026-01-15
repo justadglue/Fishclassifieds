@@ -2,7 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
-import { fetchWantedPost, getListingOptionsCached, updateWantedPost, type Category, type WantedPost, type WaterType } from "../api";
+import {
+  fetchWantedPost,
+  getListingOptionsCached,
+  updateWantedPost,
+  type Category,
+  type ListingSex,
+  type WantedPost,
+  type WaterType,
+} from "../api";
 
 function centsToDollars(cents: number | null) {
   if (cents == null) return "";
@@ -24,6 +32,7 @@ export default function WantedEditPage() {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [waterTypes, setWaterTypes] = useState<WaterType[]>([]);
+  const [listingSexes, setListingSexes] = useState<ListingSex[]>([]);
   const [bioRequiredCategories, setBioRequiredCategories] = useState<Set<string>>(new Set());
   const [otherCategoryName, setOtherCategoryName] = useState("Other");
 
@@ -35,7 +44,10 @@ export default function WantedEditPage() {
   const [category, setCategory] = useState<Category>("");
   const [species, setSpecies] = useState("");
   const [waterType, setWaterType] = useState<WaterType | "">("");
+  const [sex, setSex] = useState<ListingSex | "">("");
+  const [quantity, setQuantity] = useState<number>(1);
   const [location, setLocation] = useState("");
+  const [phone, setPhone] = useState("");
   const [minBudget, setMinBudget] = useState("");
   const [maxBudget, setMaxBudget] = useState("");
   const [description, setDescription] = useState("");
@@ -47,6 +59,7 @@ export default function WantedEditPage() {
         if (cancelled) return;
         setCategories(opts.categories as Category[]);
         setWaterTypes((opts as any).waterTypes as WaterType[]);
+        setListingSexes((opts as any).listingSexes as ListingSex[]);
         setBioRequiredCategories(new Set(((opts as any).bioFieldsRequiredCategories as string[]) ?? []));
         setOtherCategoryName(String((opts as any).otherCategory ?? "Other"));
       })
@@ -79,7 +92,10 @@ export default function WantedEditPage() {
         setCategory(w.category);
         setSpecies(w.species ?? "");
         setWaterType((w as any).waterType ?? "");
+        setSex((w as any).sex ?? "");
+        setQuantity(Number.isFinite(Number((w as any).quantity)) ? Math.max(1, Math.floor(Number((w as any).quantity))) : 1);
         setLocation(w.location);
+        setPhone((w as any).phone ?? "");
         setMinBudget(centsToDollars(w.budgetMinCents));
         setMaxBudget(centsToDollars(w.budgetMaxCents));
         setDescription(w.description);
@@ -102,12 +118,20 @@ export default function WantedEditPage() {
   const bioFieldsRequired = bioRequiredCategories.has(String(category));
   const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
   const bioFieldsEnabled = !bioFieldsDisabled;
+  const bioFieldsRequiredForUser = bioFieldsRequired && !isOtherCategory;
+  const wantedSexOptions = useMemo(() => {
+    const base = (listingSexes ?? []).map(String);
+    const out = [...base];
+    if (!out.includes("No preference")) out.push("No preference");
+    return out as ListingSex[];
+  }, [listingSexes]);
 
   useEffect(() => {
     if (!category) return;
     if (!bioFieldsDisabled) return;
     setSpecies("");
     setWaterType("");
+    setSex("");
   }, [category, bioFieldsDisabled]);
 
   async function onSave(e: React.FormEvent) {
@@ -118,15 +142,29 @@ export default function WantedEditPage() {
     try {
       if (!isOwner) throw new Error("Not owner");
       if (!category) throw new Error("Category is required.");
-      if (bioFieldsRequired && !waterType) throw new Error("Water type is required.");
+      if (bioFieldsRequiredForUser && !species.trim()) throw new Error("Species is required.");
+      if (bioFieldsRequiredForUser && !waterType) throw new Error("Water type is required.");
+      if (bioFieldsRequiredForUser && !sex) throw new Error("Sex is required.");
+
+      const qty = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
+      if (qty < 1) throw new Error("Quantity must be at least 1.");
+
+      const phoneTrim = phone.trim();
+      if (!phoneTrim) throw new Error("Phone number is required.");
+      if (phoneTrim.length < 6) throw new Error("Phone number looks too short.");
+      if (phoneTrim.length > 30) throw new Error("Phone number is too long.");
+
       const updated = await updateWantedPost(id, {
         title: title.trim(),
         category,
-        species: species.trim() ? species.trim() : null,
+        species: bioFieldsEnabled ? (species.trim() ? species.trim() : null) : null,
         waterType: bioFieldsEnabled && waterType ? waterType : null,
+        sex: bioFieldsEnabled && sex ? sex : null,
+        quantity: qty,
         budgetMinCents: dollarsToCents(minBudget),
         budgetMaxCents: dollarsToCents(maxBudget),
         location: location.trim(),
+        phone: phoneTrim,
         description: description.trim(),
       });
       nav(`/wanted/${updated.id}`);
@@ -168,8 +206,8 @@ export default function WantedEditPage() {
               />
             </label>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block">
+            <div className="grid gap-3 sm:grid-cols-10">
+              <label className="block sm:col-span-2">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Category</div>
                 <select
                   value={category}
@@ -196,52 +234,114 @@ export default function WantedEditPage() {
                 </select>
               </label>
 
-              <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Species (optional)</div>
+              <label className="block sm:col-span-4">
+                <div className="mb-1 text-xs font-semibold text-slate-700">
+                  Species {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
+                </div>
                 <input
                   value={species}
                   onChange={(e) => setSpecies(e.target.value)}
                   disabled={bioFieldsDisabled}
+                  required={bioFieldsRequiredForUser}
                   className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                />
+              </label>
+
+              <label className="block sm:col-span-2">
+                <div className="mb-1 text-xs font-semibold text-slate-700">
+                  Water type {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
+                </div>
+                <select
+                  value={waterType}
+                  onChange={(e) => setWaterType(e.target.value as WaterType)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                  required={bioFieldsRequiredForUser}
+                  disabled={bioFieldsDisabled}
+                >
+                  <option value="" disabled hidden>
+                    Select…
+                  </option>
+                  {!waterTypes.length ? (
+                    <option value="" disabled>
+                      Loading…
+                    </option>
+                  ) : (
+                    waterTypes.map((w) => (
+                      <option key={w} value={w}>
+                        {w}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </label>
+
+              <label className="block sm:col-span-2">
+                <div className="mb-1 text-xs font-semibold text-slate-700">
+                  Sex {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
+                </div>
+                <select
+                  value={sex}
+                  onChange={(e) => setSex(e.target.value as ListingSex)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                  required={bioFieldsRequiredForUser}
+                  disabled={bioFieldsDisabled}
+                >
+                  <option value="" disabled hidden>
+                    Select…
+                  </option>
+                  {!wantedSexOptions.length ? (
+                    <option value="" disabled>
+                      Loading…
+                    </option>
+                  ) : (
+                    wantedSexOptions.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </label>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <div className="mb-1 text-xs font-semibold text-slate-700">Quantity</div>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={Number.isFinite(quantity) ? quantity : 1}
+                  onChange={(e) => setQuantity(Number(e.target.value))}
+                  required
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+                />
+              </label>
+
+              <label className="block">
+                <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
+                <input
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  required
+                  minLength={2}
+                  maxLength={80}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
                 />
               </label>
             </div>
 
             <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Water type</div>
-              <select
-                value={waterType}
-                onChange={(e) => setWaterType(e.target.value as WaterType)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                required={bioFieldsRequired}
-                disabled={bioFieldsDisabled}
-              >
-                <option value="" disabled hidden>
-                  Select…
-                </option>
-                {!waterTypes.length ? (
-                  <option value="" disabled>
-                    Loading…
-                  </option>
-                ) : (
-                  waterTypes.map((w) => (
-                    <option key={w} value={w}>
-                      {w}
-                    </option>
-                  ))
-                )}
-              </select>
-            </label>
-
-            <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
+              <div className="mb-1 text-xs font-semibold text-slate-700">Phone number</div>
               <input
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 required
-                minLength={2}
-                maxLength={80}
+                minLength={6}
+                maxLength={30}
                 className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+                autoComplete="tel"
+                inputMode="tel"
               />
             </label>
 

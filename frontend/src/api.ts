@@ -50,9 +50,12 @@ export type WantedPost = {
   category: Category;
   species: string | null;
   waterType?: WaterType | null;
+  sex: ListingSex;
+  quantity: number;
   budgetMinCents: number | null;
   budgetMaxCents: number | null;
   location: string;
+  phone: string;
   status: WantedStatus;
   description: string;
   createdAt: string;
@@ -187,10 +190,13 @@ export async function createWantedPost(input: {
   category: Category;
   species?: string | null;
   waterType?: WaterType | null;
+  sex?: ListingSex | null;
+  quantity?: number;
   budgetMinCents?: number | null;
   budgetMaxCents?: number | null;
   location: string;
   description: string;
+  phone: string;
 }) {
   return apiFetch<WantedPost>(`/api/wanted`, {
     method: "POST",
@@ -206,10 +212,13 @@ export async function updateWantedPost(
     category?: Category;
     species?: string | null;
     waterType?: WaterType | null;
+    sex?: ListingSex | null;
+    quantity?: number;
     budgetMinCents?: number | null;
     budgetMaxCents?: number | null;
     location?: string;
     description?: string;
+    phone?: string;
   }
 ) {
   return apiFetch<WantedPost>(`/api/wanted/${encodeURIComponent(id)}`, {

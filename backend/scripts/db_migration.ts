@@ -214,6 +214,14 @@ FROM deleted_accounts;
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_views ON listings(views);`);
 
+  if (!hasColumn(db, "listings", "quantity")) {
+    // Used by wanted posts (and optionally sale listings later). Keep a default for existing rows.
+    db.exec(`ALTER TABLE listings ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1;`);
+    migrations.push("Added listings.quantity");
+  } else {
+    migrations.push("listings.quantity already exists");
+  }
+
   // Link sale listings to user accounts
   if (!hasColumn(db, "listings", "user_id")) {
     // SQLite allows adding a column with a REFERENCES clause, which becomes a FK constraint.

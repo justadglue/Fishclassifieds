@@ -943,7 +943,6 @@ export default function PostListingPage() {
               required
               minLength={1}
               maxLength={maxDescLen}
-              placeholder="Add details like age/size, water params, pickup, etc."
             />
             {fieldErrors.description && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.description}</div>}
             <div className="mt-1 text-[11px] font-semibold text-slate-500">

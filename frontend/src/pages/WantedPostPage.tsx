@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
-import { createWantedPost, getListingOptionsCached, type Category, type WaterType } from "../api";
+import { createWantedPost, getListingOptionsCached, type Category, type ListingSex, type WaterType } from "../api";
 
 function dollarsToCents(s: string) {
   const t = String(s ?? "").trim();
@@ -16,8 +16,11 @@ export default function WantedPostPage() {
   const nav = useNavigate();
   const { user, loading } = useAuth();
 
+  type FieldKey = "title" | "category" | "species" | "waterType" | "sex" | "quantity" | "location" | "phone" | "description";
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [waterTypes, setWaterTypes] = useState<WaterType[]>([]);
+  const [listingSexes, setListingSexes] = useState<ListingSex[]>([]);
   const [bioRequiredCategories, setBioRequiredCategories] = useState<Set<string>>(new Set());
   const [otherCategoryName, setOtherCategoryName] = useState("Other");
 
@@ -25,13 +28,27 @@ export default function WantedPostPage() {
   const [category, setCategory] = useState<Category>("");
   const [species, setSpecies] = useState("");
   const [waterType, setWaterType] = useState<WaterType | "">("");
+  const [sex, setSex] = useState<ListingSex | "">("");
+  const [quantity, setQuantity] = useState<number>(1);
   const [location, setLocation] = useState("");
+  const [phone, setPhone] = useState("");
   const [minBudget, setMinBudget] = useState("");
   const [maxBudget, setMaxBudget] = useState("");
   const [description, setDescription] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
+
+  function clearFieldError(k: FieldKey) {
+    if (!fieldErrors[k]) return;
+    setFieldErrors((prev) => {
+      if (!prev[k]) return prev;
+      const next = { ...prev };
+      delete next[k];
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (loading) return;
@@ -45,6 +62,7 @@ export default function WantedPostPage() {
         if (cancelled) return;
         setCategories(opts.categories as Category[]);
         setWaterTypes((opts as any).waterTypes as WaterType[]);
+        setListingSexes((opts as any).listingSexes as ListingSex[]);
         setBioRequiredCategories(new Set(((opts as any).bioFieldsRequiredCategories as string[]) ?? []));
         setOtherCategoryName(String((opts as any).otherCategory ?? "Other"));
       })
@@ -60,12 +78,28 @@ export default function WantedPostPage() {
   const bioFieldsRequired = bioRequiredCategories.has(String(category));
   const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
   const bioFieldsEnabled = !bioFieldsDisabled;
+  const bioFieldsRequiredForUser = bioFieldsRequired && !isOtherCategory;
+  const wantedSexOptions = useMemo(() => {
+    const base = (listingSexes ?? []).map(String);
+    const out = [...base];
+    if (!out.includes("No preference")) out.push("No preference");
+    return out as ListingSex[];
+  }, [listingSexes]);
 
   useEffect(() => {
     if (!category) return;
     if (!bioFieldsDisabled) return;
     setSpecies("");
     setWaterType("");
+    setSex("");
+    setFieldErrors((prev) => {
+      if (!prev.species && !prev.waterType && !prev.sex) return prev;
+      const next = { ...prev };
+      delete next.species;
+      delete next.waterType;
+      delete next.sex;
+      return next;
+    });
   }, [category, bioFieldsDisabled]);
 
   const budgetMinCents = useMemo(() => dollarsToCents(minBudget), [minBudget]);
@@ -75,19 +109,47 @@ export default function WantedPostPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
+    setFieldErrors({});
+
+    const nextErrors: Partial<Record<FieldKey, string>> = {};
+    if (!title.trim()) nextErrors.title = "Required field";
+    if (!category) nextErrors.category = "Required field";
+    if (bioFieldsRequiredForUser && !species.trim()) nextErrors.species = "Required field";
+    if (bioFieldsRequiredForUser && !waterType) nextErrors.waterType = "Required field";
+    if (bioFieldsRequiredForUser && !sex) nextErrors.sex = "Required field";
+
+    const qty = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
+    if (qty < 1) nextErrors.quantity = "Quantity must be at least 1.";
+
+    if (!location.trim()) nextErrors.location = "Required field";
+
+    const phoneTrim = phone.trim();
+    if (!phoneTrim) nextErrors.phone = "Required field";
+    else if (phoneTrim.length < 6) nextErrors.phone = "Phone number looks too short.";
+    else if (phoneTrim.length > 30) nextErrors.phone = "Phone number is too long.";
+
+    if (!String(description ?? "").trim()) nextErrors.description = "Required field";
+
+    if (Object.values(nextErrors).some(Boolean)) {
+      setFieldErrors(nextErrors);
+      setErr("Please fill out the required fields.");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      if (!category) throw new Error("Category is required.");
-      if (bioFieldsRequired && !waterType) throw new Error("Water type is required.");
       const finalDescription = String(description ?? "").trim();
       const w = await createWantedPost({
         title: title.trim(),
         category,
-        species: species.trim() ? species.trim() : null,
+        species: bioFieldsEnabled ? (species.trim() ? species.trim() : null) : null,
         waterType: bioFieldsEnabled && waterType ? waterType : null,
+        sex: bioFieldsEnabled && sex ? sex : null,
+        quantity: qty,
         budgetMinCents,
         budgetMaxCents,
         location: location.trim(),
+        phone: phoneTrim,
         description: finalDescription,
       });
       nav(`/wanted/${w.id}`);
@@ -107,27 +169,43 @@ export default function WantedPostPage() {
 
         {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
-        <form onSubmit={onSubmit} className="mt-6 grid gap-4 rounded-2xl border border-slate-200 bg-white p-6">
+        <form onSubmit={onSubmit} noValidate className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6">
           <label className="block">
-            <div className="mb-1 text-xs font-semibold text-slate-700">Title</div>
+            <div className={["mb-1 text-xs font-semibold", fieldErrors.title ? "text-red-700" : "text-slate-700"].join(" ")}>
+              Title <span className="text-red-600">*</span>
+            </div>
             <input
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                clearFieldError("title");
+              }}
               required
               minLength={3}
               maxLength={80}
-              placeholder="e.g. Looking for a pair of breeding angelfish"
-              className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+              className={[
+                "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                fieldErrors.title ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+              ].join(" ")}
             />
+            {fieldErrors.title && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.title}</div>}
           </label>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Category</div>
+          <div className="grid gap-3 sm:grid-cols-10">
+            <label className="block sm:col-span-2">
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.category ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Category <span className="text-red-600">*</span>
+              </div>
               <select
                 value={category}
-                onChange={(e) => setCategory(e.target.value as Category)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400"
+                onChange={(e) => {
+                  setCategory(e.target.value as Category);
+                  clearFieldError("category");
+                }}
+                className={[
+                  "w-full rounded-xl border bg-white px-3 py-3 text-sm outline-none",
+                  fieldErrors.category ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                ].join(" ")}
                 required
               >
                 {!categories.length ? (
@@ -147,51 +225,157 @@ export default function WantedPostPage() {
                   </>
                 )}
               </select>
+              {fieldErrors.category && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.category}</div>}
+            </label>
+
+            <label className="block sm:col-span-4">
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.species ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Species {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
+              </div>
+              <input
+                value={species}
+                onChange={(e) => {
+                  setSpecies(e.target.value);
+                  clearFieldError("species");
+                }}
+                disabled={bioFieldsDisabled}
+                required={bioFieldsRequiredForUser}
+                className={[
+                  "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                  fieldErrors.species ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500",
+                ].join(" ")}
+              />
+              {fieldErrors.species && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.species}</div>}
+            </label>
+
+            <label className="block sm:col-span-2">
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.waterType ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Water type {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
+              </div>
+              <select
+                value={waterType}
+                onChange={(e) => {
+                  setWaterType(e.target.value as WaterType);
+                  clearFieldError("waterType");
+                }}
+                className={[
+                  "w-full rounded-xl border bg-white px-3 py-3 text-sm outline-none",
+                  fieldErrors.waterType ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500",
+                ].join(" ")}
+                required={bioFieldsRequiredForUser}
+                disabled={bioFieldsDisabled}
+              >
+                <option value="" disabled hidden>
+                  Select…
+                </option>
+                {waterTypes.map((w) => (
+                  <option key={w} value={w}>
+                    {w}
+                  </option>
+                ))}
+              </select>
+              {fieldErrors.waterType && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.waterType}</div>}
+            </label>
+
+            <label className="block sm:col-span-2">
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.sex ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Sex {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
+              </div>
+              <select
+                value={sex}
+                onChange={(e) => {
+                  setSex(e.target.value as ListingSex);
+                  clearFieldError("sex");
+                }}
+                className={[
+                  "w-full rounded-xl border bg-white px-3 py-3 text-sm outline-none",
+                  fieldErrors.sex ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500",
+                ].join(" ")}
+                required={bioFieldsRequiredForUser}
+                disabled={bioFieldsDisabled}
+              >
+                <option value="" disabled hidden>
+                  Select…
+                </option>
+                {wantedSexOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+              {fieldErrors.sex && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.sex}</div>}
+            </label>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.quantity ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Quantity <span className="text-red-600">*</span>
+              </div>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={Number.isFinite(quantity) ? quantity : 1}
+                onChange={(e) => {
+                  setQuantity(Number(e.target.value));
+                  clearFieldError("quantity");
+                }}
+                className={[
+                  "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                  fieldErrors.quantity ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                ].join(" ")}
+                required
+              />
+              {fieldErrors.quantity && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.quantity}</div>}
             </label>
 
             <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Species (optional)</div>
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.location ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Location <span className="text-red-600">*</span>
+              </div>
               <input
-                value={species}
-                onChange={(e) => setSpecies(e.target.value)}
-                placeholder="e.g. betta, cherry shrimp"
-                disabled={bioFieldsDisabled}
-                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                value={location}
+                onChange={(e) => {
+                  setLocation(e.target.value);
+                  clearFieldError("location");
+                }}
+                required
+                minLength={2}
+                maxLength={80}
+                className={[
+                  "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                  fieldErrors.location ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                ].join(" ")}
               />
+              {fieldErrors.location && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.location}</div>}
             </label>
           </div>
 
           <label className="block">
-            <div className="mb-1 text-xs font-semibold text-slate-700">Water type</div>
-            <select
-              value={waterType}
-              onChange={(e) => setWaterType(e.target.value as WaterType)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-              required={bioFieldsRequired}
-              disabled={bioFieldsDisabled}
-            >
-              <option value="" disabled hidden>
-                Select…
-              </option>
-              {waterTypes.map((w) => (
-                <option key={w} value={w}>
-                  {w}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
+            <div className={["mb-1 text-xs font-semibold", fieldErrors.phone ? "text-red-700" : "text-slate-700"].join(" ")}>
+              Phone number <span className="text-red-600">*</span>
+            </div>
             <input
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
+              value={phone}
+              onChange={(e) => {
+                setPhone(e.target.value);
+                clearFieldError("phone");
+              }}
               required
-              minLength={2}
-              maxLength={80}
-              placeholder="e.g. Brisbane"
-              className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+              minLength={6}
+              maxLength={30}
+              className={[
+                "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                fieldErrors.phone ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+              ].join(" ")}
+              autoComplete="tel"
+              inputMode="tel"
             />
+            {fieldErrors.phone && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.phone}</div>}
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -218,16 +402,24 @@ export default function WantedPostPage() {
           </div>
 
           <label className="block">
-            <div className="mb-1 text-xs font-semibold text-slate-700">Description</div>
+            <div className={["mb-1 text-xs font-semibold", fieldErrors.description ? "text-red-700" : "text-slate-700"].join(" ")}>
+              Description <span className="text-red-600">*</span>
+            </div>
             <textarea
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                clearFieldError("description");
+              }}
               required
               rows={6}
               maxLength={maxDescLen}
-              placeholder="Include any details: size, quantity, preferred pickup, timeframe..."
-              className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+              className={[
+                "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                fieldErrors.description ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+              ].join(" ")}
             />
+            {fieldErrors.description && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.description}</div>}
           </label>
 
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -122,9 +122,22 @@ export default function WantedDetailPage() {
                 <h1 className="truncate text-2xl font-extrabold tracking-tight text-slate-900">{item.title}</h1>
                 <div className="mt-2 text-sm font-semibold text-slate-600">
                   {item.category}
-                  {item.species ? ` • ${item.species}` : ""} • {item.location}
+                  {item.species ? ` • ${item.species}` : ""}
+                  {item.waterType ? ` • ${item.waterType}` : ""}
+                  {item.sex ? ` • ${item.sex}` : ""}
+                  {Number.isFinite(item.quantity) ? ` • Qty: ${item.quantity}` : ""}
+                  {" • "}
+                  {item.location}
                 </div>
                 <div className="mt-2 text-sm font-semibold text-slate-700">Budget: {budgetLabel(item)}</div>
+                {item.phone ? (
+                  <div className="mt-2 text-sm font-semibold text-slate-700">
+                    Phone:{" "}
+                    <a className="text-slate-900 underline underline-offset-4" href={`tel:${item.phone}`}>
+                      {item.phone}
+                    </a>
+                  </div>
+                ) : null}
                 <div className="mt-2 text-xs font-semibold text-slate-500">
                   {item.username ? (
                     <>

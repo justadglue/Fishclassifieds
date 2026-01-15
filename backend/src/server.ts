@@ -670,7 +670,7 @@ VALUES(?,?,?,?,?,?)`
     insertImg.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx);
   });
 
-  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
+  const row = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
   return res.status(201).json(mapListing(req, row!));
 });
 
@@ -686,6 +686,7 @@ app.get("/api/my/listings", requireAuth, (req, res) => {
 
   const where: string[] = [];
   const params: any[] = [];
+  where.push(`listing_type = 0`);
   where.push(`user_id = ?`);
   params.push(user.id);
   if (!includeDeleted) where.push(`status <> 'deleted'`);
@@ -730,6 +731,7 @@ app.get("/api/listings", (req, res) => {
 
   const where: string[] = [];
   const params: any[] = [];
+  where.push(`listing_type = 0`);
   where.push(`status IN('active','pending')`);
   where.push(`resolution = 'none'`);
 
@@ -790,7 +792,7 @@ LIMIT ? OFFSET ?
 app.get("/api/listings/:id", optionalAuth, (req, res) => {
   runAutoExpirePass();
   const id = req.params.id;
-  let row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
+  let row = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
 
   const isOwner = isListingOwner(req, row);
@@ -804,8 +806,8 @@ app.get("/api/listings/:id", optionalAuth, (req, res) => {
 
   // Track views for public (non-owner) listing detail views.
   if (!isOwner && isPublic) {
-    db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ?`).run(id);
-    row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
+    db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ? AND listing_type = 0`).run(id);
+    row = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
   }
 
   return res.json(mapListing(req, row));
@@ -814,7 +816,7 @@ app.get("/api/listings/:id", optionalAuth, (req, res) => {
 app.patch("/api/listings/:id", requireAuth, (req, res) => {
   runAutoExpirePass();
   const id = req.params.id;
-  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
+  const row = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!assertListingOwner(req, res, row)) return;
 
@@ -885,14 +887,14 @@ VALUES(?,?,?,?,?,?)`
     normalized.forEach((img, idx) => ins.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx));
   }
 
-  const updated = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
+  const updated = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
   return res.json(mapListing(req, updated!));
 });
 
 app.delete("/api/listings/:id", requireAuth, (req, res) => {
   runAutoExpirePass();
   const id = req.params.id;
-  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
+  const row = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!assertListingOwner(req, res, row)) return;
 
@@ -908,11 +910,11 @@ function mapWantedRow(row: any) {
     username: row.user_username ? String(row.user_username) : null,
     title: String(row.title),
     category: String(row.category),
-    species: row.species ? String(row.species) : null,
+    species: row.species && String(row.species).trim() ? String(row.species) : null,
     budgetMinCents: row.budget_min_cents != null ? Number(row.budget_min_cents) : null,
     budgetMaxCents: row.budget_max_cents != null ? Number(row.budget_max_cents) : null,
     location: String(row.location),
-    status: WantedStatusSchema.parse(String(row.status ?? "open")),
+    status: WantedStatusSchema.parse(String(row.wanted_status ?? "open")),
     description: String(row.description),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
@@ -947,40 +949,41 @@ app.get("/api/wanted", (req, res) => {
 
   const where: string[] = [];
   const params: any[] = [];
+  where.push(`l.listing_type = 1`);
 
   if (status.data) {
-    where.push(`w.status = ?`);
+    where.push(`l.wanted_status = ?`);
     params.push(status.data);
   }
 
   if (q) {
-    where.push("(lower(w.title)LIKE ? OR lower(w.description)LIKE ? OR lower(w.location)LIKE ? OR lower(w.species)LIKE ?)");
+    where.push("(lower(l.title)LIKE ? OR lower(l.description)LIKE ? OR lower(l.location)LIKE ? OR lower(l.species)LIKE ?)");
     const pat = `%${q}%`;
     params.push(pat, pat, pat, pat);
   }
 
   if (species) {
-    where.push("lower(w.species)= ?");
+    where.push("lower(l.species)= ?");
     params.push(species);
   }
 
   if (category) {
-    where.push("w.category = ?");
+    where.push("l.category = ?");
     params.push(category);
   }
 
   if (location) {
-    where.push("lower(w.location)LIKE ?");
+    where.push("lower(l.location)LIKE ?");
     params.push(`%${location}%`);
   }
 
   if (Number.isFinite(min)) {
-    where.push("(w.budget_max_cents IS NULL OR w.budget_max_cents >= ?)");
+    where.push("(l.budget_max_cents IS NULL OR l.budget_max_cents >= ?)");
     params.push(Math.floor(min!));
   }
 
   if (Number.isFinite(max)) {
-    where.push("(w.budget_min_cents IS NULL OR w.budget_min_cents <= ?)");
+    where.push("(l.budget_min_cents IS NULL OR l.budget_min_cents <= ?)");
     params.push(Math.floor(max!));
   }
 
@@ -989,7 +992,7 @@ app.get("/api/wanted", (req, res) => {
     .prepare(
       `
 SELECT COUNT(*)as c
-FROM wanted_posts w
+FROM listings l
 ${whereSql}
 `
     )
@@ -999,11 +1002,11 @@ ${whereSql}
   const rows = db
     .prepare(
       `
-SELECT w.*, u.username as user_username
-FROM wanted_posts w
-JOIN users u ON u.id = w.user_id
+SELECT l.*, u.username as user_username
+FROM listings l
+JOIN users u ON u.id = l.user_id
 ${whereSql}
-ORDER BY w.created_at DESC, w.id DESC
+ORDER BY l.created_at DESC, l.id DESC
 LIMIT ? OFFSET ?
 `
     )
@@ -1022,10 +1025,11 @@ app.get("/api/wanted/:id", (req, res) => {
   const row = db
     .prepare(
       `
-SELECT w.*, u.username as user_username
-FROM wanted_posts w
-JOIN users u ON u.id = w.user_id
-WHERE w.id = ?
+SELECT l.*, u.username as user_username
+FROM listings l
+JOIN users u ON u.id = l.user_id
+WHERE l.id = ?
+AND l.listing_type = 1
 `
     )
     .get(id) as any | undefined;
@@ -1049,34 +1053,53 @@ app.post("/api/wanted", requireAuth, (req, res) => {
   const id = crypto.randomUUID();
   const now = nowIso();
   const user = req.user!;
+  const ownerToken = `wanted:${user.id}:${crypto.randomUUID()}`;
 
   db.prepare(
     `
-INSERT INTO wanted_posts(
-  id,user_id,title,description,category,species,budget_min_cents,budget_max_cents,location,status,created_at,updated_at
-) VALUES(?,?,?,?,?,?,?,?,?,'open',?,?)
+INSERT INTO listings(
+  id,user_id,owner_token,listing_type,
+  title,description,category,species,sex,price_cents,
+  budget_min_cents,budget_max_cents,wanted_status,
+  location,phone,image_url,
+  status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
+)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 `
   ).run(
     id,
     user.id,
+    ownerToken,
+    1,
     title,
     description,
     category,
-    species ? species : null,
+    species ? species : "",
+    "Unknown",
+    0,
     budgetMinCents,
     budgetMaxCents,
+    "open",
     location,
+    "",
+    null,
+    "active",
+    null,
+    "none",
+    null,
     now,
-    now
+    now,
+    null
   );
 
   const row = db
     .prepare(
       `
-SELECT w.*, u.username as user_username
-FROM wanted_posts w
-JOIN users u ON u.id = w.user_id
-WHERE w.id = ?
+SELECT l.*, u.username as user_username
+FROM listings l
+JOIN users u ON u.id = l.user_id
+WHERE l.id = ?
+AND l.listing_type = 1
 `
     )
     .get(id) as any | undefined;
@@ -1086,7 +1109,7 @@ WHERE w.id = ?
 
 app.patch("/api/wanted/:id", requireAuth, (req, res) => {
   const id = req.params.id;
-  const row = db.prepare(`SELECT * FROM wanted_posts WHERE id = ?`).get(id) as any | undefined;
+  const row = db.prepare(`SELECT * FROM listings WHERE id = ? AND listing_type = 1`).get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
@@ -1109,7 +1132,7 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
     category: p.category,
     location: p.location,
     description: p.description,
-    species: p.species === undefined ? undefined : p.species ? String(p.species).trim() : null,
+    species: p.species === undefined ? undefined : p.species ? String(p.species).trim() : "",
     budget_min_cents: p.budgetMinCents,
     budget_max_cents: p.budgetMaxCents,
   };
@@ -1126,16 +1149,17 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
   params.push(now);
 
   if (sets.length) {
-    db.prepare(`UPDATE wanted_posts SET ${sets.join(",")} WHERE id = ?`).run(...params, id);
+    db.prepare(`UPDATE listings SET ${sets.join(",")} WHERE id = ? AND listing_type = 1`).run(...params, id);
   }
 
   const updated = db
     .prepare(
       `
-SELECT w.*, u.username as user_username
-FROM wanted_posts w
-JOIN users u ON u.id = w.user_id
-WHERE w.id = ?
+SELECT l.*, u.username as user_username
+FROM listings l
+JOIN users u ON u.id = l.user_id
+WHERE l.id = ?
+AND l.listing_type = 1
 `
     )
     .get(id) as any | undefined;
@@ -1145,20 +1169,21 @@ WHERE w.id = ?
 
 app.post("/api/wanted/:id/close", requireAuth, (req, res) => {
   const id = req.params.id;
-  const row = db.prepare(`SELECT * FROM wanted_posts WHERE id = ?`).get(id) as any | undefined;
+  const row = db.prepare(`SELECT * FROM listings WHERE id = ? AND listing_type = 1`).get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
   const now = nowIso();
-  db.prepare(`UPDATE wanted_posts SET status='closed',updated_at=? WHERE id = ?`).run(now, id);
+  db.prepare(`UPDATE listings SET wanted_status='closed',updated_at=? WHERE id = ? AND listing_type = 1`).run(now, id);
 
   const updated = db
     .prepare(
       `
-SELECT w.*, u.username as user_username
-FROM wanted_posts w
-JOIN users u ON u.id = w.user_id
-WHERE w.id = ?
+SELECT l.*, u.username as user_username
+FROM listings l
+JOIN users u ON u.id = l.user_id
+WHERE l.id = ?
+AND l.listing_type = 1
 `
     )
     .get(id) as any | undefined;
@@ -1168,20 +1193,21 @@ WHERE w.id = ?
 
 app.post("/api/wanted/:id/reopen", requireAuth, (req, res) => {
   const id = req.params.id;
-  const row = db.prepare(`SELECT * FROM wanted_posts WHERE id = ?`).get(id) as any | undefined;
+  const row = db.prepare(`SELECT * FROM listings WHERE id = ? AND listing_type = 1`).get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
   const now = nowIso();
-  db.prepare(`UPDATE wanted_posts SET status='open',updated_at=? WHERE id = ?`).run(now, id);
+  db.prepare(`UPDATE listings SET wanted_status='open',updated_at=? WHERE id = ? AND listing_type = 1`).run(now, id);
 
   const updated = db
     .prepare(
       `
-SELECT w.*, u.username as user_username
-FROM wanted_posts w
-JOIN users u ON u.id = w.user_id
-WHERE w.id = ?
+SELECT l.*, u.username as user_username
+FROM listings l
+JOIN users u ON u.id = l.user_id
+WHERE l.id = ?
+AND l.listing_type = 1
 `
     )
     .get(id) as any | undefined;
@@ -1191,17 +1217,17 @@ WHERE w.id = ?
 
 app.delete("/api/wanted/:id", requireAuth, (req, res) => {
   const id = req.params.id;
-  const row = db.prepare(`SELECT * FROM wanted_posts WHERE id = ?`).get(id) as any | undefined;
+  const row = db.prepare(`SELECT * FROM listings WHERE id = ? AND listing_type = 1`).get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
-  db.prepare(`DELETE FROM wanted_posts WHERE id = ?`).run(id);
+  db.prepare(`DELETE FROM listings WHERE id = ? AND listing_type = 1`).run(id);
   return res.json({ ok: true });
 });
 
 function loadOwnedListing(req: express.Request, res: express.Response) {
   const id = req.params.id;
-  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
+  const row = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
   if (!row) {
     res.status(404).json({ error: "Not found" });
     return null;
@@ -1212,12 +1238,12 @@ function loadOwnedListing(req: express.Request, res: express.Response) {
 
 function setLifecycle(id: string, status: ListingStatus) {
   const now = nowIso();
-  db.prepare(`UPDATE listings SET status=?,updated_at=? WHERE id=?`).run(status, now, id);
+  db.prepare(`UPDATE listings SET status=?,updated_at=? WHERE id=? AND listing_type = 0`).run(status, now, id);
 }
 
 function setResolution(id: string, resolution: ListingResolution) {
   const now = nowIso();
-  db.prepare(`UPDATE listings SET resolution=?,resolved_at=?,updated_at=? WHERE id=?`).run(resolution, now, now, id);
+  db.prepare(`UPDATE listings SET resolution=?,resolved_at=?,updated_at=? WHERE id=? AND listing_type = 0`).run(resolution, now, now, id);
 }
 
 app.post("/api/listings/:id/pause", requireAuth, (req, res) => {
@@ -1235,7 +1261,7 @@ app.post("/api/listings/:id/pause", requireAuth, (req, res) => {
   if (resolution !== "none") return res.status(400).json({ error: "Resolved listings cannot be paused" });
 
   setLifecycle(row.id, "paused");
-  const updated = db.prepare("SELECT * FROM listings WHERE id = ?").get(row.id) as (ListingRow & any) | undefined;
+  const updated = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(row.id) as (ListingRow & any) | undefined;
   return res.json(mapListing(req, updated!));
 });
 
@@ -1253,7 +1279,7 @@ app.post("/api/listings/:id/resume", requireAuth, (req, res) => {
   if (status !== "paused") return res.status(400).json({ error: "Only paused listings can be resumed" });
 
   setLifecycle(row.id, "active");
-  const updated = db.prepare("SELECT * FROM listings WHERE id = ?").get(row.id) as (ListingRow & any) | undefined;
+  const updated = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(row.id) as (ListingRow & any) | undefined;
   return res.json(mapListing(req, updated!));
 });
 
@@ -1270,7 +1296,7 @@ app.post("/api/listings/:id/mark-sold", requireAuth, (req, res) => {
   if (resolution !== "none") return res.status(400).json({ error: "Listing is already resolved" });
 
   setResolution(row.id, "sold");
-  const updated = db.prepare("SELECT * FROM listings WHERE id = ?").get(row.id) as (ListingRow & any) | undefined;
+  const updated = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(row.id) as (ListingRow & any) | undefined;
   return res.json(mapListing(req, updated!));
 });
 
@@ -1278,7 +1304,7 @@ app.post("/api/listings/:id/relist", requireAuth, (req, res) => {
   runAutoExpirePass();
 
   const id = req.params.id;
-  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as (ListingRow & any) | undefined;
+  const row = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!assertListingOwner(req, res, row)) return;
 
@@ -1353,7 +1379,7 @@ VALUES(?,?,?,?,?,?)`
     return res.status(400).json({ error: e?.message ?? "Failed to relist" });
   }
 
-  const newRow = db.prepare("SELECT * FROM listings WHERE id = ?").get(newId) as (ListingRow & any) | undefined;
+  const newRow = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(newId) as (ListingRow & any) | undefined;
   return res.json({ item: mapListing(req, newRow!), replacedId: id });
 });
 

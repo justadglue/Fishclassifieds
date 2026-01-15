@@ -42,6 +42,11 @@ function isColumnNotNull(db: Database.Database, table: string, col: string): boo
   return Boolean(row && Number(row.notnull) === 1);
 }
 
+function hasTable(db: Database.Database, table: string): boolean {
+  const row = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name = ?`).get(table) as any | undefined;
+  return Boolean(row?.name);
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -230,28 +235,58 @@ AND contact IS NOT NULL;
     migrations.push("listings.phone already exists");
   }
 
-  // Wanted posts (buyer requests)
-  db.exec(`
-CREATE TABLE IF NOT EXISTS wanted_posts(
-  id TEXT PRIMARY KEY,
-  user_id INTEGER NOT NULL,
-  title TEXT NOT NULL,
-  description TEXT NOT NULL,
-  category TEXT NOT NULL DEFAULT 'Fish',
-  species TEXT,
-  budget_min_cents INTEGER,
-  budget_max_cents INTEGER,
-  location TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'open',
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_wanted_posts_created_at ON wanted_posts(created_at);`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_wanted_posts_status_created_at ON wanted_posts(status, created_at);`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_wanted_posts_user_id ON wanted_posts(user_id);`);
-  migrations.push("Ensured wanted_posts table + indexes");
+  // Unify "sell" and "wanted" into listings with a listing_type flag:
+  // 0 = sell (default), 1 = wanted
+  let addedListingType = false;
+  if (!hasColumn(db, "listings", "listing_type")) {
+    db.exec(`ALTER TABLE listings ADD COLUMN listing_type INTEGER NOT NULL DEFAULT 0;`);
+    migrations.push("Added listings.listing_type (0=sell, 1=wanted)");
+    addedListingType = true;
+  } else {
+    migrations.push("listings.listing_type already exists");
+  }
+
+  // Existing rows should all be sell listings.
+  // Only do the "force to 0" backfill on the first migration run that introduces the column,
+  // so we don't clobber future wanted posts.
+  if (addedListingType) db.exec(`UPDATE listings SET listing_type = 0;`);
+  else db.exec(`UPDATE listings SET listing_type = 0 WHERE listing_type IS NULL;`);
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type ON listings(listing_type);`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type_created_at ON listings(listing_type, created_at);`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type_user_id ON listings(listing_type, user_id);`);
+
+  // Wanted-specific fields live on listings rows where listing_type=1.
+  if (!hasColumn(db, "listings", "budget_min_cents")) {
+    db.exec(`ALTER TABLE listings ADD COLUMN budget_min_cents INTEGER;`);
+    migrations.push("Added listings.budget_min_cents (wanted)");
+  } else {
+    migrations.push("listings.budget_min_cents already exists");
+  }
+
+  if (!hasColumn(db, "listings", "budget_max_cents")) {
+    db.exec(`ALTER TABLE listings ADD COLUMN budget_max_cents INTEGER;`);
+    migrations.push("Added listings.budget_max_cents (wanted)");
+  } else {
+    migrations.push("listings.budget_max_cents already exists");
+  }
+
+  if (!hasColumn(db, "listings", "wanted_status")) {
+    db.exec(`ALTER TABLE listings ADD COLUMN wanted_status TEXT NOT NULL DEFAULT 'open';`);
+    migrations.push("Added listings.wanted_status (wanted)");
+  } else {
+    migrations.push("listings.wanted_status already exists");
+  }
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type_wanted_status_created_at ON listings(listing_type, wanted_status, created_at);`);
+
+  // Remove legacy wanted_posts table (it is expected to be empty).
+  if (hasTable(db, "wanted_posts")) {
+    db.exec(`DROP TABLE IF EXISTS wanted_posts;`);
+    migrations.push("Dropped legacy wanted_posts table");
+  } else {
+    migrations.push("wanted_posts table already removed (or never existed)");
+  }
 
   if (args.seedFeatured) {
     if (args.replaceFeatured) {

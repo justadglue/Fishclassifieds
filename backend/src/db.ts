@@ -12,6 +12,7 @@ export type ListingRow = {
   id: string;
   user_id: number | null;
   owner_token: string;
+  listing_type?: number;
   featured?: number;
   featured_until?: number | null;
   views?: number;
@@ -20,6 +21,9 @@ export type ListingRow = {
   species: string;
   sex: string;
   price_cents: number;
+  budget_min_cents?: number | null;
+  budget_max_cents?: number | null;
+  wanted_status?: string;
   location: string;
   description: string;
   phone: string;
@@ -60,23 +64,6 @@ export type UserProfileRow = {
   phone: string | null;
   website: string | null;
   bio: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type WantedStatus = "open" | "closed";
-
-export type WantedPostRow = {
-  id: string;
-  user_id: number;
-  title: string;
-  description: string;
-  category: string;
-  species: string | null;
-  budget_min_cents: number | null;
-  budget_max_cents: number | null;
-  location: string;
-  status: WantedStatus;
   created_at: string;
   updated_at: string;
 };
@@ -151,6 +138,8 @@ CREATE TABLE IF NOT EXISTS listings(
   id TEXT PRIMARY KEY,
   user_id INTEGER,
   owner_token TEXT NOT NULL,
+  -- 0 = sell (default), 1 = wanted
+  listing_type INTEGER NOT NULL DEFAULT 0,
   featured INTEGER NOT NULL DEFAULT 0,
   featured_until INTEGER,
   views INTEGER NOT NULL DEFAULT 0,
@@ -158,7 +147,12 @@ CREATE TABLE IF NOT EXISTS listings(
   category TEXT NOT NULL DEFAULT 'Fish',
   species TEXT NOT NULL,
   sex TEXT NOT NULL DEFAULT 'Unknown',
+  -- Sell price. Wanted posts store 0 here and use budget_* fields instead.
   price_cents INTEGER NOT NULL,
+  -- Wanted-only fields (used when listing_type=1)
+  budget_min_cents INTEGER,
+  budget_max_cents INTEGER,
+  wanted_status TEXT NOT NULL DEFAULT 'open',
   location TEXT NOT NULL,
   description TEXT NOT NULL,
   phone TEXT NOT NULL DEFAULT '',
@@ -196,28 +190,11 @@ CREATE INDEX IF NOT EXISTS idx_listings_views ON listings(views);
 CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);
 CREATE INDEX IF NOT EXISTS idx_listings_resolution ON listings(resolution);
 CREATE INDEX IF NOT EXISTS idx_listings_expires_at ON listings(expires_at);
+CREATE INDEX IF NOT EXISTS idx_listings_listing_type ON listings(listing_type);
+CREATE INDEX IF NOT EXISTS idx_listings_listing_type_created_at ON listings(listing_type, created_at);
+CREATE INDEX IF NOT EXISTS idx_listings_listing_type_user_id ON listings(listing_type, user_id);
+CREATE INDEX IF NOT EXISTS idx_listings_listing_type_wanted_status_created_at ON listings(listing_type, wanted_status, created_at);
 CREATE INDEX IF NOT EXISTS idx_listing_images_listing_id ON listing_images(listing_id);
-
--- Buyer requests / wanted posts
-CREATE TABLE IF NOT EXISTS wanted_posts(
-  id TEXT PRIMARY KEY,
-  user_id INTEGER NOT NULL,
-  title TEXT NOT NULL,
-  description TEXT NOT NULL,
-  category TEXT NOT NULL DEFAULT 'Fish',
-  species TEXT,
-  budget_min_cents INTEGER,
-  budget_max_cents INTEGER,
-  location TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'open',
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_wanted_posts_created_at ON wanted_posts(created_at);
-CREATE INDEX IF NOT EXISTS idx_wanted_posts_status_created_at ON wanted_posts(status, created_at);
-CREATE INDEX IF NOT EXISTS idx_wanted_posts_user_id ON wanted_posts(user_id);
 `);
 }
 

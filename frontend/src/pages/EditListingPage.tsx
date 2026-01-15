@@ -12,6 +12,8 @@ import {
   resolveImageUrl,
   updateListing,
   uploadImage,
+  MAX_UPLOAD_IMAGE_BYTES,
+  MAX_UPLOAD_IMAGE_MB,
   pauseListing,
   resumeListing,
   markSold,
@@ -171,6 +173,7 @@ export default function EditListingPage() {
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [photoErr, setPhotoErr] = useState<string | null>(null);
   type FieldKey =
     | "title"
     | "category"
@@ -214,6 +217,7 @@ export default function EditListingPage() {
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
 
   const inFlightUploads = useRef<Set<string>>(new Set());
+  const photosBoxRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -267,6 +271,24 @@ export default function EditListingPage() {
     if (loading) return;
     window.setTimeout(() => customPriceInputRef.current?.focus(), 0);
   }, [priceType, loading]);
+
+  useEffect(() => {
+    if (!photoErr) return;
+    function onDocPointerDown(e: MouseEvent | TouchEvent) {
+      const target = e.target;
+      if (!(target instanceof Node)) return;
+      const box = photosBoxRef.current;
+      if (!box) return;
+      if (box.contains(target)) return;
+      setPhotoErr(null);
+    }
+    document.addEventListener("mousedown", onDocPointerDown);
+    document.addEventListener("touchstart", onDocPointerDown, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", onDocPointerDown);
+      document.removeEventListener("touchstart", onDocPointerDown as any);
+    };
+  }, [photoErr]);
 
   const resizeDescription = useCallback((el?: HTMLTextAreaElement | null) => {
     const t = el ?? descriptionRef.current;
@@ -398,11 +420,20 @@ export default function EditListingPage() {
 
   function onPickFiles(nextFiles: FileList | null) {
     setErr(null);
+    setPhotoErr(null);
     if (!nextFiles) return;
+
+    const all = Array.from(nextFiles);
+    const tooLarge = all.filter((f) => f.size > MAX_UPLOAD_IMAGE_BYTES);
+    if (tooLarge.length) {
+      const maxBytes = Math.max(...tooLarge.map((f) => f.size));
+      const mb = (maxBytes / 1024 / 1024).toFixed(1);
+      setPhotoErr(`File size (${mb}MB) too large. Please upload a smaller file.`);
+    }
 
     setPhotos((prev) => {
       const room = Math.max(0, 6 - prev.length);
-      const picked = Array.from(nextFiles).slice(0, room);
+      const picked = all.filter((f) => f.size <= MAX_UPLOAD_IMAGE_BYTES).slice(0, room);
       if (!picked.length) return prev;
 
       return [
@@ -423,7 +454,12 @@ export default function EditListingPage() {
       );
       return asset;
     } catch (e: any) {
-      const msg = e?.message ?? "Upload failed";
+      const raw = e?.message ?? "Upload failed";
+      const msg =
+        String(raw).includes("File too large")
+          ? `File size (${(p.file.size / 1024 / 1024).toFixed(1)}MB) too large. Please upload a smaller file.`
+          : raw;
+      if (String(raw).includes("File too large")) setPhotoErr(msg);
       setPhotos((prev) =>
         prev.map((x) => (x.kind === "pending" && x.id === p.id ? { ...x, status: "error", error: msg } : x))
       );
@@ -896,11 +932,11 @@ export default function EditListingPage() {
             )}
 
             {/* Images */}
-            <div className="rounded-2xl border border-slate-200 p-4">
+            <div ref={photosBoxRef} className="rounded-2xl border border-slate-200 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-bold text-slate-900">Photos</div>
-                  <div className="text-xs text-slate-600">Up to 6 photos.</div>
+                  <div className="text-xs text-slate-600">Up to 6 photos. Max {MAX_UPLOAD_IMAGE_MB}MB each.</div>
                   <div className="text-xs text-slate-600">Drag to reorder. The first photo is used as the thumbnail.</div>
                 </div>
 
@@ -912,7 +948,11 @@ export default function EditListingPage() {
                       multiple
                       accept="image/jpeg,image/png,image/webp"
                       className="hidden"
-                      onChange={(e) => onPickFiles(e.target.files)}
+                      onChange={(e) => {
+                        onPickFiles(e.target.files);
+                        // Allow re-selecting the same file after rejecting it.
+                        e.currentTarget.value = "";
+                      }}
                     />
                   </label>
                 </div>
@@ -934,6 +974,12 @@ export default function EditListingPage() {
                   </SortableContext>
                 </DndContext>
               )}
+
+              {photoErr ? (
+                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
+                  {photoErr}
+                </div>
+              ) : null}
             </div>
 
             {/* Fields */}

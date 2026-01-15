@@ -365,6 +365,10 @@ export async function uploadImage(file: File): Promise<ImageAsset> {
   return data;
 }
 
+// Must match backend multer `fileSize` limit for /api/uploads.
+export const MAX_UPLOAD_IMAGE_BYTES = 6 * 1024 * 1024; // 6MB
+export const MAX_UPLOAD_IMAGE_MB = 6;
+
 export type AuthUser = { id: number; email: string; username: string };
 
 export async function authRegister(input: {

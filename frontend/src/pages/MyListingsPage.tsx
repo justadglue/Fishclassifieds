@@ -33,7 +33,8 @@ import { useAuth } from "../auth";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 
 function centsToDollars(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: "currency", currency: "AUD" });
+  const s = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `$${s}`;
 }
 
 function budgetLabel(w: WantedPost) {

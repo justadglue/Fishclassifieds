@@ -7,7 +7,8 @@ import homepageBackground from "../assets/homepage_background_1.jpg";
 import featuredArowana from "../assets/featured_arowana.jpg";
 
 function centsToDollars(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: "currency", currency: "AUD" });
+  const s = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `$${s}`;
 }
 
 function featuredHeroUrl(listing: Listing) {

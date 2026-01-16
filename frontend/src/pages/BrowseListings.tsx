@@ -10,7 +10,8 @@ type PageSize = 12 | 24 | 48 | 96;
 type BrowseType = "sale" | "wanted";
 
 function centsToDollars(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: "currency", currency: "AUD" });
+  const s = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `$${s}`;
 }
 
 function relativeTime(iso: string) {

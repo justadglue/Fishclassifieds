@@ -9,7 +9,8 @@ import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
 import ShippingInfoButton from "../components/ShippingInfoButton";
 
 function centsToDollars(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: "currency", currency: "AUD" });
+  const s = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `$${s}`;
 }
 
 function timeAgo(iso: string) {

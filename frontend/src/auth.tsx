@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { authLogin, authLogout, authMe, authRefresh, type AuthUser } from "./api";
+import { authLogin, authLogout, authMe, authRefresh, setAuthFailureHandler, type AuthUser } from "./api";
 
 type AuthState = {
   user: AuthUser | null;
@@ -16,6 +16,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Keep React auth state in sync if refresh fails anywhere in the app.
+    setAuthFailureHandler(() => {
+      setUser(null);
+    });
+    return () => setAuthFailureHandler(null);
+  }, []);
 
   async function loadMeWithRefreshFallback() {
     setError(null);

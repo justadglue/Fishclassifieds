@@ -4,7 +4,8 @@ import { z } from "zod";
 import argon2 from "argon2";
 import crypto from "crypto";
 import type Database from "better-sqlite3";
-import { sha256Hex, nowIso, addDaysIso } from "../security.js";
+import { sha256Hex, nowIso } from "../security.js";
+import { config } from "../config.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "./jwt.js";
 import { clearAuthCookies, setAuthCookies, COOKIE_REFRESH } from "./cookies.js";
 
@@ -37,6 +38,21 @@ function getIp(req: Request) {
   const xf = req.headers["x-forwarded-for"];
   if (typeof xf === "string" && xf.length) return xf.split(",")[0].trim();
   return req.socket.remoteAddress ?? null;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function computeSlidingSessionExpiryIso(sessionCreatedAtIso: string): string {
+  const nowMs = Date.now();
+  const slidingDays = Number.isFinite(config.jwtRefreshTtlDays) && config.jwtRefreshTtlDays > 0 ? config.jwtRefreshTtlDays : 30;
+  const maxDays =
+    Number.isFinite(config.jwtRefreshMaxTtlDays) && config.jwtRefreshMaxTtlDays > 0 ? config.jwtRefreshMaxTtlDays : slidingDays;
+
+  const createdAtMs = Date.parse(sessionCreatedAtIso);
+  const slidingExpiryMs = nowMs + slidingDays * DAY_MS;
+  const hardCapMs = Number.isFinite(createdAtMs) ? createdAtMs + maxDays * DAY_MS : slidingExpiryMs;
+
+  return new Date(Math.min(slidingExpiryMs, hardCapMs)).toISOString();
 }
 
 router.post("/register", async (req: Request, res: Response) => {
@@ -107,6 +123,7 @@ router.post("/login", async (req: Request, res: Response) => {
   const sessionId = crypto.randomUUID();
   const refreshToken = signRefreshToken({ sub: String(row.id), sid: sessionId });
   const refreshHash = sha256Hex(refreshToken);
+  const createdAt = nowIso();
 
   db.prepare(
     `
@@ -117,9 +134,9 @@ VALUES(?,?,?,?,?,?,NULL,?,?)
     sessionId,
     row.id,
     refreshHash,
-    nowIso(),
-    nowIso(),
-    addDaysIso(Number(process.env.JWT_REFRESH_TTL_DAYS ?? 30)),
+    createdAt,
+    createdAt,
+    computeSlidingSessionExpiryIso(createdAt),
     req.headers["user-agent"] ?? null,
     getIp(req)
   );
@@ -160,7 +177,15 @@ router.post("/refresh", (req: Request, res: Response) => {
     return res.status(401).json({ error: "Session revoked" });
   }
 
-  if (new Date(session.expires_at).getTime() <= Date.now()) {
+  const nowMs = Date.now();
+  const expiresAtMs = Date.parse(String(session.expires_at ?? ""));
+  const createdAtMs = Date.parse(String(session.created_at ?? ""));
+  const maxDays =
+    Number.isFinite(config.jwtRefreshMaxTtlDays) && config.jwtRefreshMaxTtlDays > 0 ? config.jwtRefreshMaxTtlDays : config.jwtRefreshTtlDays;
+  const hardCapMs = Number.isFinite(createdAtMs) && Number.isFinite(maxDays) && maxDays > 0 ? createdAtMs + maxDays * DAY_MS : NaN;
+
+  const isExpired = (Number.isFinite(expiresAtMs) && expiresAtMs <= nowMs) || (Number.isFinite(hardCapMs) && hardCapMs <= nowMs);
+  if (isExpired) {
     db.prepare(`UPDATE sessions SET revoked_at = ? WHERE id = ?`).run(nowIso(), session.id);
     clearAuthCookies(res);
     return res.status(401).json({ error: "Session expired" });
@@ -185,14 +210,15 @@ router.post("/refresh", (req: Request, res: Response) => {
 
   const newRefresh = signRefreshToken({ sub: String(user.id), sid: session.id });
   const newHash = sha256Hex(newRefresh);
+  const newExpiresAt = computeSlidingSessionExpiryIso(String(session.created_at ?? nowIso()));
 
   db.prepare(
     `
 UPDATE sessions
-SET refresh_token_hash = ?,last_used_at = ?
+SET refresh_token_hash = ?,last_used_at = ?,expires_at = ?
 WHERE id = ?
 `
-  ).run(newHash, nowIso(), session.id);
+  ).run(newHash, nowIso(), newExpiresAt, session.id);
 
   const newAccess = signAccessToken({ sub: String(user.id), email: user.email });
   setAuthCookies(res, newAccess, newRefresh);

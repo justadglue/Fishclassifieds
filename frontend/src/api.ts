@@ -66,7 +66,35 @@ export type WantedPost = {
 
 const API_BASE = (import.meta as any).env?.VITE_API_URL?.toString().trim() || "http://localhost:3001";
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+class ApiError extends Error {
+  status: number;
+  bodyText: string;
+  constructor(status: number, bodyText: string, statusText: string) {
+    super(`API ${status}:${bodyText || statusText}`);
+    this.status = status;
+    this.bodyText = bodyText;
+  }
+}
+
+type AuthFailureHandler = () => void;
+let authFailureHandler: AuthFailureHandler | null = null;
+export function setAuthFailureHandler(fn: AuthFailureHandler | null) {
+  authFailureHandler = fn;
+}
+
+let refreshInFlight: Promise<void> | null = null;
+
+function isAuthEndpoint(path: string) {
+  // Don't try to "refresh to fix refresh".
+  return (
+    path === "/api/auth/refresh" ||
+    path === "/api/auth/login" ||
+    path === "/api/auth/register" ||
+    path === "/api/auth/logout"
+  );
+}
+
+async function apiFetchRaw<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
     ...init,
@@ -77,12 +105,45 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`API ${res.status}:${text || res.statusText}`);
+    throw new ApiError(res.status, text, res.statusText);
   }
 
   const ct = res.headers.get("content-type") || "";
   if (!ct.includes("application/json")) return undefined as unknown as T;
   return (await res.json()) as T;
+}
+
+async function ensureRefreshed(): Promise<void> {
+  refreshInFlight ??= (async () => {
+    await apiFetchRaw<{ user: AuthUser }>(`/api/auth/refresh`, { method: "POST" });
+  })().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  try {
+    return await apiFetchRaw<T>(path, init);
+  } catch (e: any) {
+    // If access token is expired, try one silent refresh then retry once.
+    const is401 = e instanceof ApiError && e.status === 401;
+    if (!is401 || isAuthEndpoint(path)) throw e;
+
+    try {
+      await ensureRefreshed();
+    } catch {
+      authFailureHandler?.();
+      throw e;
+    }
+
+    try {
+      return await apiFetchRaw<T>(path, init);
+    } catch (e2: any) {
+      if (e2 instanceof ApiError && e2.status === 401) authFailureHandler?.();
+      throw e2;
+    }
+  }
 }
 
 export type ListingOptions = {

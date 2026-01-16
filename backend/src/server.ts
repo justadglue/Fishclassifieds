@@ -306,7 +306,8 @@ const CreateListingSchema = z.object({
   species: z.string().max(60).optional().default(""),
   sex: ListingSexSchema.optional().default("Unknown"),
   waterType: OptionalWaterTypeSchema.optional(),
-  age: z.string().min(1).max(40),
+  // Age requirements are enforced conditionally by category (bio-enabled and not Other).
+  age: z.string().max(40).optional().default(""),
   priceCents: z.number().int().min(0).max(5_000_000),
   location: z.string().min(2).max(80),
   description: z.string().min(1).max(1000),
@@ -321,7 +322,7 @@ const UpdateListingSchema = z.object({
   species: z.string().max(60).optional(),
   sex: ListingSexSchema.optional(),
   waterType: OptionalWaterTypeSchema.optional().nullable(),
-  age: z.string().min(1).max(40).optional(),
+  age: z.string().max(40).optional(),
   priceCents: z.number().int().min(0).max(5_000_000).optional(),
   location: z.string().min(2).max(80).optional(),
   description: z.string().min(1).max(1000).optional(),
@@ -341,7 +342,8 @@ const CreateWantedSchema = z.object({
   species: z.string().min(2).max(60).optional().nullable(),
   sex: WantedSexSchema.optional().nullable(),
   waterType: OptionalWaterTypeSchema.optional().nullable(),
-  age: z.string().min(1).max(40),
+  // Age requirements are enforced conditionally by category (bio-enabled and not Other).
+  age: z.string().max(40).optional().default(""),
   quantity: z.number().int().min(1).max(10_000).optional(),
   budgetMinCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
   budgetMaxCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
@@ -357,7 +359,7 @@ const UpdateWantedSchema = z.object({
   species: z.string().min(2).max(60).nullable().optional(),
   sex: WantedSexSchema.nullable().optional(),
   waterType: OptionalWaterTypeSchema.optional().nullable(),
-  age: z.string().min(1).max(40).optional(),
+  age: z.string().max(40).optional(),
   quantity: z.number().int().min(1).max(10_000).optional(),
   budgetMinCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
   budgetMaxCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
@@ -683,11 +685,15 @@ app.post("/api/listings", requireAuth, (req, res) => {
   const speciesFinal = bioDisabled ? "" : String(species ?? "").trim();
   const sexFinal = bioDisabled ? "Unknown" : String(sex ?? "Unknown");
   const waterTypeFinal = bioDisabled ? null : (waterType ?? null);
+  const ageFinal = bioDisabled ? "" : String(age ?? "").trim();
 
   if (bioRequired) {
     if (!speciesFinal || speciesFinal.trim().length < 2) return res.status(400).json({ error: "Species is required" });
     if (!waterTypeFinal) return res.status(400).json({ error: "Water type is required" });
   }
+
+  // Age is required for bio-enabled categories, except "Other".
+  if (!bioDisabled && !isOther && !ageFinal) return res.status(400).json({ error: "Age is required" });
 
   db.prepare(
     `INSERT INTO listings(
@@ -717,7 +723,7 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
   );
 
   // water_type is optional; stored separately from description. Age is required (free-form string).
-  db.prepare(`UPDATE listings SET water_type = ?, age = ? WHERE id = ?`).run(waterTypeFinal, String(age ?? "").trim(), id);
+  db.prepare(`UPDATE listings SET water_type = ?, age = ? WHERE id = ?`).run(waterTypeFinal, ageFinal, id);
 
   const insertImg = db.prepare(
     `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
@@ -915,17 +921,23 @@ app.patch("/api/listings/:id", requireAuth, (req, res) => {
   const speciesNext = bioDisabled ? "" : String((p.species ?? row.species) ?? "").trim();
   const sexNext = bioDisabled ? "Unknown" : String((p.sex ?? (row as any).sex) ?? "Unknown");
   const waterTypeNext = bioDisabled ? null : (p.waterType !== undefined ? (p.waterType ?? null) : ((row as any).water_type ?? null));
+  const ageNext = bioDisabled ? "" : String(p.age !== undefined ? (p.age ?? "") : ((row as any).age ?? "")).trim();
 
   if (bioRequired) {
     if (!speciesNext || speciesNext.trim().length < 2) return res.status(400).json({ error: "Species is required" });
     if (!waterTypeNext) return res.status(400).json({ error: "Water type is required" });
   }
 
+  // Age is required for bio-enabled categories, except "Other".
+  if (!bioDisabled && !isOther && !ageNext) return res.status(400).json({ error: "Age is required" });
+
   const shouldWriteBio = p.category !== undefined || p.species !== undefined || p.sex !== undefined || p.waterType !== undefined;
   if (shouldWriteBio || bioDisabled) {
     map.species = speciesNext;
     map.sex = sexNext;
     map.water_type = waterTypeNext;
+    // Keep age consistent when bio fields are disabled (e.g. equipment/accessories/services).
+    map.age = ageNext;
   }
 
   if (p.featuredUntil !== undefined) {
@@ -1144,10 +1156,12 @@ app.post("/api/wanted", requireAuth, (req, res) => {
   const speciesFinal = bioDisabled ? "" : species;
   const sexFinal = bioDisabled ? "Unknown" : (sex ?? "Unknown");
   const qtyFinal = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity!)) : 1;
+  const ageFinal = bioDisabled ? "" : String(age ?? "").trim();
 
   if (bioRequired && !waterTypeFinal) return res.status(400).json({ error: "Water type is required" });
   if (bioRequired && !isOther && !speciesFinal.trim()) return res.status(400).json({ error: "Species is required" });
   if (bioRequired && !isOther && !sex) return res.status(400).json({ error: "Sex is required" });
+  if (!bioDisabled && !isOther && !ageFinal) return res.status(400).json({ error: "Age is required" });
 
   if (budgetMinCents != null && budgetMaxCents != null && budgetMinCents > budgetMaxCents) {
     return res.status(400).json({ error: "Budget min cannot be greater than budget max" });
@@ -1156,8 +1170,6 @@ app.post("/api/wanted", requireAuth, (req, res) => {
   const id = crypto.randomUUID();
   const now = nowIso();
   const user = req.user!;
-
-  const ageFinal = String(age ?? "").trim();
 
   db.prepare(
     `
@@ -1274,10 +1286,14 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
     : (p.sex !== undefined ? (p.sex ?? "Unknown") : String(row.sex ?? "Unknown"));
   if (bioRequired && !isOther && p.sex !== undefined && !p.sex) return res.status(400).json({ error: "Sex is required" });
 
+  const ageNext = bioDisabled ? "" : String(p.age !== undefined ? (p.age ?? "") : (row.age ?? "")).trim();
+  if (!bioDisabled && !isOther && !ageNext) return res.status(400).json({ error: "Age is required" });
+
   if (bioDisabled) {
     map.species = "";
     map.water_type = null;
     map.sex = "Unknown";
+    map.age = "";
   } else if (p.category !== undefined || p.waterType !== undefined) {
     map.water_type = waterTypeNext;
   }

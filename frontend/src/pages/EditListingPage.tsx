@@ -178,6 +178,7 @@ export default function EditListingPage() {
   const bioFieldsRequired = bioRequiredCategories.has(String(category));
   const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
   const bioFieldsEnabled = !bioFieldsDisabled;
+  const ageRequired = bioFieldsEnabled && !isOtherCategory;
 
   useEffect(() => {
     if (!category) return;
@@ -185,9 +186,11 @@ export default function EditListingPage() {
     setSpecies("");
     setSex("");
     setWaterType("");
+    setAge("");
     clearFieldError("species");
     clearFieldError("sex");
     clearFieldError("waterType");
+    clearFieldError("age");
   }, [category, bioFieldsDisabled]);
 
   useEffect(() => {
@@ -277,7 +280,7 @@ export default function EditListingPage() {
     if (bioFieldsRequired && !species.trim()) nextErrors.species = "Required field";
     if (bioFieldsRequired && !waterType) nextErrors.waterType = "Required field";
     if (bioFieldsRequired && !sex) nextErrors.sex = "Required field";
-    if (!age.trim()) nextErrors.age = "Required field";
+    if (ageRequired && !age.trim()) nextErrors.age = "Required field";
     if (!location.trim()) nextErrors.location = "Required field";
 
     const phoneTrim = phone.trim();
@@ -320,6 +323,7 @@ export default function EditListingPage() {
     const sexToSubmit: ListingSex = ((bioFieldsEnabled && sex ? sex : "Unknown") as ListingSex) ?? "Unknown";
     const speciesToSubmit = bioFieldsEnabled ? species.trim() : "";
     const waterTypeToSubmit = bioFieldsEnabled && waterType ? waterType : null;
+    const ageToSubmit = bioFieldsDisabled ? "" : age.trim();
 
     const photoCounts = photoUploaderRef.current?.getCounts() ?? { total: 0, uploaded: 0 };
     if (photoCounts.total === 0) {
@@ -345,7 +349,7 @@ export default function EditListingPage() {
           species: speciesToSubmit,
           sex: sexToSubmit,
           waterType: waterTypeToSubmit,
-          age: age.trim(),
+          age: ageToSubmit,
           priceCents,
           location: location.trim(),
           description: finalDescription,
@@ -366,7 +370,7 @@ export default function EditListingPage() {
         species: speciesToSubmit,
         sex: sexToSubmit,
         waterType: waterTypeToSubmit,
-        age: age.trim(),
+        age: ageToSubmit,
         priceCents,
         location: location.trim(),
         description: finalDescription,
@@ -755,7 +759,7 @@ export default function EditListingPage() {
 
               <label className="block">
                 <div className={["mb-1 text-xs font-semibold", fieldErrors.age ? "text-red-700" : "text-slate-700"].join(" ")}>
-                  Age <span className="text-red-600">*</span>
+                  Age {ageRequired && <span className="text-red-600">*</span>}
                 </div>
                 <input
                   value={age}
@@ -766,10 +770,11 @@ export default function EditListingPage() {
                   className={[
                     "w-full rounded-xl border px-3 py-2 text-sm outline-none",
                     fieldErrors.age ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                    "disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed",
                   ].join(" ")}
-                  required
+                  required={ageRequired}
                   maxLength={40}
-                  disabled={loading}
+                  disabled={loading || bioFieldsDisabled}
                 />
                 {fieldErrors.age && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.age}</div>}
               </label>

@@ -126,6 +126,7 @@ export default function WantedEditPage() {
   const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
   const bioFieldsEnabled = !bioFieldsDisabled;
   const bioFieldsRequiredForUser = bioFieldsRequired && !isOtherCategory;
+  const ageRequired = bioFieldsEnabled && !isOtherCategory;
   const wantedSexOptions = useMemo(() => {
     const base = (listingSexes ?? []).map(String);
     const out = [...base];
@@ -139,6 +140,7 @@ export default function WantedEditPage() {
     setSpecies("");
     setWaterType("");
     setSex("");
+    setAge("");
   }, [category, bioFieldsDisabled]);
 
   async function onSave(e: React.FormEvent) {
@@ -151,7 +153,7 @@ export default function WantedEditPage() {
       if (bioFieldsRequiredForUser && !species.trim()) throw new Error("Species is required.");
       if (bioFieldsRequiredForUser && !waterType) throw new Error("Water type is required.");
       if (bioFieldsRequiredForUser && !sex) throw new Error("Sex is required.");
-      if (!age.trim()) throw new Error("Age is required.");
+      if (ageRequired && !age.trim()) throw new Error("Age is required.");
 
       const qty = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
       if (qty < 1) throw new Error("Quantity must be at least 1.");
@@ -347,9 +349,10 @@ export default function WantedEditPage() {
                 <input
                   value={age}
                   onChange={(e) => setAge(e.target.value)}
-                  required
+                  disabled={bioFieldsDisabled}
+                  required={ageRequired}
                   maxLength={40}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </label>
 

@@ -591,6 +591,9 @@ export default function BrowseListings() {
                   <Link
                     key={w.id}
                     to={`/wanted/${w.id}`}
+                    state={{
+                      from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "wanted" },
+                    }}
                     className="group overflow-hidden rounded-2xl border border-slate-200 bg-white hover:border-slate-300"
                   >
                     <div className="p-4">

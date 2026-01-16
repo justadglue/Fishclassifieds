@@ -82,6 +82,7 @@ export default function PostListingPage() {
   const bioFieldsRequired = bioRequiredCategories.has(String(category));
   const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
   const bioFieldsEnabled = !bioFieldsDisabled;
+  const ageRequired = bioFieldsEnabled && !isOtherCategory;
 
   useEffect(() => {
     // If category is non-living (equipment/accessories/services), clear + disable bio fields.
@@ -90,9 +91,11 @@ export default function PostListingPage() {
     setSpecies("");
     setSex("");
     setWaterType("");
+    setAge("");
     clearFieldError("species");
     clearFieldError("sex");
     clearFieldError("waterType");
+    clearFieldError("age");
   }, [category, bioFieldsDisabled]);
 
   useEffect(() => {
@@ -162,7 +165,7 @@ export default function PostListingPage() {
     if (bioFieldsRequired && !species.trim()) nextErrors.species = "Required field";
     if (bioFieldsRequired && !waterType) nextErrors.waterType = "Required field";
     if (bioFieldsRequired && !sex) nextErrors.sex = "Required field";
-    if (!age.trim()) nextErrors.age = "Required field";
+    if (ageRequired && !age.trim()) nextErrors.age = "Required field";
     if (!location.trim()) nextErrors.location = "Required field";
 
     const phoneTrim = phone.trim();
@@ -457,7 +460,7 @@ export default function PostListingPage() {
 
             <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.age ? "text-red-700" : "text-slate-700"].join(" ")}>
-                Age <span className="text-red-600">*</span>
+                Age {ageRequired && <span className="text-red-600">*</span>}
               </div>
               <input
                 value={age}
@@ -468,9 +471,11 @@ export default function PostListingPage() {
                 className={[
                   "w-full rounded-xl border px-3 py-2 text-sm outline-none",
                   fieldErrors.age ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  "disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed",
                 ].join(" ")}
-                required
+                required={ageRequired}
                 maxLength={40}
+                disabled={loading || bioFieldsDisabled}
               />
               {fieldErrors.age && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.age}</div>}
             </label>

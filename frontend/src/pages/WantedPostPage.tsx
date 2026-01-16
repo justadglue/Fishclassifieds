@@ -92,6 +92,7 @@ export default function WantedPostPage() {
   const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
   const bioFieldsEnabled = !bioFieldsDisabled;
   const bioFieldsRequiredForUser = bioFieldsRequired && !isOtherCategory;
+  const ageRequired = bioFieldsEnabled && !isOtherCategory;
   const wantedSexOptions = useMemo(() => {
     const base = (listingSexes ?? []).map(String);
     const out = [...base];
@@ -105,12 +106,14 @@ export default function WantedPostPage() {
     setSpecies("");
     setWaterType("");
     setSex("");
+    setAge("");
     setFieldErrors((prev) => {
-      if (!prev.species && !prev.waterType && !prev.sex) return prev;
+      if (!prev.species && !prev.waterType && !prev.sex && !prev.age) return prev;
       const next = { ...prev };
       delete next.species;
       delete next.waterType;
       delete next.sex;
+      delete next.age;
       return next;
     });
   }, [category, bioFieldsDisabled]);
@@ -130,7 +133,7 @@ export default function WantedPostPage() {
     if (bioFieldsRequiredForUser && !species.trim()) nextErrors.species = "Required field";
     if (bioFieldsRequiredForUser && !waterType) nextErrors.waterType = "Required field";
     if (bioFieldsRequiredForUser && !sex) nextErrors.sex = "Required field";
-    if (!age.trim()) nextErrors.age = "Required field";
+    if (ageRequired && !age.trim()) nextErrors.age = "Required field";
 
     const qty = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
     if (qty < 1) nextErrors.quantity = "Quantity must be at least 1.";
@@ -365,7 +368,7 @@ export default function WantedPostPage() {
 
             <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.age ? "text-red-700" : "text-slate-700"].join(" ")}>
-                Age <span className="text-red-600">*</span>
+                Age {ageRequired && <span className="text-red-600">*</span>}
               </div>
               <input
                 value={age}
@@ -373,11 +376,13 @@ export default function WantedPostPage() {
                   setAge(e.target.value);
                   clearFieldError("age");
                 }}
-                required
+                disabled={bioFieldsDisabled}
+                required={ageRequired}
                 maxLength={40}
                 className={[
                   "w-full rounded-xl border px-3 py-3 text-sm outline-none",
                   fieldErrors.age ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500",
                 ].join(" ")}
               />
               {fieldErrors.age && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.age}</div>}

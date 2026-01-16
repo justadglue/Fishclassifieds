@@ -456,7 +456,7 @@ export default function ListingPage() {
                         <>
                           <div className="flex items-baseline justify-between gap-4">
                             <dt className="font-semibold text-slate-600">Listing type</dt>
-                            <dd className="font-semibold text-slate-900">Selling</dd>
+                            <dd className="font-semibold text-slate-900">For sale</dd>
                           </div>
                           <div className="flex items-baseline justify-between gap-4">
                             <dt className="font-semibold text-slate-600">Category</dt>

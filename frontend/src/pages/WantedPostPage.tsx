@@ -4,6 +4,7 @@ import Header from "../components/Header";
 import { useAuth } from "../auth";
 import { createWantedPost, getListingOptionsCached, type Category, type ListingSex, type WaterType } from "../api";
 import PhotoUploader, { type PhotoUploaderHandle } from "../components/PhotoUploader";
+import { MAX_MONEY_INPUT_LEN, sanitizeMoneyInput } from "../utils/money";
 
 function dollarsToCents(s: string) {
   const t = String(s ?? "").trim();
@@ -438,9 +439,10 @@ export default function WantedPostPage() {
               <div className="mb-1 text-xs font-semibold text-slate-700">Budget min ($, optional)</div>
               <input
                 value={minBudget}
-                onChange={(e) => setMinBudget(e.target.value)}
+                onChange={(e) => setMinBudget(sanitizeMoneyInput(e.target.value))}
                 inputMode="decimal"
                 placeholder="0"
+                maxLength={MAX_MONEY_INPUT_LEN}
                 className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
               />
             </label>
@@ -448,9 +450,10 @@ export default function WantedPostPage() {
               <div className="mb-1 text-xs font-semibold text-slate-700">Budget max ($, optional)</div>
               <input
                 value={maxBudget}
-                onChange={(e) => setMaxBudget(e.target.value)}
+                onChange={(e) => setMaxBudget(sanitizeMoneyInput(e.target.value))}
                 inputMode="decimal"
                 placeholder="200"
+                maxLength={MAX_MONEY_INPUT_LEN}
                 className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
               />
             </label>

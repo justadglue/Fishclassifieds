@@ -14,6 +14,7 @@ import { useAuth } from "../auth";
 import { buildSaleDetailsPrefix, encodeSaleDetailsIntoDescription, type PriceType } from "../utils/listingDetailsBlock";
 import ShippingInfoButton from "../components/ShippingInfoButton";
 import PhotoUploader, { type PhotoUploaderHandle } from "../components/PhotoUploader";
+import { MAX_MONEY_INPUT_LEN, sanitizeMoneyInput } from "../utils/money";
 
 function dollarsToCents(v: string) {
   const n = Number(v);
@@ -423,10 +424,11 @@ export default function PostListingPage() {
               <input
                 value={priceDollars}
                 onChange={(e) => {
-                  setPriceDollars(e.target.value);
+                setPriceDollars(sanitizeMoneyInput(e.target.value));
                   clearFieldError("price");
                 }}
                 inputMode="decimal"
+              maxLength={MAX_MONEY_INPUT_LEN}
                 className={[
                   "w-full rounded-xl border px-3 py-2 text-sm outline-none",
                   fieldErrors.price ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",

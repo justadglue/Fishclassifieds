@@ -190,9 +190,6 @@ export default function WantedDetailPage() {
                 <div>
                   <div className="flex items-start justify-between gap-4">
                     <h1 className="text-2xl font-extrabold text-slate-900">{item.title}</h1>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <div className="rounded-full bg-slate-900 px-2 py-1 text-[11px] font-bold text-white">Wanted</div>
-                    </div>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-500">
                     <div>
@@ -397,8 +394,12 @@ export default function WantedDetailPage() {
                 </div>
 
                 <div className="mt-4 border-t border-slate-200 pt-4">
-                  <div className="text-sm font-extrabold text-slate-900">Looking for</div>
+                  <div className="text-sm font-extrabold text-slate-900">Listing details</div>
                   <dl className="mt-3 space-y-2 text-sm">
+                    <div className="flex items-baseline justify-between gap-4">
+                      <dt className="font-semibold text-slate-600">Listing type</dt>
+                      <dd className="font-semibold text-slate-900">Wanted</dd>
+                    </div>
                     <div className="flex items-baseline justify-between gap-4">
                       <dt className="font-semibold text-slate-600">Category</dt>
                       <dd className="font-semibold text-slate-900">{item.category}</dd>

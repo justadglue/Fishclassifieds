@@ -35,13 +35,13 @@ function descriptionPreview(raw: string) {
 
 const PAGE_SIZES: PageSize[] = [12, 24, 48, 96];
 
-function budgetLabel(w: WantedPost) {
+function budgetPillText(w: WantedPost) {
   const min = w.budgetMinCents ?? null;
   const max = w.budgetMaxCents ?? null;
-  if (min == null && max == null) return "Budget: any";
-  if (min != null && max != null) return `Budget: ${centsToDollars(min)}–${centsToDollars(max)}`;
-  if (min != null) return `Budget: ${centsToDollars(min)}+`;
-  return `Budget: up to ${centsToDollars(max!)}`;
+  if (min == null && max == null) return "Any budget";
+  if (min != null && max != null) return `${centsToDollars(min)} - ${centsToDollars(max)}`;
+  if (max != null) return `Up to ${centsToDollars(max)}`;
+  return `${centsToDollars(min!)}+`;
 }
 
 function clampInt(v: string | null, fallback: number, min: number, max: number) {
@@ -534,7 +534,7 @@ export default function BrowseListings() {
                       state={{
                         from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "listings" },
                       }}
-                      className="group overflow-hidden rounded-2xl border border-slate-200 bg-white hover:border-slate-300"
+                      className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white hover:border-slate-300"
                     >
                       <div className="relative aspect-4/3 w-full bg-slate-100">
                         <StatusPill l={l} />
@@ -551,7 +551,7 @@ export default function BrowseListings() {
                         )}
                       </div>
 
-                      <div className="p-4">
+                      <div className="p-4 pb-12">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="truncate text-sm font-extrabold text-slate-900">{l.title}</div>
@@ -559,14 +559,17 @@ export default function BrowseListings() {
                               {l.category} • {l.species} • {l.location}
                             </div>
                           </div>
-                          <div className="shrink-0 rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold text-white">
-                            {centsToDollars(l.priceCents)}
-                          </div>
                         </div>
                         <div className="mt-3 line-clamp-2 text-xs text-slate-700">
                           {descriptionPreview(l.description) || "No description."}
                         </div>
-                        <div className="mt-3 text-[11px] font-semibold text-slate-500">{relativeTime(l.createdAt)}</div>
+                      </div>
+
+                      <div className="absolute bottom-3 left-3 text-[11px] font-semibold text-slate-500">
+                        {relativeTime(l.createdAt)}
+                      </div>
+                      <div className="absolute bottom-3 right-3 rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold text-white shadow-sm">
+                        {centsToDollars(l.priceCents)}
                       </div>
                     </Link>
                   );
@@ -578,7 +581,7 @@ export default function BrowseListings() {
                     state={{
                       from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "wanted" },
                     }}
-                    className="group overflow-hidden rounded-2xl border border-slate-200 bg-white hover:border-slate-300"
+                    className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white hover:border-slate-300"
                   >
                     {(() => {
                       const assets = resolveAssets(w.images ?? []);
@@ -599,7 +602,7 @@ export default function BrowseListings() {
                         </div>
                       );
                     })()}
-                    <div className="p-4">
+                    <div className="p-4 pb-12">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="truncate text-sm font-extrabold text-slate-900">{w.title}</div>
@@ -610,13 +613,15 @@ export default function BrowseListings() {
                         </div>
                       </div>
 
-                      <div className="mt-3 text-xs font-semibold text-slate-700">{budgetLabel(w)}</div>
                       <div className="mt-3 line-clamp-3 text-xs text-slate-700">{w.description}</div>
 
-                      <div className="mt-3 flex items-center justify-between gap-3 text-[11px] font-semibold text-slate-500">
-                        <div>{relativeTime(w.createdAt)}</div>
-                        <div className="truncate">{w.username ? `Wanted by @${w.username}` : ""}</div>
-                      </div>
+                    </div>
+
+                    <div className="absolute bottom-3 left-3 text-[11px] font-semibold text-slate-500">
+                      {relativeTime(w.createdAt)}
+                    </div>
+                    <div className="absolute bottom-3 right-3 rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold text-white shadow-sm">
+                      {budgetPillText(w)}
                     </div>
                   </Link>
                 ))}

@@ -782,6 +782,39 @@ LIMIT ? OFFSET ?
   });
 });
 
+app.get("/api/my/wanted", requireAuth, (req, res) => {
+  const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 100;
+  const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
+  const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
+
+  const user = req.user!;
+
+  const totalRow = db.prepare(`SELECT COUNT(*)as c FROM listings WHERE listing_type = 1 AND user_id = ?`).get(user.id) as any;
+  const total = Number(totalRow?.c ?? 0);
+
+  const rows = db
+    .prepare(
+      `
+SELECT l.*, u.username as user_username
+FROM listings l
+JOIN users u ON u.id = l.user_id
+WHERE l.listing_type = 1
+AND l.user_id = ?
+ORDER BY l.updated_at DESC, l.created_at DESC, l.id DESC
+LIMIT ? OFFSET ?
+`
+    )
+    .all(user.id, limit, offset) as any[];
+
+  return res.json({
+    items: rows.map((r) => mapWantedRow(req, r)),
+    total,
+    limit,
+    offset,
+  });
+});
+
 app.get("/api/listings", (req, res) => {
   runAutoExpirePass();
   const q = String(req.query.q ?? "").trim().toLowerCase();
@@ -1001,10 +1034,35 @@ app.delete("/api/listings/:id", requireAuth, (req, res) => {
 
 function mapWantedRow(req: express.Request, row: any) {
   const images = getImagesForListing(req, String(row.id));
+  const sellerAvatarUrl = (() => {
+    try {
+      const uid = (row as any).user_id;
+      if (uid === null || uid === undefined) return null;
+      const r = db.prepare(`SELECT avatar_url FROM user_profiles WHERE user_id = ?`).get(Number(uid)) as any;
+      const raw = r?.avatar_url ? String(r.avatar_url) : "";
+      if (!raw) return null;
+      return toAbs(req, raw);
+    } catch {
+      return null;
+    }
+  })();
+  const sellerBio = (() => {
+    try {
+      const uid = (row as any).user_id;
+      if (uid === null || uid === undefined) return null;
+      const r = db.prepare(`SELECT bio FROM user_profiles WHERE user_id = ?`).get(Number(uid)) as any;
+      const raw = r?.bio ? String(r.bio).trim() : "";
+      return raw ? raw : null;
+    } catch {
+      return null;
+    }
+  })();
   return {
     id: String(row.id),
     userId: Number(row.user_id),
     username: row.user_username ? String(row.user_username) : null,
+    sellerAvatarUrl,
+    sellerBio,
     title: String(row.title),
     category: String(row.category),
     species: row.species && String(row.species).trim() ? String(row.species) : null,
@@ -1035,10 +1093,6 @@ app.get("/api/wanted", (req, res) => {
   const species = String(req.query.species ?? "").trim().toLowerCase();
   const category = String(req.query.category ?? "").trim();
   const location = String(req.query.location ?? "").trim().toLowerCase();
-  const statusRaw = String(req.query.status ?? "open").trim();
-  const status = statusRaw ? WantedStatusSchema.safeParse(statusRaw) : { success: true as const, data: "open" as const };
-
-  if (!status.success) return res.status(400).json({ error: "Invalid status filter" });
 
   const minRaw = req.query.minBudgetCents ?? req.query.min;
   const maxRaw = req.query.maxBudgetCents ?? req.query.max;
@@ -1053,11 +1107,8 @@ app.get("/api/wanted", (req, res) => {
   const where: string[] = [];
   const params: any[] = [];
   where.push(`l.listing_type = 1`);
-
-  if (status.data) {
-    where.push(`l.wanted_status = ?`);
-    params.push(status.data);
-  }
+  // Closed wanted posts should not be visible in public browsing.
+  where.push(`l.wanted_status = 'open'`);
 
   if (q) {
     where.push("(lower(l.title)LIKE ? OR lower(l.description)LIKE ? OR lower(l.location)LIKE ? OR lower(l.species)LIKE ?)");
@@ -1123,7 +1174,7 @@ LIMIT ? OFFSET ?
   });
 });
 
-app.get("/api/wanted/:id", (req, res) => {
+app.get("/api/wanted/:id", optionalAuth, (req, res) => {
   const id = req.params.id;
   const row = db
     .prepare(
@@ -1137,6 +1188,10 @@ AND l.listing_type = 1
     )
     .get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
+  const wantedStatus = String(row.wanted_status ?? "open");
+  if (wantedStatus !== "open" && !requireWantedOwner(req, row)) {
+    return res.status(404).json({ error: "Not found" });
+  }
   return res.json(mapWantedRow(req, row));
 });
 

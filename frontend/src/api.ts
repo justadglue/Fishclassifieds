@@ -46,6 +46,8 @@ export type WantedPost = {
   id: string;
   userId: number;
   username: string | null;
+  sellerAvatarUrl?: string | null;
+  sellerBio?: string | null;
   title: string;
   category: Category;
   species: string | null;
@@ -194,6 +196,14 @@ export async function fetchMyListings(params?: { limit?: number; offset?: number
   if (params?.includeDeleted) qs.set("includeDeleted", "1");
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return apiFetch<{ items: Listing[]; total: number; limit: number; offset: number }>(`/api/my/listings${suffix}`);
+}
+
+export async function fetchMyWanted(params?: { limit?: number; offset?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<{ items: WantedPost[]; total: number; limit: number; offset: number }>(`/api/my/wanted${suffix}`);
 }
 
 export async function fetchListings(params?: {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   MoveDown,
   MoveUp,
@@ -15,19 +15,34 @@ import {
   Trash2,
 } from "lucide-react";
 import {
+  closeWantedPost,
+  deleteWantedPost,
   deleteListing,
   fetchMyListings,
+  fetchMyWanted,
+  reopenWantedPost,
   resolveAssets,
   pauseListing,
   resumeListing,
   markSold,
   type Listing,
+  type WantedPost,
 } from "../api";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
+import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 
 function centsToDollars(cents: number) {
   return (cents / 100).toLocaleString(undefined, { style: "currency", currency: "AUD" });
+}
+
+function budgetLabel(w: WantedPost) {
+  const min = w.budgetMinCents ?? null;
+  const max = w.budgetMaxCents ?? null;
+  if (min == null && max == null) return "Any budget";
+  if (min != null && max != null) return `${centsToDollars(min)}–${centsToDollars(max)}`;
+  if (min != null) return `${centsToDollars(min)}+`;
+  return `Up to ${centsToDollars(max!)}`;
 }
 
 function relativeTime(iso: string) {
@@ -257,9 +272,13 @@ function ActionLink(props: { to: string; label: string; icon?: React.ReactNode }
 export default function MyListingsPage() {
   const nav = useNavigate();
   const routerLocation = useLocation();
+  const [sp, setSp] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
 
+  const viewType = sp.get("type") === "wanted" ? ("wanted" as const) : ("sale" as const);
+
   const [items, setItems] = useState<Listing[]>([]);
+  const [wantedItems, setWantedItems] = useState<WantedPost[]>([]);
   const [displayOrder, setDisplayOrder] = useState<string[]>([]);
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "status", dir: "asc" });
   const [loading, setLoading] = useState(false);
@@ -279,13 +298,18 @@ export default function MyListingsPage() {
       setLoading(true);
       try {
         if (!user) return;
-        const res = await fetchMyListings({ limit: 200, offset: 0 });
-        if (!cancelled) {
-          const nextItems = res.items ?? [];
-          setItems(nextItems);
-          // Apply default sort on load (and on hard refresh).
-          const ordered = sortListings(nextItems, sort.key, sort.dir, nowMs).map((l) => l.id);
-          setDisplayOrder(ordered);
+        if (viewType === "wanted") {
+          const res = await fetchMyWanted({ limit: 200, offset: 0 });
+          if (!cancelled) setWantedItems(res.items ?? []);
+        } else {
+          const res = await fetchMyListings({ limit: 200, offset: 0 });
+          if (!cancelled) {
+            const nextItems = res.items ?? [];
+            setItems(nextItems);
+            // Apply default sort on load (and on hard refresh).
+            const ordered = sortListings(nextItems, sort.key, sort.dir, nowMs).map((l) => l.id);
+            setDisplayOrder(ordered);
+          }
         }
       } catch (e: any) {
         if (!cancelled) setErr(e?.message ?? "Failed to load your listings");
@@ -297,7 +321,14 @@ export default function MyListingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, viewType, nowMs, sort.key, sort.dir]);
+
+  function setViewType(next: "sale" | "wanted") {
+    const nextSp = new URLSearchParams(sp);
+    if (next === "wanted") nextSp.set("type", "wanted");
+    else nextSp.delete("type");
+    setSp(nextSp, { replace: true });
+  }
 
   // Keep “Featured for Xd/Xh” pills fresh over time.
   useEffect(() => {
@@ -364,6 +395,28 @@ export default function MyListingsPage() {
       await deleteListing(id);
       setItems((prev) => prev.filter((l) => l.id !== id));
       setDisplayOrder((prev) => prev.filter((x) => x !== id));
+    } catch (e: any) {
+      setErr(e?.message ?? "Delete failed");
+    }
+  }
+
+  async function onToggleWantedStatus(w: WantedPost) {
+    setErr(null);
+    try {
+      const updated = w.status === "open" ? await closeWantedPost(w.id) : await reopenWantedPost(w.id);
+      setWantedItems((prev) => prev.map((x) => (x.id === w.id ? updated : x)));
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to update wanted status");
+    }
+  }
+
+  async function onDeleteWanted(id: string) {
+    setErr(null);
+    const ok = window.confirm("Delete this wanted post? This cannot be undone.");
+    if (!ok) return;
+    try {
+      await deleteWantedPost(id);
+      setWantedItems((prev) => prev.filter((w) => w.id !== id));
     } catch (e: any) {
       setErr(e?.message ?? "Delete failed");
     }
@@ -459,13 +512,35 @@ export default function MyListingsPage() {
     <div className="min-h-full">
       <Header maxWidth="6xl" />
       <main className="mx-auto max-w-7xl px-4 py-6">
-        <h1 className="text-xl font-extrabold text-slate-900">My listings</h1>
-        <div className="mt-1 text-sm text-slate-600">Listings linked to your account.</div>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-extrabold text-slate-900">My listings</h1>
+            <div className="mt-1 text-sm text-slate-600">Listings linked to your account.</div>
+          </div>
+          <div className="flex overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <button
+              type="button"
+              onClick={() => setViewType("sale")}
+              className={["px-4 py-2 text-sm font-bold", viewType === "sale" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50"].join(" ")}
+              aria-pressed={viewType === "sale"}
+            >
+              For sale
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewType("wanted")}
+              className={["px-4 py-2 text-sm font-bold", viewType === "wanted" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50"].join(" ")}
+              aria-pressed={viewType === "wanted"}
+            >
+              Wanted
+            </button>
+          </div>
+        </div>
 
         {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
         {loading && <div className="mt-4 text-sm text-slate-600">Loading...</div>}
 
-        {!loading && items.length === 0 && (
+        {!loading && viewType === "sale" && items.length === 0 && (
           <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
             <div className="text-sm font-semibold text-slate-900">No listings yet</div>
             <div className="mt-1 text-sm text-slate-600">Post one and it will show here.</div>
@@ -475,6 +550,86 @@ export default function MyListingsPage() {
           </div>
         )}
 
+        {!loading && viewType === "wanted" && wantedItems.length === 0 && (
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+            <div className="text-sm font-semibold text-slate-900">No wanted posts yet</div>
+            <div className="mt-1 text-sm text-slate-600">Post one and it will show here.</div>
+            <Link
+              to="/post/wanted"
+              className="mt-4 inline-block rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              Post a wanted
+            </Link>
+          </div>
+        )}
+
+        {viewType === "wanted" ? (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {wantedItems.map((w) => {
+              const assets = resolveAssets(w.images ?? []);
+              const hero = assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+              return (
+                <div key={w.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                  <div className="relative aspect-4/3 w-full bg-slate-100">
+                    {w.status === "open" ? (
+                      <div className="absolute left-3 top-3 rounded-full bg-emerald-50/95 px-2 py-1 text-[11px] font-bold text-emerald-700 backdrop-blur">
+                        Open
+                      </div>
+                    ) : (
+                      <div className="absolute left-3 top-3 rounded-full bg-slate-100/95 px-2 py-1 text-[11px] font-bold text-slate-700 backdrop-blur">
+                        Closed
+                      </div>
+                    )}
+                    {hero ? (
+                      <img src={hero} alt={w.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                    ) : (
+                      <NoPhotoPlaceholder variant="tile" />
+                    )}
+                  </div>
+                  <div className="p-4">
+                    <div className="truncate text-sm font-extrabold text-slate-900">{w.title}</div>
+                    <div className="mt-1 truncate text-xs font-semibold text-slate-600">
+                      {w.category}
+                      {w.species ? ` • ${w.species}` : ""} • {w.location}
+                    </div>
+                    <div className="mt-2 text-xs font-semibold text-slate-700">Budget: {budgetLabel(w)}</div>
+                    <div className="mt-2 text-[11px] font-semibold text-slate-500">{relativeTime(w.createdAt)}</div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Link
+                        to={`/wanted/${w.id}`}
+                        state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
+                        className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 hover:bg-slate-50"
+                      >
+                        View
+                      </Link>
+                      <Link
+                        to={`/wanted/edit/${w.id}`}
+                        className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 hover:bg-slate-50"
+                      >
+                        Edit
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => onToggleWantedStatus(w)}
+                        className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 hover:bg-slate-50"
+                      >
+                        {w.status === "open" ? "Close" : "Reopen"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteWanted(w.id)}
+                        className="inline-flex h-9 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 hover:bg-red-100"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
         <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="overflow-x-auto lg:overflow-x-visible">
             <table className="w-full min-w-[1080px] lg:min-w-0">
@@ -668,6 +823,7 @@ export default function MyListingsPage() {
             </table>
           </div>
         </div>
+        )}
       </main>
     </div>
   );

@@ -94,10 +94,6 @@ export default function WantedDetailPage() {
   const fullRes = assets[active]?.fullUrl ?? assets[0]?.fullUrl ?? null;
 
   const postedAgo = item?.createdAt ? timeAgo(item.createdAt) : "";
-  const statusPill =
-    item?.status === "open"
-      ? { label: "Open", cls: "bg-emerald-50 text-emerald-700" }
-      : { label: "Closed", cls: "bg-slate-100 text-slate-700" };
 
   const prevImage = useCallback(() => {
     setActive((i) => (i <= 0 ? assets.length - 1 : i - 1));
@@ -194,8 +190,8 @@ export default function WantedDetailPage() {
                 <div>
                   <div className="flex items-start justify-between gap-4">
                     <h1 className="text-2xl font-extrabold text-slate-900">{item.title}</h1>
-                    <div className={["shrink-0 rounded-full px-2 py-1 text-[11px] font-bold", statusPill.cls].join(" ")}>
-                      {statusPill.label}
+                    <div className="flex shrink-0 items-center gap-2">
+                      <div className="rounded-full bg-slate-900 px-2 py-1 text-[11px] font-bold text-white">Wanted</div>
                     </div>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-500">
@@ -217,13 +213,6 @@ export default function WantedDetailPage() {
                       <Flag aria-hidden="true" className="h-3.5 w-3.5" />
                       <span>Report this listing</span>
                     </button>
-                  </div>
-                  <div className="mt-2 text-xs font-semibold text-slate-500">
-                    {item.username ? (
-                      <>
-                        Wanted by <span className="text-slate-900">@{item.username}</span>
-                      </>
-                    ) : null}
                   </div>
                 </div>
 
@@ -353,16 +342,31 @@ export default function WantedDetailPage() {
                 </div>
 
                 <div className="mt-4 border-t border-slate-200 pt-4">
-                  <div className="text-sm font-extrabold text-slate-900">Wanted by</div>
+                  <div className="text-sm font-extrabold text-slate-900">Listing owner</div>
                   <div className="mt-2 flex items-center gap-3">
-                    <DefaultAvatar />
+                    {item.sellerAvatarUrl ? (
+                      <img
+                        src={item.sellerAvatarUrl}
+                        alt=""
+                        className="h-[84px] w-[84px] rounded-full border border-slate-200 object-cover"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <DefaultAvatar />
+                    )}
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-slate-900">
-                        {item.username ? `@${item.username}` : "Fishclassifieds user"}
+                        {item.username ? item.username : "Fishclassifieds user"}
                       </div>
                       <div className="text-xs font-semibold text-slate-600">Fishclassifieds member</div>
                     </div>
                   </div>
+                  {item.sellerBio && item.sellerBio.trim() ? (
+                    <div className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs text-slate-700">
+                      {item.sellerBio.trim()}
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="mt-4 border-t border-slate-200 pt-4">
@@ -386,14 +390,14 @@ export default function WantedDetailPage() {
                         Reveal phone number
                       </button>
                       <div className="mt-2 text-xs font-semibold text-slate-600">
-                        The wanted post owner's phone number is hidden for privacy.
+                        The listing owner's phone number is hidden for privacy.
                       </div>
                     </>
                   )}
                 </div>
 
                 <div className="mt-4 border-t border-slate-200 pt-4">
-                  <div className="text-sm font-extrabold text-slate-900">Wanted details</div>
+                  <div className="text-sm font-extrabold text-slate-900">Looking for</div>
                   <dl className="mt-3 space-y-2 text-sm">
                     <div className="flex items-baseline justify-between gap-4">
                       <dt className="font-semibold text-slate-600">Category</dt>
@@ -430,10 +434,6 @@ export default function WantedDetailPage() {
                     <div className="flex items-baseline justify-between gap-4">
                       <dt className="font-semibold text-slate-600">Location</dt>
                       <dd className="font-semibold text-slate-900">{item.location}</dd>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-4">
-                      <dt className="font-semibold text-slate-600">Status</dt>
-                      <dd className="font-semibold text-slate-900">{item.status === "open" ? "Open" : "Closed"}</dd>
                     </div>
                   </dl>
                 </div>

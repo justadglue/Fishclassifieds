@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { fetchListings, fetchWanted, getListingOptionsCached, resolveAssets, type Category, type Listing, type WantedPost, type WantedStatus } from "../api";
+import { fetchListings, fetchWanted, getListingOptionsCached, resolveAssets, type Category, type Listing, type WantedPost } from "../api";
 import Header from "../components/Header";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
@@ -145,20 +145,6 @@ function StatusPill({ l }: { l: Listing }) {
   );
 }
 
-function WantedStatusPill({ w }: { w: WantedPost }) {
-  const isOpen = w.status === "open";
-  return (
-    <div
-      className={[
-        "absolute left-3 top-3 rounded-full px-2 py-1 text-[11px] font-bold backdrop-blur",
-        isOpen ? "bg-emerald-50/95 text-emerald-700" : "bg-slate-100/95 text-slate-700",
-      ].join(" ")}
-    >
-      {isOpen ? "Open" : "Closed"}
-    </div>
-  );
-}
-
 export default function BrowseListings() {
   const routerLocation = useLocation();
   const [sp, setSp] = useSearchParams();
@@ -172,7 +158,6 @@ export default function BrowseListings() {
   const minDollars = sp.get("min") ?? "";
   const maxDollars = sp.get("max") ?? "";
   const sort = (sp.get("sort") ?? "newest") as SortMode;
-  const wantedStatus = (sp.get("status") ?? "open") as WantedStatus;
 
   const page = clampInt(sp.get("page"), 1, 1, 999999);
   const per = clampInt(sp.get("per"), 24, 12, 200) as PageSize;
@@ -256,7 +241,6 @@ export default function BrowseListings() {
               q: q || undefined,
               category: category || undefined,
               species: species || undefined,
-              status: wantedStatus,
               minBudgetCents: minCents,
               maxBudgetCents: maxCents,
               limit: per,
@@ -290,7 +274,7 @@ export default function BrowseListings() {
     return () => {
       cancelled = true;
     };
-  }, [browseType, q, category, species, wantedStatus, minCents, maxCents, sort, per, page, offset, sp, setSp]);
+  }, [browseType, q, category, species, minCents, maxCents, sort, per, page, offset, sp, setSp]);
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(sp);
@@ -306,10 +290,8 @@ export default function BrowseListings() {
     next.set("type", nextType);
     next.set("page", "1");
     if (nextType === "wanted") {
-      if (!next.get("status")) next.set("status", "open");
       next.delete("sort");
     } else {
-      next.delete("status");
       if (!next.get("sort")) next.set("sort", "newest");
     }
     setSp(next, { replace: true });
@@ -463,19 +445,7 @@ export default function BrowseListings() {
                 </label>
               </div>
 
-              {browseType === "wanted" && (
-                <label className="block">
-                  <div className="mb-1 text-xs font-semibold text-slate-700">Status</div>
-                  <select
-                    value={wantedStatus}
-                    onChange={(e) => setParam("status", e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                  >
-                    <option value="open">Open</option>
-                    <option value="closed">Closed</option>
-                  </select>
-                </label>
-              )}
+              {/* Wanted status is managed privately (My listings) and closed ads are not shown publicly. */}
 
               <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-700">
                 {browseType === "sale"
@@ -614,7 +584,6 @@ export default function BrowseListings() {
                       const hero = assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
                       return (
                         <div className="relative aspect-4/3 w-full bg-slate-100">
-                          <WantedStatusPill w={w} />
                           {hero ? (
                             <img
                               src={hero}
@@ -637,14 +606,6 @@ export default function BrowseListings() {
                             {w.category}
                             {w.species ? ` • ${w.species}` : ""} • {w.location}
                           </div>
-                        </div>
-                        <div
-                          className={[
-                            "shrink-0 rounded-full px-2 py-1 text-[11px] font-bold",
-                            w.status === "open" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700",
-                          ].join(" ")}
-                        >
-                          {w.status === "open" ? "Open" : "Closed"}
                         </div>
                       </div>
 

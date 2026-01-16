@@ -333,10 +333,10 @@ export default function WantedBrowsePage() {
                     <div className="mt-3 line-clamp-3 text-xs text-slate-700">{w.description}</div>
                   </div>
 
-                  <div className="absolute bottom-3 left-3 text-[11px] font-semibold text-slate-500">
+                  <div className="absolute bottom-4 left-4 text-[11px] font-semibold text-slate-500">
                     {relativeTime(w.createdAt)}
                   </div>
-                  <div className="absolute bottom-3 right-3 rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold text-white shadow-sm">
+                  <div className="absolute bottom-4 right-4 rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold text-white shadow-sm">
                     {budgetPillText(w)}
                   </div>
                 </Link>

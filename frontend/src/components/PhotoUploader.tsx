@@ -444,7 +444,7 @@ export default forwardRef<PhotoUploaderHandle, { initialAssets?: ImageAsset[]; d
 
           {photoPreviews.length === 0 ? (
             <div className="mt-4 flex h-28 items-center justify-center rounded-2xl bg-slate-100 text-sm font-semibold text-slate-500">
-              No photos
+              No images
             </div>
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>

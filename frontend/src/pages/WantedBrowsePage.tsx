@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
-import { fetchWanted, getListingOptionsCached, type Category, type WantedPost } from "../api";
+import { fetchWanted, getListingOptionsCached, resolveAssets, type Category, type WantedPost } from "../api";
+import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 
 type PageSize = 12 | 24 | 48 | 96;
 
@@ -312,6 +313,33 @@ export default function WantedBrowsePage() {
                   }}
                   className="group overflow-hidden rounded-2xl border border-slate-200 bg-white hover:border-slate-300"
                 >
+                  {(() => {
+                    const assets = resolveAssets(w.images ?? []);
+                    const hero = assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+                    return (
+                      <div className="relative aspect-4/3 w-full bg-slate-100">
+                        <div
+                          className={[
+                            "absolute left-3 top-3 rounded-full px-2 py-1 text-[11px] font-bold backdrop-blur",
+                            w.status === "open" ? "bg-emerald-50/95 text-emerald-700" : "bg-slate-100/95 text-slate-700",
+                          ].join(" ")}
+                        >
+                          {w.status === "open" ? "Open" : "Closed"}
+                        </div>
+                        {hero ? (
+                          <img
+                            src={hero}
+                            alt={w.title}
+                            className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        ) : (
+                          <NoPhotoPlaceholder variant="tile" />
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">

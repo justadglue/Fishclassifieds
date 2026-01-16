@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { Flag } from "lucide-react";
 import Header from "../components/Header";
+import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 import {
   fetchWantedPost,
   resolveAssets,
@@ -233,9 +234,7 @@ export default function WantedDetailPage() {
                       {hero ? (
                         <img src={hero} alt={item.title} className="h-full w-full object-cover" />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">
-                          No image
-                        </div>
+                        <NoPhotoPlaceholder title={item.title} variant="detail" />
                       )}
 
                       {/* Maximize button (top-right) */}
@@ -492,8 +491,8 @@ export default function WantedDetailPage() {
                       draggable={false}
                     />
                   ) : (
-                    <div className="flex h-[60vh] w-full items-center justify-center rounded-2xl bg-white/10 text-sm font-semibold text-white">
-                      No image
+                    <div className="h-[60vh] w-full overflow-hidden rounded-2xl bg-white/10">
+                      <NoPhotoPlaceholder title={item?.title ?? ""} variant="detail" />
                     </div>
                   )}
                 </div>

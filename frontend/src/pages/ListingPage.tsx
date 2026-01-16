@@ -4,6 +4,7 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { Flag } from "lucide-react";
 import { fetchListing, getListingOptionsCached, resolveAssets, type Listing } from "../api";
 import Header from "../components/Header";
+import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
 import ShippingInfoButton from "../components/ShippingInfoButton";
 
@@ -256,9 +257,7 @@ export default function ListingPage() {
                       {hero ? (
                         <img src={hero} alt={item.title} className="h-full w-full object-cover" />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">
-                          No image
-                        </div>
+                        <NoPhotoPlaceholder title={item.title} variant="detail" />
                       )}
 
                       {/* Maximize button (top-right) */}
@@ -563,8 +562,8 @@ export default function ListingPage() {
                       draggable={false}
                     />
                   ) : (
-                    <div className="flex h-[60vh] w-full items-center justify-center rounded-2xl bg-white/10 text-sm font-semibold text-white">
-                      No image
+                    <div className="h-[60vh] w-full overflow-hidden rounded-2xl bg-white/10">
+                      <NoPhotoPlaceholder title={item?.title ?? ""} variant="detail" className="text-white/80 from-white/10 to-white/5" />
                     </div>
                   )}
                 </div>

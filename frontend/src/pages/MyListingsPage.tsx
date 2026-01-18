@@ -364,6 +364,7 @@ export default function MyListingsPage() {
 
   const [items, setItems] = useState<Listing[]>([]);
   const [wantedItems, setWantedItems] = useState<WantedPost[]>([]);
+  const [rowOrder, setRowOrder] = useState<string[]>([]);
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "status", dir: "asc" });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -384,12 +385,20 @@ export default function MyListingsPage() {
         if (!user) return;
         if (viewType === "wanted") {
           const res = await fetchMyWanted({ limit: 200, offset: 0 });
-          if (!cancelled) setWantedItems(res.items ?? []);
+          if (!cancelled) {
+            const nextWanted = res.items ?? [];
+            setWantedItems(nextWanted);
+            // Compute initial ordering on load only; do NOT auto-reorder after local row updates.
+            const rows = nextWanted.map((w, idx) => ({ kind: "wanted" as const, key: `wanted:${w.id}`, idx: 10_000 + idx, wanted: w }));
+            setRowOrder(sortMixedRows(rows, sort.key, sort.dir, nowMs).map((r) => r.key));
+          }
         } else if (viewType === "sale") {
           const res = await fetchMyListings({ limit: 200, offset: 0 });
           if (!cancelled) {
             const nextItems = res.items ?? [];
             setItems(nextItems);
+            const rows = nextItems.map((l, idx) => ({ kind: "sale" as const, key: `sale:${l.id}`, idx, sale: l }));
+            setRowOrder(sortMixedRows(rows, sort.key, sort.dir, nowMs).map((r) => r.key));
           }
         } else {
           const [saleRes, wantedRes] = await Promise.all([
@@ -398,8 +407,14 @@ export default function MyListingsPage() {
           ]);
           if (!cancelled) {
             const nextItems = saleRes.items ?? [];
+            const nextWanted = wantedRes.items ?? [];
             setItems(nextItems);
-            setWantedItems(wantedRes.items ?? []);
+            setWantedItems(nextWanted);
+            const rows: MixedRow[] = [
+              ...nextItems.map((l, idx) => ({ kind: "sale" as const, key: `sale:${l.id}`, idx, sale: l })),
+              ...nextWanted.map((w, idx) => ({ kind: "wanted" as const, key: `wanted:${w.id}`, idx: 10_000 + idx, wanted: w })),
+            ];
+            setRowOrder(sortMixedRows(rows, sort.key, sort.dir, nowMs).map((r) => r.key));
           }
         }
       } catch (e: any) {
@@ -412,7 +427,7 @@ export default function MyListingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, viewType]);
+  }, [user, viewType]); // intentionally does not depend on `sort` (keeps ordering stable until refresh or explicit sort click)
 
   function setViewType(next: "all" | "sale" | "wanted") {
     const nextSp = new URLSearchParams(sp);
@@ -545,7 +560,7 @@ export default function MyListingsPage() {
     try {
       const updated = l.status === "paused" ? await resumeListing(l.id) : await pauseListing(l.id);
       setItems((prev) => prev.map((x) => (x.id === l.id ? updated : x)));
-      setExpandedId(l.id);
+      setExpandedId(`sale:${l.id}`);
     } catch (e: any) {
       setErr(e?.message ?? "Failed to update listing status");
     }
@@ -556,7 +571,7 @@ export default function MyListingsPage() {
     try {
       const updated = await markSold(id);
       setItems((prev) => prev.map((x) => (x.id === id ? updated : x)));
-      setExpandedId(id);
+      setExpandedId(`sale:${id}`);
     } catch (e: any) {
       setErr(e?.message ?? "Failed to mark sold");
     }
@@ -582,12 +597,12 @@ export default function MyListingsPage() {
   };
 
   function toggleSort(next: SortKey) {
-    setSort((prev) => {
-      const same = prev.key === next;
-      const dir = same ? (prev.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next];
-      const key = next;
-      return { key, dir };
-    });
+    const same = sort.key === next;
+    const dir = same ? (sort.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next];
+    const key = next;
+    setSort({ key, dir });
+    // Explicit sort click: reorder immediately.
+    setRowOrder(sortMixedRows(mixedRows, key, dir, nowMs).map((r) => r.key));
   }
 
   const mixedRows = useMemo(() => {
@@ -601,7 +616,17 @@ export default function MyListingsPage() {
     return out;
   }, [items, wantedItems, viewType]);
 
-  const sortedRows = useMemo(() => sortMixedRows(mixedRows, sort.key, sort.dir, nowMs), [mixedRows, sort.key, sort.dir, nowMs]);
+  const displayRows = useMemo(() => {
+    const map = new Map(mixedRows.map((r) => [r.key, r] as const));
+    const seen = new Set<string>();
+    const ordered = rowOrder.map((k) => {
+      const r = map.get(k) ?? null;
+      if (r) seen.add(k);
+      return r;
+    }).filter((x): x is MixedRow => !!x);
+    const extras = mixedRows.filter((r) => !seen.has(r.key));
+    return [...ordered, ...extras];
+  }, [mixedRows, rowOrder]);
 
   function SortTh(props: { label: string; k: SortKey; className?: string; title?: string; align?: "left" | "right" | "center" }) {
     const { label, k, className, title, align = "left" } = props;
@@ -739,7 +764,7 @@ export default function MyListingsPage() {
                   </tr>
                 </thead>
 
-                {sortedRows.map((row, idx) => {
+                {displayRows.map((row, idx) => {
                   const rowBorder = idx === 0 ? "" : "border-t border-slate-200";
                   const isExpanded = expandedId === row.key;
 

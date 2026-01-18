@@ -534,8 +534,6 @@ export default function MyListingsPage() {
   }
 
   async function onRelistWanted(w: WantedPost) {
-    const ok = window.confirm("Relist this wanted post? You'll review and confirm details before relisting.");
-    if (!ok) return;
     nav(`/wanted/edit/${encodeURIComponent(w.id)}?relist=1`);
   }
 
@@ -577,8 +575,6 @@ export default function MyListingsPage() {
 
   async function doRelist(id: string) {
     setErr(null);
-    const ok = window.confirm("Relist this listing? You'll review and confirm details before relisting.");
-    if (!ok) return;
     nav(`/edit/${encodeURIComponent(id)}?relist=1`);
   }
 

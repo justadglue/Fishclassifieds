@@ -35,7 +35,7 @@ function clampInt(v: string | null, fallback: number, min: number, max: number) 
 function budgetPillText(w: WantedPost) {
   const min = w.budgetMinCents ?? null;
   const max = w.budgetMaxCents ?? null;
-  if (min == null && max == null) return "Any budget";
+  if (min == null && max == null) return "Unspecified";
   if (min != null && max != null) return `${centsToDollars(min)} - ${centsToDollars(max)}`;
   if (max != null) return `Up to ${centsToDollars(max)}`;
   return `${centsToDollars(min!)}+`;

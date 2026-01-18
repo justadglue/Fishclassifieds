@@ -40,7 +40,7 @@ function centsToDollars(cents: number) {
 function budgetLabel(w: WantedPost) {
   const min = w.budgetMinCents ?? null;
   const max = w.budgetMaxCents ?? null;
-  if (min == null && max == null) return "Any budget";
+  if (min == null && max == null) return "Unspecified";
   if (min != null && max != null) return `${centsToDollars(min)}–${centsToDollars(max)}`;
   if (min != null) return `${centsToDollars(min)}+`;
   return `Up to ${centsToDollars(max!)}`;
@@ -151,12 +151,13 @@ function StatusText({ l }: { l: Listing }) {
 }
 
 function WantedStatusText({ w }: { w: WantedPost }) {
+  const life = w.lifecycleStatus;
   const s = w.status;
   const cls =
-    s === "open" ? "text-emerald-700" : s === "closed" ? "text-slate-700" : "text-slate-700";
+    life === "expired" ? "text-slate-600" : s === "open" ? "text-emerald-700" : s === "closed" ? "text-slate-700" : "text-slate-700";
   return (
     <div className={`text-sm font-semibold ${cls}`}>
-      <div>{s === "open" ? "Open" : "Closed"}</div>
+      <div>{life === "expired" ? "Expired" : s === "open" ? "Open" : "Closed"}</div>
     </div>
   );
 }
@@ -235,7 +236,7 @@ function sortMixedRows(rows: MixedRow[], sortKey: SortKey, sortDir: SortDir, now
 
   function getViewsSort(r: MixedRow): number | null {
     if (r.kind === "sale") return Number.isFinite(Number(r.sale?.views)) ? Number(r.sale!.views) : 0;
-    return null;
+    return Number.isFinite(Number(r.wanted?.views)) ? Number(r.wanted!.views) : 0;
   }
 
   function getCreatedMs(r: MixedRow): number | null {
@@ -249,8 +250,7 @@ function sortMixedRows(rows: MixedRow[], sortKey: SortKey, sortDir: SortDir, now
   }
 
   function getExpiresInMs(r: MixedRow): number | null {
-    if (r.kind !== "sale") return null;
-    const exp = parseMs(r.sale?.expiresAt);
+    const exp = parseMs(r.kind === "sale" ? r.sale?.expiresAt : r.wanted?.expiresAt);
     if (exp == null) return null;
     return Math.max(0, exp - nowMs);
   }
@@ -899,7 +899,7 @@ export default function MyListingsPage() {
                         </td>
 
                         <td className="px-4 py-4 align-top text-right">
-                          <div className="text-sm font-semibold text-slate-600">—</div>
+                          <div className="text-sm font-semibold text-slate-700">{Number(w.views ?? 0).toLocaleString()}</div>
                         </td>
 
                         <td className="px-4 py-4 align-top text-left">
@@ -917,7 +917,9 @@ export default function MyListingsPage() {
                         </td>
 
                         <td className="px-4 py-4 align-top text-right">
-                          <div className="text-sm font-semibold text-slate-600">—</div>
+                          <div className="text-sm font-semibold text-slate-700" title={w.expiresAt ? new Date(w.expiresAt).toLocaleString() : ""}>
+                            {expiresInShort(w.expiresAt)}
+                          </div>
                         </td>
 
                         <td className="px-4 py-4 align-top text-center">

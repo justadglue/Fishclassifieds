@@ -38,7 +38,7 @@ const PAGE_SIZES: PageSize[] = [12, 24, 48, 96];
 function budgetPillText(w: WantedPost) {
   const min = w.budgetMinCents ?? null;
   const max = w.budgetMaxCents ?? null;
-  if (min == null && max == null) return "Any budget";
+  if (min == null && max == null) return "Unspecified";
   if (min != null && max != null) return `${centsToDollars(min)} - ${centsToDollars(max)}`;
   if (max != null) return `Up to ${centsToDollars(max)}`;
   return `${centsToDollars(min!)}+`;

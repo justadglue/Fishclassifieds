@@ -48,6 +48,7 @@ export type WantedPost = {
   username: string | null;
   sellerAvatarUrl?: string | null;
   sellerBio?: string | null;
+  views?: number;
   title: string;
   category: Category;
   species: string | null;
@@ -60,6 +61,8 @@ export type WantedPost = {
   location: string;
   phone: string;
   status: WantedStatus;
+  lifecycleStatus?: ListingStatus;
+  expiresAt?: string | null;
   description: string;
   images: ImageAsset[];
   createdAt: string;

@@ -264,6 +264,42 @@ AND expires_at < ?
   ).run(now, now);
 }
 
+function ensureWantedExpiresAtPass() {
+  const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
+  const days = Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30;
+
+  const rows = db
+    .prepare(
+      `
+SELECT id, created_at
+FROM listings
+WHERE listing_type = 1
+AND status <> 'deleted'
+AND (expires_at IS NULL OR expires_at = '')
+`
+    )
+    .all() as Array<{ id: string; created_at: string }>;
+
+  if (!rows.length) return;
+
+  const upd = db.prepare(`UPDATE listings SET expires_at = ?, updated_at = ? WHERE id = ? AND listing_type = 1`);
+  const now = nowIso();
+  const tx = db.transaction(() => {
+    for (const r of rows) {
+      const createdAt = String((r as any).created_at ?? "").trim();
+      if (!createdAt) continue;
+      const expiresAt = addDaysIso(createdAt, days);
+      upd.run(expiresAt, now, String(r.id));
+    }
+  });
+
+  try {
+    tx();
+  } catch {
+    // Best-effort backfill; safe to ignore.
+  }
+}
+
 const ImageAssetSchema = z.object({
   fullUrl: z.string().min(1),
   thumbUrl: z.string().min(1),
@@ -783,6 +819,8 @@ LIMIT ? OFFSET ?
 });
 
 app.get("/api/my/wanted", requireAuth, (req, res) => {
+  runAutoExpirePass();
+  ensureWantedExpiresAtPass();
   const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 100;
   const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
@@ -1063,6 +1101,7 @@ function mapWantedRow(req: express.Request, row: any) {
     username: row.user_username ? String(row.user_username) : null,
     sellerAvatarUrl,
     sellerBio,
+    views: Number((row as any).views ?? 0),
     title: String(row.title),
     category: String(row.category),
     species: row.species && String(row.species).trim() ? String(row.species) : null,
@@ -1075,6 +1114,8 @@ function mapWantedRow(req: express.Request, row: any) {
     location: String(row.location),
     phone: String(row.phone ?? ""),
     status: WantedStatusSchema.parse(String(row.wanted_status ?? "open")),
+    lifecycleStatus: StatusSchema.parse(String(row.status ?? "active")),
+    expiresAt: row.expires_at ?? null,
     description: String(row.description),
     images,
     createdAt: String(row.created_at),
@@ -1089,6 +1130,8 @@ function requireWantedOwner(req: express.Request, row: any) {
 }
 
 app.get("/api/wanted", (req, res) => {
+  runAutoExpirePass();
+  ensureWantedExpiresAtPass();
   const q = String(req.query.q ?? "").trim().toLowerCase();
   const species = String(req.query.species ?? "").trim().toLowerCase();
   const category = String(req.query.category ?? "").trim();
@@ -1107,6 +1150,7 @@ app.get("/api/wanted", (req, res) => {
   const where: string[] = [];
   const params: any[] = [];
   where.push(`l.listing_type = 1`);
+  where.push(`l.status IN('active','pending')`);
   // Closed wanted posts should not be visible in public browsing.
   where.push(`l.wanted_status = 'open'`);
 
@@ -1175,8 +1219,10 @@ LIMIT ? OFFSET ?
 });
 
 app.get("/api/wanted/:id", optionalAuth, (req, res) => {
+  runAutoExpirePass();
+  ensureWantedExpiresAtPass();
   const id = req.params.id;
-  const row = db
+  let row = db
     .prepare(
       `
 SELECT l.*, u.username as user_username
@@ -1188,9 +1234,31 @@ AND l.listing_type = 1
     )
     .get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
+  const isOwner = requireWantedOwner(req, row);
+  const status = String(row.status ?? "active") as ListingStatus;
   const wantedStatus = String(row.wanted_status ?? "open");
-  if (wantedStatus !== "open" && !requireWantedOwner(req, row)) {
+  if (!isOwner && (status === "deleted" || status === "expired")) {
     return res.status(404).json({ error: "Not found" });
+  }
+  if (wantedStatus !== "open" && !isOwner) {
+    return res.status(404).json({ error: "Not found" });
+  }
+
+  const isPublic = PUBLIC_LIFECYCLE.includes(status);
+  // Track views for public (non-owner) wanted detail views.
+  if (!isOwner && isPublic && wantedStatus === "open") {
+    db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ? AND listing_type = 1`).run(id);
+    row = db
+      .prepare(
+        `
+SELECT l.*, u.username as user_username
+FROM listings l
+JOIN users u ON u.id = l.user_id
+WHERE l.id = ?
+AND l.listing_type = 1
+`
+      )
+      .get(id) as any | undefined;
   }
   return res.json(mapWantedRow(req, row));
 });
@@ -1224,6 +1292,8 @@ app.post("/api/wanted", requireAuth, (req, res) => {
 
   const id = crypto.randomUUID();
   const now = nowIso();
+  const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
+  const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
   const user = req.user!;
 
   db.prepare(
@@ -1256,7 +1326,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     location,
     phone,
     "active",
-    null,
+    expiresAt,
     "none",
     null,
     now,

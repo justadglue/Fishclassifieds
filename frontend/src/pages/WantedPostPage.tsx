@@ -394,7 +394,7 @@ export default function WantedPostPage() {
             </label>
 
             <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Budget min ($, optional)</div>
+              <div className="mb-1 text-xs font-semibold text-slate-700">Budget min ($)</div>
               <input
                 value={minBudget}
                 onChange={(e) => setMinBudget(sanitizeMoneyInput(e.target.value))}
@@ -405,7 +405,7 @@ export default function WantedPostPage() {
               />
             </label>
             <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Budget max ($, optional)</div>
+              <div className="mb-1 text-xs font-semibold text-slate-700">Budget max ($)</div>
               <input
                 value={maxBudget}
                 onChange={(e) => setMaxBudget(sanitizeMoneyInput(e.target.value))}

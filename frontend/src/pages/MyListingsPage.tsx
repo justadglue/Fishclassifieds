@@ -29,6 +29,7 @@ import {
   type Listing,
   type WantedPost,
 } from "../api";
+import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
@@ -802,7 +803,14 @@ export default function MyListingsPage() {
                                   <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
                                     For sale
                                   </span>
-                                  <span className="min-w-0 truncate">{l.category} • {l.species} • {l.location}</span>
+                                  <span className="min-w-0 truncate">
+                                    {(() => {
+                                      const species = String(l.species ?? "").trim() || "—";
+                                      const details = decodeSaleDetailsFromDescription(l.description).details;
+                                      const ship = details.willingToShip ? "Shipping offered" : "Local only";
+                                      return `${species} • ${ship}`;
+                                    })()}
+                                  </span>
                                 </div>
                                 <div className="mt-1">{renderFeaturedText(l)}</div>
                               </div>
@@ -950,10 +958,7 @@ export default function MyListingsPage() {
                                 <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
                                   Wanted
                                 </span>
-                                <span className="min-w-0 truncate">
-                                  {w.category}
-                                  {w.species ? ` • ${w.species}` : ""} • {w.location}
-                                </span>
+                                <span className="min-w-0 truncate">{String(w.species ?? "").trim() || "—"}</span>
                               </div>
                               <div className="mt-1">{renderFeaturedTextAny(Boolean(w.featured), w.featuredUntil ?? null)}</div>
                             </div>

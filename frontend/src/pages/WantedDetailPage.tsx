@@ -413,16 +413,16 @@ export default function WantedDetailPage() {
                         <dd className="font-semibold text-slate-900">{item.species}</dd>
                       </div>
                     ) : null}
-                    {item.sex ? (
-                      <div className="flex items-baseline justify-between gap-4">
-                        <dt className="font-semibold text-slate-600">Sex</dt>
-                        <dd className="font-semibold text-slate-900">{item.sex}</dd>
-                      </div>
-                    ) : null}
                     {item.waterType ? (
                       <div className="flex items-baseline justify-between gap-4">
                         <dt className="font-semibold text-slate-600">Water type</dt>
                         <dd className="font-semibold text-slate-900">{item.waterType}</dd>
+                      </div>
+                    ) : null}
+                    {item.sex ? (
+                      <div className="flex items-baseline justify-between gap-4">
+                        <dt className="font-semibold text-slate-600">Sex</dt>
+                        <dd className="font-semibold text-slate-900">{item.sex}</dd>
                       </div>
                     ) : null}
                     {item.age ? (

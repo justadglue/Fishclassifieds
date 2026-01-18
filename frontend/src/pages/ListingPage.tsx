@@ -470,16 +470,16 @@ export default function ListingPage() {
                               <dd className="font-semibold text-slate-900">{species}</dd>
                             </div>
                           ) : null}
-                          {showSex ? (
-                            <div className="flex items-baseline justify-between gap-4">
-                              <dt className="font-semibold text-slate-600">Sex</dt>
-                              <dd className="font-semibold text-slate-900">{sex}</dd>
-                            </div>
-                          ) : null}
                           {showWaterType ? (
                             <div className="flex items-baseline justify-between gap-4">
                               <dt className="font-semibold text-slate-600">Water type</dt>
                               <dd className="font-semibold text-slate-900">{waterType}</dd>
+                            </div>
+                          ) : null}
+                          {showSex ? (
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="font-semibold text-slate-600">Sex</dt>
+                              <dd className="font-semibold text-slate-900">{sex}</dd>
                             </div>
                           ) : null}
                           {showAge ? (
@@ -493,12 +493,12 @@ export default function ListingPage() {
                             <dd className="font-semibold text-slate-900">{details.quantity}</dd>
                           </div>
                           <div className="flex items-baseline justify-between gap-4">
-                            <dt className="font-semibold text-slate-600">Location</dt>
-                            <dd className="font-semibold text-slate-900">{item.location}</dd>
-                          </div>
-                          <div className="flex items-baseline justify-between gap-4">
                             <dt className="font-semibold text-slate-600">Price type</dt>
                             <dd className="font-semibold text-slate-900">{priceSuffix}</dd>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-4">
+                            <dt className="font-semibold text-slate-600">Location</dt>
+                            <dd className="font-semibold text-slate-900">{item.location}</dd>
                           </div>
                           <div className="flex items-baseline justify-between gap-4">
                             <dt className="flex items-center gap-1 font-semibold text-slate-600">

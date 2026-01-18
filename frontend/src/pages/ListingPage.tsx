@@ -489,6 +489,10 @@ export default function ListingPage() {
                             </div>
                           ) : null}
                           <div className="flex items-baseline justify-between gap-4">
+                            <dt className="font-semibold text-slate-600">Quantity</dt>
+                            <dd className="font-semibold text-slate-900">{details.quantity}</dd>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-4">
                             <dt className="font-semibold text-slate-600">Location</dt>
                             <dd className="font-semibold text-slate-900">{item.location}</dd>
                           </div>

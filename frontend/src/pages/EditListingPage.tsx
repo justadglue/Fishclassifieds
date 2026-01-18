@@ -1461,7 +1461,7 @@ function WantedEditForm() {
               </label>
 
               <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Phone</div>
+                <div className="mb-1 text-xs font-semibold text-slate-700">Phone number</div>
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}

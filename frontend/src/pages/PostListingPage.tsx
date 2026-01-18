@@ -964,7 +964,8 @@ function WantedPostForm() {
             </label>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          {/* Row: Species + Water type + Sex + Age (match sale form layout) */}
+          <div className="grid gap-3 sm:grid-cols-4">
             <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.species ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Species {bioFieldsRequiredForUser ? <span className="text-red-600">*</span> : null}
@@ -1164,6 +1165,25 @@ function WantedPostForm() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
+
+            <label className="block">
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.phone ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Phone number<span className="text-red-600">*</span>
+              </div>
+              <input
+                value={phone}
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  clearFieldError("phone");
+                }}
+                className={[
+                  "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                  fieldErrors.phone ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                ].join(" ")}
+              />
+              {fieldErrors.phone && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.phone}</div>}
+            </label>
+
             <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.location ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Location <span className="text-red-600">*</span>
@@ -1182,23 +1202,6 @@ function WantedPostForm() {
               {fieldErrors.location && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.location}</div>}
             </label>
 
-            <label className="block">
-              <div className={["mb-1 text-xs font-semibold", fieldErrors.phone ? "text-red-700" : "text-slate-700"].join(" ")}>
-                Phone <span className="text-red-600">*</span>
-              </div>
-              <input
-                value={phone}
-                onChange={(e) => {
-                  setPhone(e.target.value);
-                  clearFieldError("phone");
-                }}
-                className={[
-                  "w-full rounded-xl border px-3 py-3 text-sm outline-none",
-                  fieldErrors.phone ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
-                ].join(" ")}
-              />
-              {fieldErrors.phone && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.phone}</div>}
-            </label>
           </div>
 
           <label className="block">

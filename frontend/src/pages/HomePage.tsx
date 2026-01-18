@@ -68,6 +68,26 @@ function FeaturedCard({ item }: { item: FeaturedItem }) {
 
 type FeaturedTile = { kind: "sale"; item: Listing } | { kind: "wanted"; item: WantedPost } | { kind: "promo" };
 
+function FeaturedSkeletonCard() {
+  return (
+    <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="relative aspect-4/3 w-full bg-slate-100 animate-pulse">
+        <div className="absolute inset-0 bg-slate-200/70" aria-hidden="true" />
+        <div className="absolute left-3 top-3 h-5 w-16 rounded-full bg-slate-300" aria-hidden="true" />
+      </div>
+      <div className="p-4 animate-pulse">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="h-4 w-3/4 rounded bg-slate-200" aria-hidden="true" />
+            <div className="mt-2 h-3 w-5/6 rounded bg-slate-200" aria-hidden="true" />
+          </div>
+          <div className="h-6 w-16 rounded-xl bg-slate-200" aria-hidden="true" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FeaturedPromoCard() {
   return (
     <div className="group min-w-0 overflow-hidden rounded-2xl border border-indigo-300/70 bg-white shadow-sm ring-1 ring-indigo-200/40 transition-[transform,box-shadow,border-color,ring-color] hover:scale-[1.01] hover:shadow-lg hover:shadow-indigo-500/10 hover:ring-indigo-300/60 focus-within:ring-4 focus-within:ring-indigo-200/60">
@@ -135,7 +155,13 @@ export default function HomePage() {
   const [featuredLoading, setFeaturedLoading] = useState(false);
   const [featuredErr, setFeaturedErr] = useState<string | null>(null);
   const [featuredIndex, setFeaturedIndex] = useState(0);
-  const [featuredCols, setFeaturedCols] = useState(1);
+  const [featuredCols, setFeaturedCols] = useState(() => {
+    const w = typeof window !== "undefined" ? window.innerWidth : 0;
+    // Tailwind breakpoints: sm=640, lg=1024
+    if (w >= 1024) return 3;
+    if (w >= 640) return 2;
+    return 1;
+  });
   const [featuredAnimate, setFeaturedAnimate] = useState(false);
   const [featuredAnimMs, setFeaturedAnimMs] = useState(450);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -448,206 +474,159 @@ export default function HomePage() {
             )}
 
             <div className="mt-5">
-              {(() => {
-                const ROWS = 2;
-                const VISIBLE_COLS = Math.max(1, featuredCols);
+              {featuredLoading ? (
+                <div
+                  className="grid min-w-0 gap-4"
+                  style={{ gridTemplateColumns: `repeat(${Math.max(1, featuredCols)}, minmax(0, 1fr))` }}
+                >
+                  {Array.from({ length: Math.max(1, featuredCols) }, (_, colIdx) => colIdx).map((colIdx) => (
+                    <div key={`featured-skel-col-${colIdx}`} className="min-w-0">
+                      <div className="flex flex-col gap-4">
+                        <FeaturedSkeletonCard />
+                        <FeaturedSkeletonCard />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : !featuredErr && featured.length > 0 ? (
+                (() => {
+                  const ROWS = 2;
+                  const VISIBLE_COLS = Math.max(1, featuredCols);
 
-                const tiles: FeaturedTile[] = [
-                  ...featured.map((x) => (x.kind === "sale" ? ({ kind: "sale" as const, item: x.item }) : ({ kind: "wanted" as const, item: x.item }))),
-                  // Always show the promo tile as the final item.
-                  { kind: "promo" as const },
-                ];
+                  const tiles: FeaturedTile[] = [
+                    ...featured.map((x) =>
+                      x.kind === "sale" ? ({ kind: "sale" as const, item: x.item }) : ({ kind: "wanted" as const, item: x.item })
+                    ),
+                    // Only show the promo tile once featured data has loaded.
+                    { kind: "promo" as const },
+                  ];
 
-                const n = tiles.length;
-                const colCount = Math.ceil(n / ROWS);
-                const hasOverflow = colCount > VISIBLE_COLS;
-                const maxStart = Math.max(0, colCount - VISIBLE_COLS);
+                  const n = tiles.length;
+                  const colCount = Math.ceil(n / ROWS);
+                  const hasOverflow = colCount > VISIBLE_COLS;
+                  const maxStart = Math.max(0, colCount - VISIBLE_COLS);
 
-                // featuredIndex is the column index of the leftmost visible column.
-                const safeColIndex = Math.max(0, Math.min(maxStart, featuredIndex));
+                  // featuredIndex is the column index of the leftmost visible column.
+                  const safeColIndex = Math.max(0, Math.min(maxStart, featuredIndex));
 
-                // Build "true" columns (2 rows per column) so wrapping never re-pairs items.
-                const cols: Array<Array<FeaturedTile | null>> = Array.from({ length: colCount }, (_, c) => [
-                  tiles[c * ROWS] ?? null,
-                  tiles[c * ROWS + 1] ?? null,
-                ]);
+                  // Build "true" columns (2 rows per column) so wrapping never re-pairs items.
+                  const cols: Array<Array<FeaturedTile | null>> = Array.from({ length: colCount }, (_, c) => [
+                    tiles[c * ROWS] ?? null,
+                    tiles[c * ROWS + 1] ?? null,
+                  ]);
 
-                function shift(dir: -1 | 1) {
-                  if (!hasOverflow) return;
-                  // Wrap at the ends (prev from start -> end, next from end -> start).
-                  const next =
-                    dir === -1 && safeColIndex === 0
-                      ? maxStart
-                      : dir === 1 && safeColIndex === maxStart
-                        ? 0
-                        : Math.max(0, Math.min(maxStart, safeColIndex + dir));
-                  setFeaturedAnimMs(450);
-                  setFeaturedAnimate(true);
-                  setFeaturedIndex(next);
-                }
+                  function shift(dir: -1 | 1) {
+                    if (!hasOverflow) return;
+                    // Wrap at the ends (prev from start -> end, next from end -> start).
+                    const next =
+                      dir === -1 && safeColIndex === 0
+                        ? maxStart
+                        : dir === 1 && safeColIndex === maxStart
+                          ? 0
+                          : Math.max(0, Math.min(maxStart, safeColIndex + dir));
+                    setFeaturedAnimMs(450);
+                    setFeaturedAnimate(true);
+                    setFeaturedIndex(next);
+                  }
 
-                function jumpTo(target: number) {
-                  if (!hasOverflow) return;
-                  if (target === safeColIndex) return;
+                  function jumpTo(target: number) {
+                    if (!hasOverflow) return;
+                    if (target === safeColIndex) return;
 
-                  const t = Math.max(0, Math.min(maxStart, target));
-                  const dist = Math.abs(t - safeColIndex);
-                  setFeaturedAnimMs(Math.min(1200, 350 + dist * 120));
-                  setFeaturedAnimate(true);
-                  setFeaturedIndex(t);
-                }
+                    const t = Math.max(0, Math.min(maxStart, target));
+                    const dist = Math.abs(t - safeColIndex);
+                    setFeaturedAnimMs(Math.min(1200, 350 + dist * 120));
+                    setFeaturedAnimate(true);
+                    setFeaturedIndex(t);
+                  }
 
-                return (
-                  <div
-                    className="relative"
-                    role="region"
-                    aria-roledescription="carousel"
-                    aria-label="Promoted listings"
-                    tabIndex={-1}
-                    onMouseEnter={() => setIsCarouselPaused(true)}
-                    onMouseLeave={() => setIsCarouselPaused(false)}
-                    onMouseDownCapture={(e) => {
-                      // Prevent the focusable wrapper from showing a blinking text caret
-                      // when users click "empty" space around the dots/cards.
-                      const target = e.target as HTMLElement | null;
-                      const isInteractive = !!target?.closest?.(
-                        'button, a, input, select, textarea, [role="button"], [role="tab"]'
-                      );
-                      if (!isInteractive) e.preventDefault();
-                    }}
-                    onFocusCapture={() => setIsCarouselPaused(true)}
-                    onBlurCapture={(e) => {
-                      const next = e.relatedTarget as Node | null;
-                      if (next && e.currentTarget.contains(next)) return;
-                      setIsCarouselPaused(false);
-                    }}
-                    onKeyDown={(e) => {
-                      if (!hasOverflow) return;
-                      if (e.key === "ArrowLeft") {
-                        e.preventDefault();
-                        shift(-1);
-                      } else if (e.key === "ArrowRight") {
-                        e.preventDefault();
-                        shift(1);
-                      } else if (e.key === "Home") {
-                        e.preventDefault();
-                        setFeaturedAnimMs(450);
-                        setFeaturedAnimate(true);
-                        setFeaturedIndex(0);
-                      } else if (e.key === "End") {
-                        e.preventDefault();
-                        setFeaturedAnimMs(450);
-                        setFeaturedAnimate(true);
-                        setFeaturedIndex(Math.max(0, colCount - VISIBLE_COLS));
-                      }
-                    }}
-                    onTouchStart={(e) => setTouchStartX(e.touches[0]?.clientX ?? null)}
-                    onTouchEnd={(e) => {
-                      if (!hasOverflow) return;
-                      const startX = touchStartX;
-                      const endX = e.changedTouches[0]?.clientX ?? null;
-                      setTouchStartX(null);
-                      if (startX == null || endX == null) return;
-                      const dx = endX - startX;
-                      if (Math.abs(dx) < 50) return;
-                      if (dx < 0) shift(1);
-                      else shift(-1);
-                    }}
-                  >
-                    <div className="relative">
-                      {/* Outside-edge arrows, vertically centered between the two rows */}
-                      {hasOverflow && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => shift(-1)}
-                            className="absolute left-0 top-1/2 z-20 inline-flex h-11 w-11 -translate-x-full -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900"
-                            aria-label="Previous promoted listing"
-                          >
-                            <span aria-hidden="true">←</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => shift(1)}
-                            className="absolute right-0 top-1/2 z-20 inline-flex h-11 w-11 translate-x-full -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900"
-                            aria-label="Next promoted listing"
-                          >
-                            <span aria-hidden="true">→</span>
-                          </button>
-                        </>
-                      )}
+                  return (
+                    <div
+                      className="relative"
+                      role="region"
+                      aria-roledescription="carousel"
+                      aria-label="Promoted listings"
+                      tabIndex={-1}
+                      onMouseEnter={() => setIsCarouselPaused(true)}
+                      onMouseLeave={() => setIsCarouselPaused(false)}
+                      onMouseDownCapture={(e) => {
+                        // Prevent the focusable wrapper from showing a blinking text caret
+                        // when users click "empty" space around the dots/cards.
+                        const target = e.target as HTMLElement | null;
+                        const isInteractive = !!target?.closest?.(
+                          'button, a, input, select, textarea, [role="button"], [role="tab"]'
+                        );
+                        if (!isInteractive) e.preventDefault();
+                      }}
+                      onFocusCapture={() => setIsCarouselPaused(true)}
+                      onBlurCapture={(e) => {
+                        const next = e.relatedTarget as Node | null;
+                        if (next && e.currentTarget.contains(next)) return;
+                        setIsCarouselPaused(false);
+                      }}
+                      onKeyDown={(e) => {
+                        if (!hasOverflow) return;
+                        if (e.key === "ArrowLeft") {
+                          e.preventDefault();
+                          shift(-1);
+                        } else if (e.key === "ArrowRight") {
+                          e.preventDefault();
+                          shift(1);
+                        } else if (e.key === "Home") {
+                          e.preventDefault();
+                          setFeaturedAnimMs(450);
+                          setFeaturedAnimate(true);
+                          setFeaturedIndex(0);
+                        } else if (e.key === "End") {
+                          e.preventDefault();
+                          setFeaturedAnimMs(450);
+                          setFeaturedAnimate(true);
+                          setFeaturedIndex(Math.max(0, colCount - VISIBLE_COLS));
+                        }
+                      }}
+                      onTouchStart={(e) => setTouchStartX(e.touches[0]?.clientX ?? null)}
+                      onTouchEnd={(e) => {
+                        if (!hasOverflow) return;
+                        const startX = touchStartX;
+                        const endX = e.changedTouches[0]?.clientX ?? null;
+                        setTouchStartX(null);
+                        if (startX == null || endX == null) return;
+                        const dx = endX - startX;
+                        if (Math.abs(dx) < 50) return;
+                        if (dx < 0) shift(1);
+                        else shift(-1);
+                      }}
+                    >
+                      <div className="relative">
+                        {/* Outside-edge arrows, vertically centered between the two rows */}
+                        {hasOverflow && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => shift(-1)}
+                              className="absolute left-0 top-1/2 z-20 inline-flex h-11 w-11 -translate-x-full -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900"
+                              aria-label="Previous promoted listing"
+                            >
+                              <span aria-hidden="true">←</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => shift(1)}
+                              className="absolute right-0 top-1/2 z-20 inline-flex h-11 w-11 translate-x-full -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900"
+                              aria-label="Next promoted listing"
+                            >
+                              <span aria-hidden="true">→</span>
+                            </button>
+                          </>
+                        )}
 
-                      {!hasOverflow ? (
-                        <div
-                          className="grid min-w-0 gap-4"
-                          style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.min(colCount, VISIBLE_COLS))}, minmax(0, 1fr))` }}
-                        >
-                          {Array.from({ length: Math.min(colCount, VISIBLE_COLS) }, (_, colIdx) => colIdx).map((colIdx) => (
-                            <div key={`featured-col-static-${colIdx}`} className="min-w-0">
-                              <div className="flex flex-col gap-4">
-                                {cols[colIdx]?.map((t, r) => {
-                                  if (!t) return null;
-                                  if (t.kind === "sale") {
-                                    return (
-                                      <Link
-                                        key={t.item.id}
-                                        to={`/listing/sale/${t.item.id}`}
-                                        state={{
-                                          from: {
-                                            pathname: routerLocation.pathname,
-                                            search: routerLocation.search,
-                                            label: "homepage",
-                                          },
-                                        }}
-                                        className="block min-w-0"
-                                      >
-                                        <FeaturedCard item={{ kind: "sale", item: t.item }} />
-                                      </Link>
-                                    );
-                                  }
-                                  if (t.kind === "wanted") {
-                                    return (
-                                      <Link
-                                        key={t.item.id}
-                                        to={`/listing/wanted/${t.item.id}`}
-                                        state={{
-                                          from: {
-                                            pathname: routerLocation.pathname,
-                                            search: routerLocation.search,
-                                            label: "homepage",
-                                          },
-                                        }}
-                                        className="block min-w-0"
-                                      >
-                                        <FeaturedCard item={{ kind: "wanted", item: t.item }} />
-                                      </Link>
-                                    );
-                                  }
-                                  return <FeaturedPromoCard key={`featured-promo-tile-static-${colIdx}-${r}`} />;
-                                })}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="overflow-x-hidden overflow-y-visible pb-2">
+                        {!hasOverflow ? (
                           <div
-                            className="flex will-change-transform"
-                            style={{
-                              transform: `translateX(-${safeColIndex * (100 / VISIBLE_COLS)}%)`,
-                              transition: featuredAnimate ? `transform ${featuredAnimMs}ms ease` : "none",
-                            }}
-                            onTransitionEnd={(e) => {
-                              if (e.propertyName !== "transform") return;
-                              setFeaturedAnimate(false);
-                            }}
+                            className="grid min-w-0 gap-4"
+                            style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.min(colCount, VISIBLE_COLS))}, minmax(0, 1fr))` }}
                           >
-                            {Array.from({ length: colCount }, (_, colIdx) => colIdx).map((colIdx) => (
-                              <div
-                                key={`featured-col-${colIdx}`}
-                                className="shrink-0 px-2"
-                                style={{ width: `${100 / VISIBLE_COLS}%` }}
-                              >
+                            {Array.from({ length: Math.min(colCount, VISIBLE_COLS) }, (_, colIdx) => colIdx).map((colIdx) => (
+                              <div key={`featured-col-static-${colIdx}`} className="min-w-0">
                                 <div className="flex flex-col gap-4">
                                   {cols[colIdx]?.map((t, r) => {
                                     if (!t) return null;
@@ -687,52 +666,117 @@ export default function HomePage() {
                                         </Link>
                                       );
                                     }
-                                    return <FeaturedPromoCard key={`featured-promo-tile-${colIdx}-${r}`} />;
+                                    return <FeaturedPromoCard key={`featured-promo-tile-static-${colIdx}-${r}`} />;
                                   })}
                                 </div>
                               </div>
                             ))}
                           </div>
+                        ) : (
+                          <div className="overflow-x-hidden overflow-y-visible pb-2">
+                            <div
+                              className="flex will-change-transform"
+                              style={{
+                                transform: `translateX(-${safeColIndex * (100 / VISIBLE_COLS)}%)`,
+                                transition: featuredAnimate ? `transform ${featuredAnimMs}ms ease` : "none",
+                              }}
+                              onTransitionEnd={(e) => {
+                                if (e.propertyName !== "transform") return;
+                                setFeaturedAnimate(false);
+                              }}
+                            >
+                              {Array.from({ length: colCount }, (_, colIdx) => colIdx).map((colIdx) => (
+                                <div
+                                  key={`featured-col-${colIdx}`}
+                                  className="shrink-0 px-2"
+                                  style={{ width: `${100 / VISIBLE_COLS}%` }}
+                                >
+                                  <div className="flex flex-col gap-4">
+                                    {cols[colIdx]?.map((t, r) => {
+                                      if (!t) return null;
+                                      if (t.kind === "sale") {
+                                        return (
+                                          <Link
+                                            key={t.item.id}
+                                            to={`/listing/sale/${t.item.id}`}
+                                            state={{
+                                              from: {
+                                                pathname: routerLocation.pathname,
+                                                search: routerLocation.search,
+                                                label: "homepage",
+                                              },
+                                            }}
+                                            className="block min-w-0"
+                                          >
+                                            <FeaturedCard item={{ kind: "sale", item: t.item }} />
+                                          </Link>
+                                        );
+                                      }
+                                      if (t.kind === "wanted") {
+                                        return (
+                                          <Link
+                                            key={t.item.id}
+                                            to={`/listing/wanted/${t.item.id}`}
+                                            state={{
+                                              from: {
+                                                pathname: routerLocation.pathname,
+                                                search: routerLocation.search,
+                                                label: "homepage",
+                                              },
+                                            }}
+                                            className="block min-w-0"
+                                          >
+                                            <FeaturedCard item={{ kind: "wanted", item: t.item }} />
+                                          </Link>
+                                        );
+                                      }
+                                      return <FeaturedPromoCard key={`featured-promo-tile-${colIdx}-${r}`} />;
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {hasOverflow && (
+                        <div
+                          className="relative z-10 mt-4 flex flex-wrap items-center justify-center gap-1 select-none"
+                          role="tablist"
+                          aria-label="Promoted listing position"
+                        >
+                          {Array.from({ length: maxStart + 1 }, (_, i) => {
+                            const active = i === safeColIndex;
+                            return (
+                              <button
+                                key={`featured-dot-${i}`}
+                                type="button"
+                                onMouseDown={(e) => {
+                                  // Prevent a blinking text caret when clicking the "empty"
+                                  // part of the dot hit area (keeps keyboard accessibility).
+                                  e.preventDefault();
+                                }}
+                                onClick={() => jumpTo(i)}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full cursor-pointer caret-transparent"
+                                aria-label={`Go to featured position ${i + 1} of ${maxStart + 1}`}
+                                aria-current={active ? "true" : undefined}
+                              >
+                                <span
+                                  className={[
+                                    "h-2 rounded-full transition-all duration-300",
+                                    active ? "w-6 bg-slate-900" : "w-2 bg-slate-300 hover:bg-slate-400",
+                                  ].join(" ")}
+                                />
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
-
-                    {hasOverflow && (
-                      <div
-                        className="relative z-10 mt-4 flex flex-wrap items-center justify-center gap-1 select-none"
-                        role="tablist"
-                        aria-label="Promoted listing position"
-                      >
-                        {Array.from({ length: maxStart + 1 }, (_, i) => {
-                          const active = i === safeColIndex;
-                          return (
-                            <button
-                              key={`featured-dot-${i}`}
-                              type="button"
-                              onMouseDown={(e) => {
-                                // Prevent a blinking text caret when clicking the "empty"
-                                // part of the dot hit area (keeps keyboard accessibility).
-                                e.preventDefault();
-                              }}
-                              onClick={() => jumpTo(i)}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-full cursor-pointer caret-transparent"
-                              aria-label={`Go to featured position ${i + 1} of ${maxStart + 1}`}
-                              aria-current={active ? "true" : undefined}
-                            >
-                              <span
-                                className={[
-                                  "h-2 rounded-full transition-all duration-300",
-                                  active ? "w-6 bg-slate-900" : "w-2 bg-slate-300 hover:bg-slate-400",
-                                ].join(" ")}
-                              />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+                  );
+                })()
+              ) : null}
             </div>
           </section>
         </main>

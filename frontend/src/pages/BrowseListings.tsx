@@ -36,12 +36,9 @@ function descriptionPreview(raw: string) {
 const PAGE_SIZES: PageSize[] = [12, 24, 48, 96];
 
 function budgetPillText(w: WantedPost) {
-  const min = w.budgetMinCents ?? null;
-  const max = w.budgetMaxCents ?? null;
-  if (min == null && max == null) return "Make an offer";
-  if (min != null && max != null) return `${centsToDollars(min)} - ${centsToDollars(max)}`;
-  if (max != null) return `Up to ${centsToDollars(max)}`;
-  return `${centsToDollars(min!)}+`;
+  const budget = w.budgetCents ?? null;
+  if (budget == null) return "Make an offer";
+  return `Up to ${centsToDollars(budget)}`;
 }
 
 function clampInt(v: string | null, fallback: number, min: number, max: number) {

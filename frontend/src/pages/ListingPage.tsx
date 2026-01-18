@@ -38,12 +38,9 @@ function timeAgo(iso: string) {
 }
 
 function budgetLabel(w: WantedPost) {
-  const min = w.budgetMinCents ?? null;
-  const max = w.budgetMaxCents ?? null;
-  if (min == null && max == null) return "Make an offer";
-  if (min != null && max != null) return `${centsToDollars(min)}–${centsToDollars(max)}`;
-  if (min != null) return `${centsToDollars(min)}+`;
-  return `Up to ${centsToDollars(max!)}`;
+  const budget = w.budgetCents ?? null;
+  if (budget == null) return "Make an offer";
+  return `Up to ${centsToDollars(budget)}`;
 }
 
 type DetailItem = { kind: "sale"; item: Listing } | { kind: "wanted"; item: WantedPost };

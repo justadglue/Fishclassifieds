@@ -471,14 +471,19 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
                 Quantity <span className="text-red-600">*</span>
               </div>
               <input
+                type="number"
                 value={String(quantity)}
                 onChange={(e) => {
-                  const n = Number(e.target.value);
-                  if (!Number.isFinite(n)) return setQuantity(1);
-                  setQuantity(Math.max(1, Math.floor(n)));
+                  const raw = e.target.value;
+                  const n = raw === "" ? NaN : Number.parseInt(raw, 10);
+                  if (!Number.isFinite(n)) return;
+                  setQuantity(Math.max(1, n));
                   clearFieldError("quantity");
                 }}
+                onBlur={() => setQuantity((q) => (Number.isFinite(q) ? Math.max(1, Math.floor(q)) : 1))}
                 inputMode="numeric"
+                step={1}
+                min={1}
                 className={[
                   "w-full rounded-xl border px-3 py-2 text-sm outline-none",
                   fieldErrors.quantity ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
@@ -722,8 +727,7 @@ function WantedPostForm() {
   const [quantity, setQuantity] = useState<number>(1);
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
-  const [minBudget, setMinBudget] = useState("");
-  const [maxBudget, setMaxBudget] = useState("");
+  const [budget, setBudget] = useState("");
   const [description, setDescription] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
@@ -798,8 +802,7 @@ function WantedPostForm() {
     });
   }, [category, bioFieldsDisabled]);
 
-  const budgetMinCents = useMemo(() => dollarsToCentsMaybe(minBudget), [minBudget]);
-  const budgetMaxCents = useMemo(() => dollarsToCentsMaybe(maxBudget), [maxBudget]);
+  const budgetCents = useMemo(() => dollarsToCentsMaybe(budget), [budget]);
   const maxDescLen = 1000;
 
   async function onSubmit(e: React.FormEvent) {
@@ -856,8 +859,7 @@ function WantedPostForm() {
         sex: bioFieldsEnabled && sex ? sex : null,
         age: age.trim(),
         quantity: qty,
-        budgetMinCents,
-        budgetMaxCents,
+        budgetCents,
         location: location.trim(),
         phone: phoneTrim,
         description: finalDescription,
@@ -1034,7 +1036,7 @@ function WantedPostForm() {
             </label>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.quantity ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Quantity <span className="text-red-600">*</span>
@@ -1043,10 +1045,16 @@ function WantedPostForm() {
                 type="number"
                 value={quantity}
                 onChange={(e) => {
-                  setQuantity(Number(e.target.value));
+                  const raw = e.target.value;
+                  const n = raw === "" ? NaN : Number.parseInt(raw, 10);
+                  if (!Number.isFinite(n)) return;
+                  setQuantity(n);
                   clearFieldError("quantity");
                 }}
+                onBlur={() => setQuantity((q) => (Number.isFinite(q) ? Math.max(1, Math.floor(q)) : 1))}
                 min={1}
+                step={1}
+                inputMode="numeric"
                 className={[
                   "w-full rounded-xl border px-3 py-3 text-sm outline-none",
                   fieldErrors.quantity ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
@@ -1056,21 +1064,11 @@ function WantedPostForm() {
             </label>
 
             <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Min budget ($)</div>
+              <div className="mb-1 text-xs font-semibold text-slate-700">Budget ($)</div>
               <input
                 inputMode="decimal"
-                value={minBudget}
-                onChange={(e) => setMinBudget(sanitizeMoneyInput(e.target.value, MAX_MONEY_INPUT_LEN))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
-              />
-            </label>
-
-            <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Max budget ($)</div>
-              <input
-                inputMode="decimal"
-                value={maxBudget}
-                onChange={(e) => setMaxBudget(sanitizeMoneyInput(e.target.value, MAX_MONEY_INPUT_LEN))}
+                value={budget}
+                onChange={(e) => setBudget(sanitizeMoneyInput(e.target.value, MAX_MONEY_INPUT_LEN))}
                 className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
               />
             </label>

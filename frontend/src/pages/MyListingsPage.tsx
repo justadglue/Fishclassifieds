@@ -40,12 +40,9 @@ function centsToDollars(cents: number) {
 }
 
 function budgetLabel(w: WantedPost) {
-  const min = w.budgetMinCents ?? null;
-  const max = w.budgetMaxCents ?? null;
-  if (min == null && max == null) return "Make an offer";
-  if (min != null && max != null) return `${centsToDollars(min)}–${centsToDollars(max)}`;
-  if (min != null) return `${centsToDollars(min)}+`;
-  return `Up to ${centsToDollars(max!)}`;
+  const budget = w.budgetCents ?? null;
+  if (budget == null) return "Make an offer";
+  return `Up to ${centsToDollars(budget)}`;
 }
 
 function relativeTime(iso: string) {
@@ -247,8 +244,8 @@ function sortMixedRows(rows: MixedRow[], sortKey: SortKey, sortDir: SortDir, now
 
   function getPriceSort(r: MixedRow): number | null {
     if (r.kind === "sale") return Number.isFinite(Number(r.sale?.priceCents)) ? Number(r.sale!.priceCents) : null;
-    const max = r.wanted?.budgetMaxCents ?? null;
-    return Number.isFinite(Number(max)) ? Number(max) : null;
+    const b = r.wanted?.budgetCents ?? null;
+    return Number.isFinite(Number(b)) ? Number(b) : null;
   }
 
   function getViewsSort(r: MixedRow): number | null {

@@ -340,18 +340,11 @@ AND contact IS NOT NULL;
   db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type_user_id ON listings(listing_type, user_id);`);
 
   // Wanted-specific fields live on listings rows where listing_type=1.
-  if (!hasColumn(db, "listings", "budget_min_cents")) {
-    db.exec(`ALTER TABLE listings ADD COLUMN budget_min_cents INTEGER;`);
-    migrations.push("Added listings.budget_min_cents (wanted)");
+  if (!hasColumn(db, "listings", "budget_cents")) {
+    db.exec(`ALTER TABLE listings ADD COLUMN budget_cents INTEGER;`);
+    migrations.push("Added listings.budget_cents (wanted)");
   } else {
-    migrations.push("listings.budget_min_cents already exists");
-  }
-
-  if (!hasColumn(db, "listings", "budget_max_cents")) {
-    db.exec(`ALTER TABLE listings ADD COLUMN budget_max_cents INTEGER;`);
-    migrations.push("Added listings.budget_max_cents (wanted)");
-  } else {
-    migrations.push("listings.budget_max_cents already exists");
+    migrations.push("listings.budget_cents already exists");
   }
 
   if (!hasColumn(db, "listings", "wanted_status")) {
@@ -374,11 +367,23 @@ AND contact IS NOT NULL;
   // Ensure listing_images exists before we potentially backfill from legacy image_url.
   ensureListingImagesTable(db);
 
-  // Drop legacy columns on listings (owner_token, image_url) by rebuilding the table.
+  // Drop legacy columns on listings (owner_token, image_url, and older wanted budget columns) by rebuilding the table.
   const hasOwnerToken = hasColumn(db, "listings", "owner_token");
   const hasImageUrl = hasColumn(db, "listings", "image_url");
+  const hasBudgetMin = hasColumn(db, "listings", "budget_min_cents");
+  const hasBudgetMax = hasColumn(db, "listings", "budget_max_cents");
 
-  if (hasOwnerToken || hasImageUrl) {
+  const needsListingsRebuild = hasOwnerToken || hasImageUrl || hasBudgetMin || hasBudgetMax;
+
+  if (needsListingsRebuild) {
+    const budgetExpr = hasBudgetMax && hasBudgetMin
+      ? "COALESCE(budget_max_cents, budget_min_cents)"
+      : hasBudgetMax
+        ? "budget_max_cents"
+        : hasBudgetMin
+          ? "budget_min_cents"
+          : "NULL";
+
     // Preserve old single-image data by backfilling into listing_images (only when no images exist).
     if (hasImageUrl) {
       const rows = db
@@ -426,8 +431,7 @@ CREATE TABLE IF NOT EXISTS listings_new(
   age TEXT NOT NULL DEFAULT '',
   quantity INTEGER NOT NULL DEFAULT 1,
   price_cents INTEGER NOT NULL,
-  budget_min_cents INTEGER,
-  budget_max_cents INTEGER,
+  budget_cents INTEGER,
   wanted_status TEXT NOT NULL DEFAULT 'open',
   location TEXT NOT NULL,
   description TEXT NOT NULL,
@@ -449,7 +453,7 @@ INSERT INTO listings_new(
   id,user_id,listing_type,
   featured,featured_until,views,
   title,category,species,sex,water_type,age,quantity,price_cents,
-  budget_min_cents,budget_max_cents,wanted_status,
+  budget_cents,wanted_status,
   location,description,phone,
   status,expires_at,resolution,resolved_at,
   created_at,updated_at,deleted_at
@@ -469,8 +473,7 @@ SELECT
   COALESCE(age, ''),
   COALESCE(quantity, 1),
   COALESCE(price_cents, 0),
-  budget_min_cents,
-  budget_max_cents,
+  CASE WHEN COALESCE(listing_type, 0) = 1 THEN ${budgetExpr} ELSE NULL END,
   COALESCE(wanted_status, 'open'),
   location,
   description,
@@ -511,7 +514,7 @@ FROM listings;
 
     tx();
     db.exec(`PRAGMA foreign_keys = ON;`);
-    migrations.push("Rebuilt listings table to remove legacy listings.owner_token and listings.image_url columns");
+    migrations.push("Rebuilt listings table to remove legacy listings.owner_token/image_url and old wanted budget columns");
   } else {
     migrations.push("listings already has no legacy owner_token/image_url columns");
   }

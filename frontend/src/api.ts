@@ -58,8 +58,7 @@ export type WantedPost = {
   sex: ListingSex;
   age: string;
   quantity: number;
-  budgetMinCents: number | null;
-  budgetMaxCents: number | null;
+  budgetCents: number | null;
   location: string;
   phone: string;
   status: WantedStatus;
@@ -281,8 +280,7 @@ export async function createWantedPost(input: {
   sex?: ListingSex | null;
   age: string;
   quantity?: number;
-  budgetMinCents?: number | null;
-  budgetMaxCents?: number | null;
+  budgetCents?: number | null;
   location: string;
   description: string;
   phone: string;
@@ -305,8 +303,7 @@ export async function updateWantedPost(
     sex?: ListingSex | null;
     age?: string;
     quantity?: number;
-    budgetMinCents?: number | null;
-    budgetMaxCents?: number | null;
+    budgetCents?: number | null;
     location?: string;
     description?: string;
     phone?: string;

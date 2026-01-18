@@ -775,14 +775,19 @@ function SaleEditForm() {
                   Quantity <span className="text-red-600">*</span>
                 </div>
                 <input
+                  type="number"
                   value={String(quantity)}
                   onChange={(e) => {
-                    const n = Number(e.target.value);
-                    if (!Number.isFinite(n)) return setQuantity(1);
-                    setQuantity(Math.max(1, Math.floor(n)));
+                    const raw = e.target.value;
+                    const n = raw === "" ? NaN : Number.parseInt(raw, 10);
+                    if (!Number.isFinite(n)) return;
+                    setQuantity(Math.max(1, n));
                     clearFieldError("quantity");
                   }}
                   inputMode="numeric"
+                  step={1}
+                  min={1}
+                  onBlur={() => setQuantity((q) => (Number.isFinite(q) ? Math.max(1, Math.floor(q)) : 1))}
                   className={[
                     "w-full rounded-xl border px-3 py-2 text-sm outline-none",
                     fieldErrors.quantity ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
@@ -1046,8 +1051,7 @@ function WantedEditForm() {
   const [quantity, setQuantity] = useState<number>(1);
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
-  const [minBudget, setMinBudget] = useState("");
-  const [maxBudget, setMaxBudget] = useState("");
+  const [budget, setBudget] = useState("");
   const [description, setDescription] = useState("");
 
   useEffect(() => {
@@ -1095,8 +1099,7 @@ function WantedEditForm() {
         setQuantity(Number.isFinite(Number((w as any).quantity)) ? Math.max(1, Math.floor(Number((w as any).quantity))) : 1);
         setLocation(w.location);
         setPhone((w as any).phone ?? "");
-        setMinBudget(centsToDollarsMaybe(w.budgetMinCents));
-        setMaxBudget(centsToDollarsMaybe(w.budgetMaxCents));
+        setBudget(centsToDollarsMaybe(w.budgetCents));
         setDescription(w.description);
         setInitialPhotoAssets((w as any).images ?? []);
       } catch (e: any) {
@@ -1181,8 +1184,7 @@ function WantedEditForm() {
           sex: bioFieldsEnabled && sex ? sex : null,
           age: age.trim(),
           quantity: qty,
-          budgetMinCents: dollarsToCentsMaybe(minBudget),
-          budgetMaxCents: dollarsToCentsMaybe(maxBudget),
+          budgetCents: dollarsToCentsMaybe(budget),
           location: location.trim(),
           phone: phoneTrim,
           description: description.trim(),
@@ -1202,8 +1204,7 @@ function WantedEditForm() {
         sex: bioFieldsEnabled && sex ? sex : null,
         age: age.trim(),
         quantity: qty,
-        budgetMinCents: dollarsToCentsMaybe(minBudget),
-        budgetMaxCents: dollarsToCentsMaybe(maxBudget),
+        budgetCents: dollarsToCentsMaybe(budget),
         location: location.trim(),
         phone: phoneTrim,
         description: description.trim(),
@@ -1344,36 +1345,33 @@ function WantedEditForm() {
               </label>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Quantity</div>
                 <input
                   type="number"
                   value={quantity}
-                  onChange={(e) => setQuantity(Number(e.target.value))}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const n = raw === "" ? NaN : Number.parseInt(raw, 10);
+                    if (!Number.isFinite(n)) return;
+                    setQuantity(n);
+                  }}
                   min={1}
+                  step={1}
+                  inputMode="numeric"
+                  onBlur={() => setQuantity((q) => (Number.isFinite(q) ? Math.max(1, Math.floor(q)) : 1))}
                   disabled={saving || !isOwner}
                   className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
                 />
               </label>
 
               <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Min budget ($)</div>
+                <div className="mb-1 text-xs font-semibold text-slate-700">Budget ($)</div>
                 <input
                   inputMode="decimal"
-                  value={minBudget}
-                  onChange={(e) => setMinBudget(sanitizeMoneyInput(e.target.value, MAX_MONEY_INPUT_LEN))}
-                  disabled={saving || !isOwner}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
-                />
-              </label>
-
-              <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Max budget ($)</div>
-                <input
-                  inputMode="decimal"
-                  value={maxBudget}
-                  onChange={(e) => setMaxBudget(sanitizeMoneyInput(e.target.value, MAX_MONEY_INPUT_LEN))}
+                  value={budget}
+                  onChange={(e) => setBudget(sanitizeMoneyInput(e.target.value, MAX_MONEY_INPUT_LEN))}
                   disabled={saving || !isOwner}
                   className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
                 />

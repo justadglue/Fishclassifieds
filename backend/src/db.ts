@@ -23,8 +23,7 @@ export type ListingRow = {
   age?: string;
   quantity?: number;
   price_cents: number;
-  budget_min_cents?: number | null;
-  budget_max_cents?: number | null;
+  budget_cents?: number | null;
   wanted_status?: string;
   location: string;
   description: string;
@@ -150,11 +149,10 @@ CREATE TABLE IF NOT EXISTS listings(
   water_type TEXT,
   age TEXT NOT NULL DEFAULT '',
   quantity INTEGER NOT NULL DEFAULT 1,
-  -- Sell price. Wanted posts store 0 here and use budget_* fields instead.
+  -- Sell price. Wanted posts store 0 here and use budget_cents instead.
   price_cents INTEGER NOT NULL,
   -- Wanted-only fields (used when listing_type=1)
-  budget_min_cents INTEGER,
-  budget_max_cents INTEGER,
+  budget_cents INTEGER,
   wanted_status TEXT NOT NULL DEFAULT 'open',
   location TEXT NOT NULL,
   description TEXT NOT NULL,

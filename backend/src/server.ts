@@ -381,8 +381,7 @@ const CreateWantedSchema = z.object({
   // Age requirements are enforced conditionally by category (bio-enabled and not Other).
   age: z.string().max(40).optional().default(""),
   quantity: z.number().int().min(1).max(10_000).optional(),
-  budgetMinCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
-  budgetMaxCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
+  budgetCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
   location: z.string().min(2).max(80),
   description: z.string().min(1).max(1000),
   phone: z.string().min(6).max(30),
@@ -397,8 +396,7 @@ const UpdateWantedSchema = z.object({
   waterType: OptionalWaterTypeSchema.optional().nullable(),
   age: z.string().max(40).optional(),
   quantity: z.number().int().min(1).max(10_000).optional(),
-  budgetMinCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
-  budgetMaxCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
+  budgetCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
   location: z.string().min(2).max(80).optional(),
   description: z.string().min(1).max(1000).optional(),
   phone: z.string().min(6).max(30).optional(),
@@ -1169,8 +1167,7 @@ function mapWantedRow(req: express.Request, row: any) {
     sex: String(row.sex ?? "Unknown"),
     age: row.age && String(row.age).trim() ? String(row.age) : "",
     quantity: Number.isFinite(Number(row.quantity)) ? Math.max(1, Math.floor(Number(row.quantity))) : 1,
-    budgetMinCents: row.budget_min_cents != null ? Number(row.budget_min_cents) : null,
-    budgetMaxCents: row.budget_max_cents != null ? Number(row.budget_max_cents) : null,
+    budgetCents: row.budget_cents != null ? Number(row.budget_cents) : null,
     location: String(row.location),
     phone: String(row.phone ?? ""),
     status: WantedStatusSchema.parse(String(row.wanted_status ?? "open")),
@@ -1196,6 +1193,8 @@ app.get("/api/wanted", (req, res) => {
   const species = String(req.query.species ?? "").trim().toLowerCase();
   const category = String(req.query.category ?? "").trim();
   const location = String(req.query.location ?? "").trim().toLowerCase();
+  const statusRaw = String(req.query.status ?? "").trim();
+  const statusFilter = statusRaw === "open" || statusRaw === "closed" ? statusRaw : null;
 
   const minRaw = req.query.minBudgetCents ?? req.query.min;
   const maxRaw = req.query.maxBudgetCents ?? req.query.max;
@@ -1211,8 +1210,9 @@ app.get("/api/wanted", (req, res) => {
   const params: any[] = [];
   where.push(`l.listing_type = 1`);
   where.push(`l.status IN('active','pending')`);
-  // Closed wanted posts should not be visible in public browsing.
-  where.push(`l.wanted_status = 'open'`);
+  // Default: only open posts are visible publicly. Allow explicit filtering by status for dev/admin use.
+  if (statusFilter) where.push(`l.wanted_status = ?`), params.push(statusFilter);
+  else where.push(`l.wanted_status = 'open'`);
 
   if (q) {
     where.push("(lower(l.title)LIKE ? OR lower(l.description)LIKE ? OR lower(l.location)LIKE ? OR lower(l.species)LIKE ?)");
@@ -1236,12 +1236,12 @@ app.get("/api/wanted", (req, res) => {
   }
 
   if (Number.isFinite(min)) {
-    where.push("(l.budget_max_cents IS NULL OR l.budget_max_cents >= ?)");
+    where.push("(l.budget_cents IS NULL OR l.budget_cents >= ?)");
     params.push(Math.floor(min!));
   }
 
   if (Number.isFinite(max)) {
-    where.push("(l.budget_min_cents IS NULL OR l.budget_min_cents <= ?)");
+    where.push("(l.budget_cents IS NULL OR l.budget_cents <= ?)");
     params.push(Math.floor(max!));
   }
 
@@ -1330,8 +1330,7 @@ app.post("/api/wanted", requireAuth, (req, res) => {
 
   const { title, category, location, description, waterType, sex, age, quantity, phone, images } = parsed.data;
   const species = parsed.data.species ? String(parsed.data.species).trim() : "";
-  const budgetMinCents = parsed.data.budgetMinCents ?? null;
-  const budgetMaxCents = parsed.data.budgetMaxCents ?? null;
+  const budgetCents = parsed.data.budgetCents ?? null;
 
   const bioRequired = isBioFieldsRequiredCategory(category);
   const isOther = isOtherCategory(category);
@@ -1347,10 +1346,6 @@ app.post("/api/wanted", requireAuth, (req, res) => {
   if (bioRequired && !isOther && !sex) return res.status(400).json({ error: "Sex is required" });
   if (!bioDisabled && !isOther && !ageFinal) return res.status(400).json({ error: "Age is required" });
 
-  if (budgetMinCents != null && budgetMaxCents != null && budgetMinCents > budgetMaxCents) {
-    return res.status(400).json({ error: "Budget min cannot be greater than budget max" });
-  }
-
   const id = crypto.randomUUID();
   const now = nowIso();
   const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
@@ -1362,11 +1357,11 @@ app.post("/api/wanted", requireAuth, (req, res) => {
 INSERT INTO listings(
   id,user_id,listing_type,
   title,description,category,species,sex,water_type,age,quantity,price_cents,
-  budget_min_cents,budget_max_cents,wanted_status,
+  budget_cents,wanted_status,
   location,phone,
   status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
 )
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 `
   ).run(
     id,
@@ -1381,8 +1376,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ageFinal,
     qtyFinal,
     0,
-    budgetMinCents,
-    budgetMaxCents,
+    budgetCents,
     "open",
     location,
     phone,
@@ -1441,12 +1435,6 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
     }
   }
 
-  const nextMin = p.budgetMinCents !== undefined ? p.budgetMinCents : row.budget_min_cents ?? null;
-  const nextMax = p.budgetMaxCents !== undefined ? p.budgetMaxCents : row.budget_max_cents ?? null;
-  if (nextMin != null && nextMax != null && nextMin > nextMax) {
-    return res.status(400).json({ error: "Budget min cannot be greater than budget max" });
-  }
-
   const sets: string[] = [];
   const params: any[] = [];
 
@@ -1461,8 +1449,7 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
     phone: p.phone,
     age: p.age === undefined ? undefined : String(p.age ?? "").trim(),
     quantity: p.quantity,
-    budget_min_cents: p.budgetMinCents,
-    budget_max_cents: p.budgetMaxCents,
+    budget_cents: p.budgetCents,
   };
 
   // Featuring support (same columns as regular listings).

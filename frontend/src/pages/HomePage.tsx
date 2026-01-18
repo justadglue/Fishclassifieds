@@ -24,12 +24,9 @@ function featuredHeroUrlWanted(w: WantedPost) {
 }
 
 function budgetLabel(w: WantedPost) {
-  const min = w.budgetMinCents ?? null;
-  const max = w.budgetMaxCents ?? null;
-  if (min == null && max == null) return "Make an offer";
-  if (min != null && max != null) return `${centsToDollars(min)}–${centsToDollars(max)}`;
-  if (min != null) return `${centsToDollars(min)}+`;
-  return `Under ${centsToDollars(max!)}`;
+  const budget = w.budgetCents ?? null;
+  if (budget == null) return "Make an offer";
+  return `Up to ${centsToDollars(budget)}`;
 }
 
 function FeaturedCard({ item }: { item: FeaturedItem }) {

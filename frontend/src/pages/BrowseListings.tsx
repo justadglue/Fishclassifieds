@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { fetchListings, fetchWanted, getListingOptionsCached, resolveAssets, type Category, type Listing, type WantedPost } from "../api";
+import { fetchListings, fetchWanted, getListingOptionsCached, resolveAssets, type Category, type Listing, type WantedPost, type WantedStatus } from "../api";
 import Header from "../components/Header";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
@@ -38,7 +38,7 @@ const PAGE_SIZES: PageSize[] = [12, 24, 48, 96];
 function budgetPillText(w: WantedPost) {
   const min = w.budgetMinCents ?? null;
   const max = w.budgetMaxCents ?? null;
-  if (min == null && max == null) return "Unspecified";
+  if (min == null && max == null) return "Make an offer";
   if (min != null && max != null) return `${centsToDollars(min)} - ${centsToDollars(max)}`;
   if (max != null) return `Up to ${centsToDollars(max)}`;
   return `${centsToDollars(min!)}+`;
@@ -159,6 +159,8 @@ export default function BrowseListings() {
   const minDollars = sp.get("min") ?? "";
   const maxDollars = sp.get("max") ?? "";
   const sort = (sp.get("sort") ?? "newest") as SortMode;
+  const featuredOnly = sp.get("featured") === "1";
+  const wantedStatus = (sp.get("status") ?? "") as "" | WantedStatus;
 
   const page = clampInt(sp.get("page"), 1, 1, 999999);
   const per = clampInt(sp.get("per"), 24, 12, 200) as PageSize;
@@ -235,6 +237,7 @@ export default function BrowseListings() {
               species: species || undefined,
               minPriceCents: minCents,
               maxPriceCents: maxCents,
+              featured: featuredOnly || undefined,
               sort,
               limit: per,
               offset,
@@ -243,6 +246,7 @@ export default function BrowseListings() {
               q: q || undefined,
               category: category || undefined,
               species: species || undefined,
+              status: wantedStatus || undefined,
               minBudgetCents: minCents,
               maxBudgetCents: maxCents,
               limit: per,
@@ -276,7 +280,7 @@ export default function BrowseListings() {
     return () => {
       cancelled = true;
     };
-  }, [browseType, q, category, species, minCents, maxCents, sort, per, page, offset, sp, setSp]);
+  }, [browseType, q, category, species, minCents, maxCents, sort, featuredOnly, wantedStatus, per, page, offset, sp, setSp]);
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(sp);
@@ -293,8 +297,10 @@ export default function BrowseListings() {
     next.set("page", "1");
     if (nextType === "wanted") {
       next.delete("sort");
+      next.delete("featured");
     } else {
       if (!next.get("sort")) next.set("sort", "newest");
+      next.delete("status");
     }
     setSp(next, { replace: true });
   }
@@ -490,7 +496,30 @@ export default function BrowseListings() {
                 </label>
               </div>
 
-              {/* Wanted status is managed privately (My listings) and closed ads are not shown publicly. */}
+              {browseType === "wanted" ? (
+                <label className="block">
+                  <div className="mb-1 text-xs font-semibold text-slate-700">Status</div>
+                  <select
+                    value={wantedStatus}
+                    onChange={(e) => setParam("status", e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  >
+                    <option value="">Any</option>
+                    <option value="open">Active</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </label>
+              ) : (
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={featuredOnly}
+                    onChange={(e) => setParam("featured", e.target.checked ? "1" : "")}
+                    className="h-4 w-4 rounded border-slate-300 text-slate-900"
+                  />
+                  <span className="text-xs font-semibold text-slate-700">Featured only</span>
+                </label>
+              )}
 
               <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-700">
                 {browseType === "sale"

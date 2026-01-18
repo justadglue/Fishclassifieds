@@ -40,7 +40,7 @@ function timeAgo(iso: string) {
 function budgetLabel(w: WantedPost) {
   const min = w.budgetMinCents ?? null;
   const max = w.budgetMaxCents ?? null;
-  if (min == null && max == null) return "Unspecified";
+  if (min == null && max == null) return "Make an offer";
   if (min != null && max != null) return `${centsToDollars(min)}–${centsToDollars(max)}`;
   if (min != null) return `${centsToDollars(min)}+`;
   return `Up to ${centsToDollars(max!)}`;
@@ -142,7 +142,7 @@ export default function ListingPage() {
           ? `(${details.customPriceText})`
           : "(custom)";
 
-  const qtyLabel = kind === "wanted" ? `Qty ${(item as any)?.quantity ?? 1}` : `Qty ${details.quantity}`;
+  const qtyLabel = kind === "wanted" ? `Qty ${(item as any)?.quantity ?? 1} Available` : `Qty ${details.quantity} Available`;
   const postedAgo = item?.createdAt ? timeAgo(item.createdAt) : "";
 
   function DefaultAvatar() {
@@ -539,12 +539,7 @@ export default function ListingPage() {
                                 : details.quantity}
                             </dd>
                           </div>
-                          {kind === "wanted" ? (
-                            <div className="flex items-baseline justify-between gap-4">
-                              <dt className="font-semibold text-slate-600">Budget</dt>
-                              <dd className="font-semibold text-slate-900">{budgetLabel(item as WantedPost)}</dd>
-                            </div>
-                          ) : (
+                          {kind === "wanted" ? null : (
                             <div className="flex items-baseline justify-between gap-4">
                               <dt className="font-semibold text-slate-600">Price type</dt>
                               <dd className="font-semibold text-slate-900">{priceSuffix}</dd>

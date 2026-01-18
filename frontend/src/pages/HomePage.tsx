@@ -49,7 +49,7 @@ function FeaturedCard({ item }: { item: FeaturedItem }) {
           <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">No image</div>
         )}
         <div className="absolute left-3 top-3 rounded-full bg-slate-900 px-2 py-1 text-[11px] font-bold text-white">
-         {item.kind === "wanted" ? "Wanted" : "For sale"}
+          {item.kind === "wanted" ? "Wanted" : "For sale"}
         </div>
       </div>
       <div className="p-4">

@@ -1305,6 +1305,7 @@ AND l.listing_type = 1
   }
 
   const isPublic = PUBLIC_LIFECYCLE.includes(status);
+  if (!isOwner && !isPublic) return res.status(404).json({ error: "Not found" });
   // Track views for public (non-owner) wanted detail views.
   if (!isOwner && isPublic && wantedStatus === "open") {
     db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ? AND listing_type = 1`).run(id);
@@ -1557,7 +1558,7 @@ app.post("/api/wanted/:id/close", requireAuth, (req, res) => {
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
   const now = nowIso();
-  db.prepare(`UPDATE listings SET wanted_status='closed',updated_at=? WHERE id = ? AND listing_type = 1`).run(now, id);
+  db.prepare(`UPDATE listings SET wanted_status='closed',status='paused',updated_at=? WHERE id = ? AND listing_type = 1`).run(now, id);
 
   const updated = db
     .prepare(
@@ -1581,7 +1582,7 @@ app.post("/api/wanted/:id/reopen", requireAuth, (req, res) => {
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
   const now = nowIso();
-  db.prepare(`UPDATE listings SET wanted_status='open',updated_at=? WHERE id = ? AND listing_type = 1`).run(now, id);
+  db.prepare(`UPDATE listings SET wanted_status='open',status='active',updated_at=? WHERE id = ? AND listing_type = 1`).run(now, id);
 
   const updated = db
     .prepare(
@@ -1595,6 +1596,103 @@ AND l.listing_type = 1
     )
     .get(id) as any | undefined;
 
+  return res.json(mapWantedRow(req, updated));
+});
+
+app.post("/api/wanted/:id/pause", requireAuth, (req, res) => {
+  runAutoExpirePass();
+  ensureWantedExpiresAtPass();
+  const id = req.params.id;
+  const row = db.prepare(`SELECT * FROM listings WHERE id = ? AND listing_type = 1`).get(id) as any | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
+
+  const status = String(row.status ?? "active") as ListingStatus;
+  const wantedStatus = String(row.wanted_status ?? "open");
+  if (status === "deleted") return res.status(400).json({ error: "Wanted post is deleted" });
+  if (status === "expired") return res.status(400).json({ error: "Wanted post is expired" });
+  if (wantedStatus !== "open") return res.status(400).json({ error: "Only open wanted posts can be paused" });
+  if (status !== "active") return res.status(400).json({ error: "Only active wanted posts can be paused" });
+
+  const now = nowIso();
+  db.prepare(`UPDATE listings SET status='paused',updated_at=? WHERE id = ? AND listing_type = 1`).run(now, id);
+
+  const updated = db
+    .prepare(
+      `
+SELECT l.*, u.username as user_username
+FROM listings l
+JOIN users u ON u.id = l.user_id
+WHERE l.id = ?
+AND l.listing_type = 1
+`
+    )
+    .get(id) as any | undefined;
+  return res.json(mapWantedRow(req, updated));
+});
+
+app.post("/api/wanted/:id/resume", requireAuth, (req, res) => {
+  runAutoExpirePass();
+  ensureWantedExpiresAtPass();
+  const id = req.params.id;
+  const row = db.prepare(`SELECT * FROM listings WHERE id = ? AND listing_type = 1`).get(id) as any | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
+
+  const status = String(row.status ?? "active") as ListingStatus;
+  const wantedStatus = String(row.wanted_status ?? "open");
+  if (status === "deleted") return res.status(400).json({ error: "Wanted post is deleted" });
+  if (status === "expired") return res.status(400).json({ error: "Wanted post is expired" });
+  if (wantedStatus !== "open") return res.status(400).json({ error: "Only open wanted posts can be resumed" });
+  if (status !== "paused") return res.status(400).json({ error: "Only paused wanted posts can be resumed" });
+
+  const now = nowIso();
+  db.prepare(`UPDATE listings SET status='active',updated_at=? WHERE id = ? AND listing_type = 1`).run(now, id);
+
+  const updated = db
+    .prepare(
+      `
+SELECT l.*, u.username as user_username
+FROM listings l
+JOIN users u ON u.id = l.user_id
+WHERE l.id = ?
+AND l.listing_type = 1
+`
+    )
+    .get(id) as any | undefined;
+  return res.json(mapWantedRow(req, updated));
+});
+
+app.post("/api/wanted/:id/relist", requireAuth, (req, res) => {
+  runAutoExpirePass();
+  ensureWantedExpiresAtPass();
+  const id = req.params.id;
+  const row = db.prepare(`SELECT * FROM listings WHERE id = ? AND listing_type = 1`).get(id) as any | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
+
+  const status = String(row.status ?? "active") as ListingStatus;
+  const wantedStatus = String(row.wanted_status ?? "open");
+  if (status === "deleted") return res.status(400).json({ error: "Wanted post is deleted" });
+  if (status === "expired") return res.status(400).json({ error: "Wanted post is expired" });
+  if (wantedStatus !== "closed") return res.status(400).json({ error: "Only closed wanted posts can be relisted" });
+
+  const now = nowIso();
+  const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
+  const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
+  db.prepare(`UPDATE listings SET wanted_status='open',status='active',expires_at=?,updated_at=? WHERE id = ? AND listing_type = 1`).run(expiresAt, now, id);
+
+  const updated = db
+    .prepare(
+      `
+SELECT l.*, u.username as user_username
+FROM listings l
+JOIN users u ON u.id = l.user_id
+WHERE l.id = ?
+AND l.listing_type = 1
+`
+    )
+    .get(id) as any | undefined;
   return res.json(mapWantedRow(req, updated));
 });
 

@@ -335,7 +335,7 @@ export async function clearWantedFeaturing(id: string) {
   return updateWantedPost(id, { featured: false, featuredUntil: null });
 }
 
-async function postWantedAction(id: string, action: "close" | "reopen") {
+async function postWantedAction(id: string, action: "close" | "reopen" | "pause" | "resume" | "relist") {
   return apiFetch<WantedPost>(`/api/wanted/${encodeURIComponent(id)}/${action}`, { method: "POST" });
 }
 
@@ -345,6 +345,18 @@ export function closeWantedPost(id: string) {
 
 export function reopenWantedPost(id: string) {
   return postWantedAction(id, "reopen");
+}
+
+export function pauseWantedPost(id: string) {
+  return postWantedAction(id, "pause");
+}
+
+export function resumeWantedPost(id: string) {
+  return postWantedAction(id, "resume");
+}
+
+export function relistWantedPost(id: string) {
+  return postWantedAction(id, "relist");
 }
 
 export async function deleteWantedPost(id: string) {

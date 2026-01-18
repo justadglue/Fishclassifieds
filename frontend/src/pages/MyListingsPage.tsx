@@ -20,10 +20,12 @@ import {
   deleteListing,
   fetchMyListings,
   fetchMyWanted,
-  reopenWantedPost,
   resolveAssets,
   pauseListing,
+  pauseWantedPost,
+  relistWantedPost,
   resumeListing,
+  resumeWantedPost,
   markSold,
   type Listing,
   type WantedPost,
@@ -154,10 +156,30 @@ function WantedStatusText({ w }: { w: WantedPost }) {
   const life = w.lifecycleStatus;
   const s = w.status;
   const cls =
-    life === "expired" ? "text-slate-600" : s === "open" ? "text-emerald-700" : s === "closed" ? "text-slate-700" : "text-slate-700";
+    life === "expired"
+      ? "text-slate-600"
+      : s === "closed"
+        ? "text-slate-700"
+        : life === "paused"
+          ? "text-violet-700"
+          : life === "pending"
+            ? "text-amber-700"
+            : s === "open"
+              ? "text-emerald-700"
+              : "text-slate-700";
   return (
     <div className={`text-sm font-semibold ${cls}`}>
-      <div>{life === "expired" ? "Expired" : s === "open" ? "Open" : "Closed"}</div>
+      <div>
+        {life === "expired"
+          ? "Expired"
+          : s === "closed"
+            ? "Closed"
+            : life === "paused"
+              ? "Paused"
+              : life === "pending"
+                ? "Pending"
+                : "Open"}
+      </div>
     </div>
   );
 }
@@ -472,13 +494,37 @@ export default function MyListingsPage() {
     }
   }
 
-  async function onToggleWantedStatus(w: WantedPost) {
+  async function onPauseResumeWanted(w: WantedPost) {
     setErr(null);
     try {
-      const updated = w.status === "open" ? await closeWantedPost(w.id) : await reopenWantedPost(w.id);
+      const life = w.lifecycleStatus ?? "active";
+      const updated = life === "paused" ? await resumeWantedPost(w.id) : await pauseWantedPost(w.id);
       setWantedItems((prev) => prev.map((x) => (x.id === w.id ? updated : x)));
+      setExpandedId(`wanted:${w.id}`);
     } catch (e: any) {
-      setErr(e?.message ?? "Failed to update wanted status");
+      setErr(e?.message ?? "Failed to update wanted post status");
+    }
+  }
+
+  async function onCloseWanted(w: WantedPost) {
+    setErr(null);
+    try {
+      const updated = await closeWantedPost(w.id);
+      setWantedItems((prev) => prev.map((x) => (x.id === w.id ? updated : x)));
+      setExpandedId(`wanted:${w.id}`);
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to close wanted post");
+    }
+  }
+
+  async function onRelistWanted(w: WantedPost) {
+    setErr(null);
+    try {
+      const updated = await relistWantedPost(w.id);
+      setWantedItems((prev) => prev.map((x) => (x.id === w.id ? updated : x)));
+      setExpandedId(`wanted:${w.id}`);
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to relist wanted post");
     }
   }
 
@@ -957,11 +1003,34 @@ export default function MyListingsPage() {
                                 );
                               })()}
                               <ActionLink to={`/wanted/edit/${w.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
-                              <ActionButton
-                                label={w.status === "open" ? "Close" : "Reopen"}
-                                title={w.status === "open" ? "Close wanted post" : "Reopen wanted post"}
-                                onClick={() => onToggleWantedStatus(w)}
-                              />
+                              {w.status === "open" ? (
+                                <>
+                                  <ActionButton
+                                    label={w.lifecycleStatus === "paused" ? "Resume" : "Pause"}
+                                    title={w.lifecycleStatus === "paused" ? "Resume" : "Pause"}
+                                    disabled={w.lifecycleStatus !== "active" && w.lifecycleStatus !== "paused"}
+                                    onClick={() => onPauseResumeWanted(w)}
+                                    icon={w.lifecycleStatus === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
+                                  />
+                                  <ActionButton
+                                    label="Mark closed"
+                                    title="Mark closed"
+                                    variant="primary"
+                                    disabled={w.lifecycleStatus !== "active"}
+                                    onClick={() => onCloseWanted(w)}
+                                    icon={<Check aria-hidden="true" className="h-4 w-4" />}
+                                  />
+                                </>
+                              ) : (
+                                <ActionButton
+                                  label="Relist"
+                                  title="Relist"
+                                  variant="primary"
+                                  disabled={w.lifecycleStatus === "expired" || w.lifecycleStatus === "deleted"}
+                                  onClick={() => onRelistWanted(w)}
+                                  icon={<RotateCcw aria-hidden="true" className="h-4 w-4" />}
+                                />
+                              )}
                               <ActionButton
                                 label="Delete"
                                 title="Delete wanted post"

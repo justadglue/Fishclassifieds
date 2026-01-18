@@ -914,6 +914,10 @@ app.get("/api/listings", (req, res) => {
   const q = String(req.query.q ?? "").trim().toLowerCase();
   const species = String(req.query.species ?? "").trim().toLowerCase();
   const category = String(req.query.category ?? "").trim();
+  const location = String(req.query.location ?? "").trim().toLowerCase();
+  const waterType = String(req.query.waterType ?? "").trim().toLowerCase();
+  const sex = String(req.query.sex ?? "").trim();
+  const age = String(req.query.age ?? "").trim().toLowerCase();
   const featured = String(req.query.featured ?? "").trim();
   const min = req.query.minPriceCents ? Number(req.query.minPriceCents) : undefined;
   const max = req.query.maxPriceCents ? Number(req.query.maxPriceCents) : undefined;
@@ -948,6 +952,22 @@ app.get("/api/listings", (req, res) => {
   if (category) {
     where.push("category = ?");
     params.push(category);
+  }
+  if (location) {
+    where.push("lower(location)LIKE ?");
+    params.push(`%${location}%`);
+  }
+  if (waterType) {
+    where.push("lower(water_type)= ?");
+    params.push(waterType);
+  }
+  if (sex) {
+    where.push("sex = ?");
+    params.push(sex);
+  }
+  if (age) {
+    where.push("lower(age)LIKE ?");
+    params.push(`%${age}%`);
   }
   if (Number.isFinite(min)) {
     where.push("price_cents >= ?");
@@ -1193,6 +1213,9 @@ app.get("/api/wanted", (req, res) => {
   const species = String(req.query.species ?? "").trim().toLowerCase();
   const category = String(req.query.category ?? "").trim();
   const location = String(req.query.location ?? "").trim().toLowerCase();
+  const waterType = String(req.query.waterType ?? "").trim().toLowerCase();
+  const sex = String(req.query.sex ?? "").trim();
+  const age = String(req.query.age ?? "").trim().toLowerCase();
   const statusRaw = String(req.query.status ?? "").trim();
   const statusFilter = statusRaw === "open" || statusRaw === "closed" ? statusRaw : null;
 
@@ -1233,6 +1256,21 @@ app.get("/api/wanted", (req, res) => {
   if (location) {
     where.push("lower(l.location)LIKE ?");
     params.push(`%${location}%`);
+  }
+
+  if (waterType) {
+    where.push("lower(l.water_type)= ?");
+    params.push(waterType);
+  }
+
+  if (sex) {
+    where.push("l.sex = ?");
+    params.push(sex);
+  }
+
+  if (age) {
+    where.push("lower(l.age)LIKE ?");
+    params.push(`%${age}%`);
   }
 
   if (Number.isFinite(min)) {

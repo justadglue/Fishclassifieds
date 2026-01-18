@@ -1,9 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { fetchListings, fetchWanted, getListingOptionsCached, resolveAssets, type Category, type Listing, type WantedPost, type WantedStatus } from "../api";
+import {
+  fetchListings,
+  fetchWanted,
+  getListingOptionsCached,
+  resolveAssets,
+  type Category,
+  type Listing,
+  type ListingSex,
+  type WantedPost,
+  type WantedStatus,
+  type WaterType,
+} from "../api";
 import Header from "../components/Header";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 import { decodeSaleDetailsFromDescription, decodeWantedDetailsFromDescription } from "../utils/listingDetailsBlock";
+import BrowseFilters from "./browse/BrowseFilters";
 
 type SortMode = "newest" | "price_asc" | "price_desc";
 type PageSize = 12 | 24 | 48 | 96;
@@ -159,6 +171,10 @@ export default function BrowseListings() {
   const q = sp.get("q") ?? "";
   const category = (sp.get("category") ?? "") as "" | Category;
   const species = sp.get("species") ?? "";
+  const location = sp.get("location") ?? "";
+  const waterType = sp.get("waterType") ?? "";
+  const sex = sp.get("sex") ?? "";
+  const age = sp.get("age") ?? "";
   const minDollars = sp.get("min") ?? "";
   const maxDollars = sp.get("max") ?? "";
   const sort = (sp.get("sort") ?? "newest") as SortMode;
@@ -169,7 +185,23 @@ export default function BrowseListings() {
   const per = clampInt(sp.get("per"), 24, 12, 200) as PageSize;
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [waterTypes, setWaterTypes] = useState<WaterType[]>([]);
+  const [listingSexes, setListingSexes] = useState<ListingSex[]>([]);
+  const [bioRequiredCategories, setBioRequiredCategories] = useState<Set<string>>(new Set());
+  const [otherCategoryName, setOtherCategoryName] = useState("Other");
   const categoryOptions = useMemo(() => ["", ...categories] as Array<"" | Category>, [categories]);
+
+  const isOtherCategory = String(category) === String(otherCategoryName);
+  const bioFieldsRequired = bioRequiredCategories.has(String(category));
+  // Only treat bio as disabled when a specific non-bio category is selected.
+  const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
+
+  const wantedSexOptions = useMemo(() => {
+    const base = (listingSexes ?? []).map(String);
+    const out = [...base];
+    if (!out.includes("No preference")) out.push("No preference");
+    return out as ListingSex[];
+  }, [listingSexes]);
 
   const [saleItems, setSaleItems] = useState<Listing[]>([]);
   const [wantedItems, setWantedItems] = useState<WantedPost[]>([]);
@@ -184,6 +216,10 @@ export default function BrowseListings() {
       .then((opts) => {
         if (cancelled) return;
         setCategories(opts.categories as Category[]);
+        setWaterTypes((opts as any).waterTypes as WaterType[]);
+        setListingSexes((opts as any).listingSexes as ListingSex[]);
+        setBioRequiredCategories(new Set(((opts as any).bioFieldsRequiredCategories as string[]) ?? []));
+        setOtherCategoryName(String((opts as any).otherCategory ?? "Other"));
       })
       .catch(() => {
         // ignore
@@ -192,6 +228,21 @@ export default function BrowseListings() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    // If a non-bio category is chosen, clear bio-only filters so results aren't confusing.
+    if (!category) return;
+    if (!bioFieldsDisabled) return;
+    const next = new URLSearchParams(sp);
+    const had = next.has("species") || next.has("waterType") || next.has("sex") || next.has("age");
+    if (!had) return;
+    next.delete("species");
+    next.delete("waterType");
+    next.delete("sex");
+    next.delete("age");
+    next.set("page", "1");
+    setSp(next, { replace: true });
+  }, [bioFieldsDisabled, category, setSp, sp]);
 
   const minCents = useMemo(() => {
     const s = String(minDollars ?? "").trim();
@@ -238,6 +289,10 @@ export default function BrowseListings() {
               q: q || undefined,
               category: category || undefined,
               species: species || undefined,
+              location: location || undefined,
+              waterType: waterType || undefined,
+              sex: sex || undefined,
+              age: age || undefined,
               minPriceCents: minCents,
               maxPriceCents: maxCents,
               featured: featuredOnly || undefined,
@@ -249,6 +304,10 @@ export default function BrowseListings() {
               q: q || undefined,
               category: category || undefined,
               species: species || undefined,
+              location: location || undefined,
+              waterType: waterType || undefined,
+              sex: sex || undefined,
+              age: age || undefined,
               status: wantedStatus || undefined,
               minBudgetCents: minCents,
               maxBudgetCents: maxCents,
@@ -283,7 +342,26 @@ export default function BrowseListings() {
     return () => {
       cancelled = true;
     };
-  }, [browseType, q, category, species, minCents, maxCents, sort, featuredOnly, wantedStatus, per, page, offset, sp, setSp]);
+  }, [
+    browseType,
+    q,
+    category,
+    species,
+    location,
+    waterType,
+    sex,
+    age,
+    minCents,
+    maxCents,
+    sort,
+    featuredOnly,
+    wantedStatus,
+    per,
+    page,
+    offset,
+    sp,
+    setSp,
+  ]);
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(sp);
@@ -309,7 +387,11 @@ export default function BrowseListings() {
   }
 
   function clearFilters() {
-    setSp(new URLSearchParams(), { replace: true });
+    const next = new URLSearchParams();
+    next.set("type", browseType);
+    next.set("page", "1");
+    if (browseType === "sale") next.set("sort", "newest");
+    setSp(next, { replace: true });
   }
 
   function scrollToTop(behaviorOverride?: ScrollBehavior) {
@@ -399,138 +481,37 @@ export default function BrowseListings() {
       <main className="mx-auto max-w-6xl px-4 py-6">
         <div ref={topRef} />
         <div className="grid gap-6 md:grid-cols-[280px_1fr]">
-          <aside className="rounded-2xl border border-slate-200 bg-white p-4 md:sticky md:top-24 md:self-start md:max-h-[calc(100vh-7rem)] md:overflow-auto">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-bold text-slate-900">Filters</div>
-              <button type="button" onClick={clearFilters} className="text-xs font-semibold text-slate-600 hover:text-slate-900">
-                Clear
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Listing type</div>
-                <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white">
-                  <button
-                    type="button"
-                    onClick={() => setBrowseType("sale")}
-                    className={[
-                      "flex-1 px-3 py-2 text-sm font-semibold",
-                      browseType === "sale" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
-                    ].join(" ")}
-                    aria-pressed={browseType === "sale"}
-                  >
-                    For sale
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBrowseType("wanted")}
-                    className={[
-                      "flex-1 px-3 py-2 text-sm font-semibold",
-                      browseType === "wanted" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
-                    ].join(" ")}
-                    aria-pressed={browseType === "wanted"}
-                  >
-                    Wanted
-                  </button>
-                </div>
-              </label>
-
-              <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Search</div>
-                <input
-                  value={q}
-                  onChange={(e) => setParam("q", e.target.value)}
-                  placeholder={browseType === "sale" ? "e.g. guppy, Brisbane, breeder..." : "e.g. betta, Brisbane, nano tank..."}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                />
-              </label>
-
-              <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Category</div>
-                <select
-                  value={category}
-                  onChange={(e) => setParam("category", e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                >
-                  {categoryOptions.map((c) => (
-                    <option key={c || "Any"} value={c}>
-                      {c ? c : "Any"}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Species</div>
-                <select
-                  value={species}
-                  onChange={(e) => setParam("species", e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                >
-                  {speciesPresets.map((s) => (
-                    <option key={s} value={s}>
-                      {s ? s : "Any"}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <div className="mb-1 text-xs font-semibold text-slate-700">{browseType === "sale" ? "Min price ($)" : "Min budget ($)"}</div>
-                  <input
-                    value={minDollars}
-                    onChange={(e) => setParam("min", e.target.value)}
-                    inputMode="decimal"
-                    placeholder="0"
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                  />
-                </label>
-                <label className="block">
-                  <div className="mb-1 text-xs font-semibold text-slate-700">{browseType === "sale" ? "Max price ($)" : "Max budget ($)"}</div>
-                  <input
-                    value={maxDollars}
-                    onChange={(e) => setParam("max", e.target.value)}
-                    inputMode="decimal"
-                    placeholder="200"
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                  />
-                </label>
-              </div>
-
-              {browseType === "wanted" ? (
-                <label className="block">
-                  <div className="mb-1 text-xs font-semibold text-slate-700">Status</div>
-                  <select
-                    value={wantedStatus}
-                    onChange={(e) => setParam("status", e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-                  >
-                    <option value="">Any</option>
-                    <option value="open">Active</option>
-                    <option value="closed">Closed</option>
-                  </select>
-                </label>
-              ) : (
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={featuredOnly}
-                    onChange={(e) => setParam("featured", e.target.checked ? "1" : "")}
-                    className="h-4 w-4 rounded border-slate-300 text-slate-900"
-                  />
-                  <span className="text-xs font-semibold text-slate-700">Featured only</span>
-                </label>
-              )}
-
-              <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-700">
-                {browseType === "sale"
-                  ? "Tip: category narrows broad items; search finds details like “cherry”, “pair”, “breeder”."
-                  : "Tip: use search for details like “pair”, “juvenile”, or “pickup”. Include location for local-only requests."}
-              </div>
-            </div>
-          </aside>
+          <BrowseFilters
+            browseType={browseType}
+            setBrowseType={setBrowseType}
+            clearFilters={clearFilters}
+            category={category}
+            setCategory={(v) => setParam("category", v)}
+            categoryOptions={categoryOptions}
+            species={species}
+            setSpecies={(v) => setParam("species", v)}
+            speciesPresets={speciesPresets}
+            waterType={waterType}
+            setWaterType={(v) => setParam("waterType", v)}
+            waterTypes={waterTypes}
+            sex={sex}
+            setSex={(v) => setParam("sex", v)}
+            listingSexes={listingSexes}
+            wantedSexOptions={wantedSexOptions}
+            age={age}
+            setAge={(v) => setParam("age", v)}
+            location={location}
+            setLocation={(v) => setParam("location", v)}
+            minDollars={minDollars}
+            setMinDollars={(v) => setParam("min", v)}
+            maxDollars={maxDollars}
+            setMaxDollars={(v) => setParam("max", v)}
+            wantedStatus={wantedStatus}
+            setWantedStatus={(v) => setParam("status", v)}
+            featuredOnly={featuredOnly}
+            setFeaturedOnly={(v) => setParam("featured", v ? "1" : "")}
+            bioFieldsDisabled={bioFieldsDisabled}
+          />
 
           <section>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -573,6 +554,32 @@ export default function BrowseListings() {
                     ))}
                   </select>
                 </label>
+              </div>
+            </div>
+
+            {/* Search bar (above the results grid) */}
+            <div className="mt-4">
+              <div className="flex items-center gap-2 overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                <span className="select-none text-slate-400" aria-hidden="true">
+                  ⌕
+                </span>
+                <input
+                  value={q}
+                  onChange={(e) => setParam("q", e.target.value)}
+                  placeholder="Search"
+                  className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
+                />
+                {q.trim() ? (
+                  <button
+                    type="button"
+                    onClick={() => setParam("q", "")}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                    aria-label="Clear search"
+                    title="Clear"
+                  >
+                    Clear
+                  </button>
+                ) : null}
               </div>
             </div>
 

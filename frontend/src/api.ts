@@ -224,6 +224,10 @@ export async function fetchListings(params?: {
   q?: string;
   category?: Category;
   species?: string;
+  location?: string;
+  waterType?: WaterType;
+  sex?: ListingSex;
+  age?: string;
   minPriceCents?: number;
   maxPriceCents?: number;
   featured?: boolean;
@@ -235,6 +239,10 @@ export async function fetchListings(params?: {
   if (params?.q) qs.set("q", params.q);
   if (params?.category) qs.set("category", params.category);
   if (params?.species) qs.set("species", params.species);
+  if (params?.location) qs.set("location", params.location);
+  if (params?.waterType) qs.set("waterType", params.waterType);
+  if (params?.sex) qs.set("sex", params.sex);
+  if (params?.age) qs.set("age", params.age);
   if (params?.minPriceCents !== undefined) qs.set("minPriceCents", String(params.minPriceCents));
   if (params?.maxPriceCents !== undefined) qs.set("maxPriceCents", String(params.maxPriceCents));
   if (params?.featured) qs.set("featured", "1");
@@ -249,6 +257,10 @@ export async function fetchWanted(params?: {
   q?: string;
   category?: Category;
   species?: string;
+  location?: string;
+  waterType?: WaterType;
+  sex?: ListingSex;
+  age?: string;
   status?: WantedStatus;
   minBudgetCents?: number;
   maxBudgetCents?: number;
@@ -259,6 +271,10 @@ export async function fetchWanted(params?: {
   if (params?.q) qs.set("q", params.q);
   if (params?.category) qs.set("category", params.category);
   if (params?.species) qs.set("species", params.species);
+  if (params?.location) qs.set("location", params.location);
+  if (params?.waterType) qs.set("waterType", params.waterType);
+  if (params?.sex) qs.set("sex", params.sex);
+  if (params?.age) qs.set("age", params.age);
   if (params?.status) qs.set("status", params.status);
   if (params?.minBudgetCents !== undefined) qs.set("min", String(params.minBudgetCents));
   if (params?.maxBudgetCents !== undefined) qs.set("max", String(params.maxBudgetCents));

@@ -530,7 +530,7 @@ export default function BrowseListings() {
                   return (
                     <Link
                       key={l.id}
-                      to={`/listing/${l.id}`}
+                      to={`/listing/sale/${l.id}`}
                       state={{
                         from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "listings" },
                       }}
@@ -577,7 +577,7 @@ export default function BrowseListings() {
                 : wantedItems.map((w) => (
                   <Link
                     key={w.id}
-                    to={`/wanted/${w.id}`}
+                    to={`/listing/wanted/${w.id}`}
                     state={{
                       from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "wanted" },
                     }}

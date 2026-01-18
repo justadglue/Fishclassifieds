@@ -25,7 +25,7 @@ function normalizeCtx(raw: string | null, next: string | null): AuthGateCtx | nu
 
   // Derive a sensible default from `next` when no explicit context is provided.
   if (!next) return null;
-  if (next === "/post/listing") return "create_listing";
+  if (next === "/post/sale" || next === "/post/listing") return "create_listing";
   if (next.startsWith("/edit/")) return "edit_listing";
   if (next.startsWith("/feature/")) return "feature_listing";
   if (next === "/me") return "my_listings";
@@ -33,7 +33,9 @@ function normalizeCtx(raw: string | null, next: string | null): AuthGateCtx | nu
   if (next === "/post/wanted") return "wanted_post";
   if (next === "/wanted/post") return "wanted_post";
   if (next.startsWith("/wanted/edit/")) return "wanted_edit";
+  if (next.startsWith("/edit/wanted/")) return "wanted_edit";
   if (next.startsWith("/wanted/")) return "message";
+  if (next.startsWith("/listing/wanted/")) return "message";
   return null;
 }
 

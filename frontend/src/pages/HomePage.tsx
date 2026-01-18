@@ -336,7 +336,7 @@ export default function HomePage() {
 
             <button
               type="button"
-              onClick={() => goRequireAuth("/post/listing")}
+              onClick={() => goRequireAuth("/post/sale")}
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
               <div className="text-sm font-extrabold text-white">Create a listing →</div>
@@ -594,7 +594,7 @@ export default function HomePage() {
                                     return (
                                       <Link
                                         key={t.item.id}
-                                        to={`/listing/${t.item.id}`}
+                                        to={`/listing/sale/${t.item.id}`}
                                         state={{
                                           from: {
                                             pathname: routerLocation.pathname,
@@ -612,7 +612,7 @@ export default function HomePage() {
                                     return (
                                       <Link
                                         key={t.item.id}
-                                        to={`/wanted/${t.item.id}`}
+                                        to={`/listing/wanted/${t.item.id}`}
                                         state={{
                                           from: {
                                             pathname: routerLocation.pathname,
@@ -658,7 +658,7 @@ export default function HomePage() {
                                       return (
                                         <Link
                                           key={t.item.id}
-                                          to={`/listing/${t.item.id}`}
+                                          to={`/listing/sale/${t.item.id}`}
                                           state={{
                                             from: {
                                               pathname: routerLocation.pathname,
@@ -676,7 +676,7 @@ export default function HomePage() {
                                       return (
                                         <Link
                                           key={t.item.id}
-                                          to={`/wanted/${t.item.id}`}
+                                          to={`/listing/wanted/${t.item.id}`}
                                           state={{
                                             from: {
                                               pathname: routerLocation.pathname,

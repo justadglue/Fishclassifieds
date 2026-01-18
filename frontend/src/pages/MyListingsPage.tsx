@@ -534,7 +534,7 @@ export default function MyListingsPage() {
   }
 
   async function onRelistWanted(w: WantedPost) {
-    nav(`/wanted/edit/${encodeURIComponent(w.id)}?relist=1`);
+    nav(`/edit/wanted/${encodeURIComponent(w.id)}?relist=1`);
   }
 
   async function onDeleteWanted(id: string) {
@@ -575,7 +575,7 @@ export default function MyListingsPage() {
 
   async function doRelist(id: string) {
     setErr(null);
-    nav(`/edit/${encodeURIComponent(id)}?relist=1`);
+    nav(`/edit/sale/${encodeURIComponent(id)}?relist=1`);
   }
 
   function toggleExpanded(id: string) {
@@ -782,7 +782,7 @@ export default function MyListingsPage() {
                           <td className="px-4 py-4 align-top text-left">
                             <div className="flex min-h-20 items-center gap-3">
                               <Link
-                                to={`/listing/${l.id}`}
+                                to={`/listing/sale/${l.id}`}
                                 state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
                                 onClick={(e) => e.stopPropagation()}
                                 className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
@@ -796,7 +796,7 @@ export default function MyListingsPage() {
 
                               <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
                                 <Link
-                                  to={`/listing/${l.id}`}
+                                  to={`/listing/sale/${l.id}`}
                                   state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
                                   onClick={(e) => e.stopPropagation()}
                                   className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
@@ -876,7 +876,7 @@ export default function MyListingsPage() {
                                       icon={l.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
                                     />
 
-                                    <ActionLink to={`/edit/${l.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
+                                    <ActionLink to={`/edit/sale/${l.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
 
                                     <ActionButton
                                       label={toggleTitle}
@@ -930,7 +930,7 @@ export default function MyListingsPage() {
                         <td className="px-4 py-4 align-top text-left">
                           <div className="flex min-h-20 items-center gap-3">
                             <Link
-                              to={`/wanted/${w.id}`}
+                              to={`/listing/wanted/${w.id}`}
                               state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
                               onClick={(e) => e.stopPropagation()}
                               className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
@@ -944,7 +944,7 @@ export default function MyListingsPage() {
 
                             <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
                               <Link
-                                to={`/wanted/${w.id}`}
+                                to={`/listing/wanted/${w.id}`}
                                 state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
                                 onClick={(e) => e.stopPropagation()}
                                 className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
@@ -1023,7 +1023,7 @@ export default function MyListingsPage() {
                                   />
                                 );
                               })()}
-                              <ActionLink to={`/wanted/edit/${w.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
+                              <ActionLink to={`/edit/wanted/${w.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
                               {w.status === "open" ? (
                                 <>
                                   <ActionButton

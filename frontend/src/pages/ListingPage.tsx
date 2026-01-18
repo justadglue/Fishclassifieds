@@ -2,11 +2,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { Flag } from "lucide-react";
-import { fetchListing, getListingOptionsCached, resolveAssets, type Listing } from "../api";
+import { fetchListing, fetchWantedPost, getListingOptionsCached, resolveAssets, type Listing, type WantedPost } from "../api";
 import Header from "../components/Header";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
 import ShippingInfoButton from "../components/ShippingInfoButton";
+import { browsePath, parseListingKind, type ListingKind } from "../listings/routes";
 
 function centsToDollars(cents: number) {
   const s = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -36,10 +37,23 @@ function timeAgo(iso: string) {
   return `${Math.max(1, mo)} month${mo === 1 ? "" : "s"} ago`;
 }
 
+function budgetLabel(w: WantedPost) {
+  const min = w.budgetMinCents ?? null;
+  const max = w.budgetMaxCents ?? null;
+  if (min == null && max == null) return "Unspecified";
+  if (min != null && max != null) return `${centsToDollars(min)}–${centsToDollars(max)}`;
+  if (min != null) return `${centsToDollars(min)}+`;
+  return `Up to ${centsToDollars(max!)}`;
+}
+
+type DetailItem = { kind: "sale"; item: Listing } | { kind: "wanted"; item: WantedPost };
+
 export default function ListingPage() {
-  const { id } = useParams();
+  const { id, kind: kindParam } = useParams();
   const location = useLocation();
-  const [item, setItem] = useState<Listing | null>(null);
+  const kind: ListingKind = parseListingKind(kindParam);
+  const [data, setData] = useState<DetailItem | null>(null);
+  const item = data?.item ?? null;
   const [active, setActive] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -58,15 +72,20 @@ export default function ListingPage() {
       setLoading(true);
       setErr(null);
       try {
-        const data = await fetchListing(id);
+        if (kind === "wanted") {
+          const w = await fetchWantedPost(id);
+          if (!cancelled) setData({ kind: "wanted", item: w });
+        } else {
+          const l = await fetchListing(id);
+          if (!cancelled) setData({ kind: "sale", item: l });
+        }
         if (!cancelled) {
-          setItem(data);
           setActive(0);
           setLightboxOpen(false);
           setPhoneRevealed(false);
         }
       } catch (e: any) {
-        if (!cancelled) setErr(e?.message ?? "Failed to load listing");
+        if (!cancelled) setErr(e?.message ?? (kind === "wanted" ? "Failed to load wanted post" : "Failed to load listing"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -75,7 +94,7 @@ export default function ListingPage() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, kind]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,15 +114,24 @@ export default function ListingPage() {
 
   const assets = useMemo(() => {
     if (!item) return [];
-    return resolveAssets(item.images ?? []);
+    return resolveAssets((item as any).images ?? []);
   }, [item]);
 
   const decoded = useMemo(() => {
-    if (!item) return null;
-    return decodeSaleDetailsFromDescription(item.description);
-  }, [item]);
+    if (!item || kind !== "sale") return null;
+    return decodeSaleDetailsFromDescription((item as Listing).description);
+  }, [item, kind]);
 
-  const bodyDescription = decoded?.hadPrefix ? decoded.body : item?.description ?? "";
+  const bodyDescription = useMemo(() => {
+    if (!item) return "";
+    if (kind === "sale") {
+      const d = decoded;
+      const raw = (item as Listing).description ?? "";
+      return d?.hadPrefix ? d.body : raw;
+    }
+    return String((item as WantedPost).description ?? "");
+  }, [decoded, item, kind]);
+
   const details = decoded?.details ?? { quantity: 1, priceType: "each" as const, customPriceText: "", willingToShip: false };
   const priceSuffix =
     details.priceType === "each"
@@ -113,7 +141,8 @@ export default function ListingPage() {
         : details.customPriceText
           ? `(${details.customPriceText})`
           : "(custom)";
-  const qtyLabel = `Qty ${details.quantity}`;
+
+  const qtyLabel = kind === "wanted" ? `Qty ${(item as any)?.quantity ?? 1}` : `Qty ${details.quantity}`;
   const postedAgo = item?.createdAt ? timeAgo(item.createdAt) : "";
 
   function DefaultAvatar() {
@@ -205,8 +234,8 @@ export default function ListingPage() {
           const from = (location.state as any)?.from as
             | { pathname: string; search?: string; label?: string }
             | undefined;
-          const label = (from?.label ?? "").trim() || "listings";
-          const to = from?.pathname ? `${from.pathname}${from.search ?? ""}` : "/browse?type=sale";
+          const label = (from?.label ?? "").trim() || (kind === "wanted" ? "wanted" : "listings");
+          const to = from?.pathname ? `${from.pathname}${from.search ?? ""}` : browsePath(kind);
           return (
             <Link to={to} className="text-sm font-semibold text-slate-700 hover:text-slate-900">
               ← Back to {label}
@@ -370,23 +399,35 @@ export default function ListingPage() {
                 </div>
               </div>
 
-              {/* Right column: seller + contact + listing details */}
+              {/* Right column: price/budget + seller + contact + listing details */}
               <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-5 lg:sticky lg:top-24">
-                <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Price</div>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <div className="text-3xl font-extrabold text-slate-900">{centsToDollars(item.priceCents)}</div>
-                  <div className="text-sm font-semibold text-slate-600">{priceSuffix}</div>
-                </div>
-                <div className="mt-2 text-sm font-semibold text-slate-700">
-                  <span className="text-slate-500">{qtyLabel}</span>
-                </div>
+                {kind === "sale" ? (
+                  <>
+                    <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Price</div>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <div className="text-3xl font-extrabold text-slate-900">{centsToDollars((item as Listing).priceCents)}</div>
+                      <div className="text-sm font-semibold text-slate-600">{priceSuffix}</div>
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-slate-700">
+                      <span className="text-slate-500">{qtyLabel}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Budget</div>
+                    <div className="mt-1 text-2xl font-extrabold text-slate-900">{budgetLabel(item as WantedPost)}</div>
+                    <div className="mt-2 text-sm font-semibold text-slate-700">
+                      <span className="text-slate-500">{qtyLabel}</span>
+                    </div>
+                  </>
+                )}
 
                 <div className="mt-5 border-t border-slate-200 pt-4">
                   <div className="text-sm font-extrabold text-slate-900">Listing owner</div>
                   <div className="mt-2 flex items-center gap-3">
-                    {item.sellerAvatarUrl ? (
+                    {(item as any).sellerAvatarUrl ? (
                       <img
-                        src={item.sellerAvatarUrl}
+                        src={(item as any).sellerAvatarUrl}
                         alt=""
                         className="h-[84px] w-[84px] rounded-full border border-slate-200 object-cover"
                         loading="lazy"
@@ -397,14 +438,14 @@ export default function ListingPage() {
                     )}
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-slate-900">
-                        {item.sellerUsername ? item.sellerUsername : "Fishclassifieds user"}
+                        {(kind === "sale" ? (item as any).sellerUsername : (item as any).username) || "Fishclassifieds user"}
                       </div>
                       <div className="text-xs font-semibold text-slate-600">Fishclassifieds member</div>
                     </div>
                   </div>
-                  {item.sellerBio && item.sellerBio.trim() ? (
+                  {(item as any).sellerBio && String((item as any).sellerBio).trim() ? (
                     <div className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs text-slate-700">
-                      {item.sellerBio.trim()}
+                      {String((item as any).sellerBio).trim()}
                     </div>
                   ) : null}
                 </div>
@@ -458,7 +499,7 @@ export default function ListingPage() {
                         <>
                           <div className="flex items-baseline justify-between gap-4">
                             <dt className="font-semibold text-slate-600">Listing type</dt>
-                            <dd className="font-semibold text-slate-900">For sale</dd>
+                            <dd className="font-semibold text-slate-900">{kind === "wanted" ? "Wanted" : "For sale"}</dd>
                           </div>
                           <div className="flex items-baseline justify-between gap-4">
                             <dt className="font-semibold text-slate-600">Category</dt>
@@ -490,30 +531,45 @@ export default function ListingPage() {
                           ) : null}
                           <div className="flex items-baseline justify-between gap-4">
                             <dt className="font-semibold text-slate-600">Quantity</dt>
-                            <dd className="font-semibold text-slate-900">{details.quantity}</dd>
+                            <dd className="font-semibold text-slate-900">
+                              {kind === "wanted"
+                                ? Number.isFinite(Number((item as WantedPost).quantity))
+                                  ? Math.max(1, Math.floor(Number((item as WantedPost).quantity)))
+                                  : 1
+                                : details.quantity}
+                            </dd>
                           </div>
-                          <div className="flex items-baseline justify-between gap-4">
-                            <dt className="font-semibold text-slate-600">Price type</dt>
-                            <dd className="font-semibold text-slate-900">{priceSuffix}</dd>
-                          </div>
+                          {kind === "wanted" ? (
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="font-semibold text-slate-600">Budget</dt>
+                              <dd className="font-semibold text-slate-900">{budgetLabel(item as WantedPost)}</dd>
+                            </div>
+                          ) : (
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="font-semibold text-slate-600">Price type</dt>
+                              <dd className="font-semibold text-slate-900">{priceSuffix}</dd>
+                            </div>
+                          )}
                           <div className="flex items-baseline justify-between gap-4">
                             <dt className="font-semibold text-slate-600">Location</dt>
                             <dd className="font-semibold text-slate-900">{item.location}</dd>
                           </div>
-                          <div className="flex items-baseline justify-between gap-4">
-                            <dt className="flex items-center gap-1 font-semibold text-slate-600">
-                              <span>Shipping</span>
-                              {details.willingToShip ? <ShippingInfoButton mode="receiver" size="sm" /> : null}
-                            </dt>
-                            <dd
-                              className={[
-                                "flex items-center justify-end font-semibold",
-                                details.willingToShip ? "text-emerald-700" : "text-slate-900",
-                              ].join(" ")}
-                            >
-                              <span>{details.willingToShip ? "Shipping offered" : "Local pickup or delivery only"}</span>
-                            </dd>
-                          </div>
+                          {kind === "sale" ? (
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="flex items-center gap-1 font-semibold text-slate-600">
+                                <span>Shipping</span>
+                                {details.willingToShip ? <ShippingInfoButton mode="receiver" size="sm" /> : null}
+                              </dt>
+                              <dd
+                                className={[
+                                  "flex items-center justify-end font-semibold",
+                                  details.willingToShip ? "text-emerald-700" : "text-slate-900",
+                                ].join(" ")}
+                              >
+                                <span>{details.willingToShip ? "Shipping offered" : "Local pickup or delivery only"}</span>
+                              </dd>
+                            </div>
+                          ) : null}
                         </>
                       );
                     })()}

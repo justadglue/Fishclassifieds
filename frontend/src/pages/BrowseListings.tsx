@@ -171,6 +171,7 @@ export default function BrowseListings() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [bottomScrollPending, setBottomScrollPending] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -302,9 +303,9 @@ export default function BrowseListings() {
     setSp(new URLSearchParams(), { replace: true });
   }
 
-  function scrollToTop() {
+  function scrollToTop(behaviorOverride?: ScrollBehavior) {
     const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
-    const behavior: ScrollBehavior = prefersReducedMotion ? "auto" : "smooth";
+    const behavior: ScrollBehavior = behaviorOverride ?? (prefersReducedMotion ? "auto" : "smooth");
 
     // Prefer scrolling a real element into view so this works even if the page is inside a nested scroll container.
     if (topRef.current) {
@@ -313,6 +314,38 @@ export default function BrowseListings() {
     }
 
     window.scrollTo({ top: 0, left: 0, behavior });
+  }
+
+  function scrollToTopFromBottomReliable() {
+    // Paging can cause the pagination UI + result grid to reflow (e.g. "…" appears/disappears) and images can
+    // load after render. Both can interact with browser scroll anchoring and leave the scroll position "partway".
+    // For the *bottom* pager only, do a hard scroll-to-top a few times and temporarily disable anchoring.
+    const prevAnchorHtml = document.documentElement.style.overflowAnchor;
+    const prevAnchorBody = document.body.style.overflowAnchor;
+    document.documentElement.style.overflowAnchor = "none";
+    document.body.style.overflowAnchor = "none";
+
+    const doScroll = () => {
+      scrollToTop("auto");
+      // Also force window top as a backup in case the ref scroll targets a nested container.
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    };
+
+    doScroll();
+    const t1 = window.setTimeout(doScroll, 50);
+    const t2 = window.setTimeout(doScroll, 250);
+    const t3 = window.setTimeout(() => {
+      document.documentElement.style.overflowAnchor = prevAnchorHtml;
+      document.body.style.overflowAnchor = prevAnchorBody;
+    }, 500);
+
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+      document.documentElement.style.overflowAnchor = prevAnchorHtml;
+      document.body.style.overflowAnchor = prevAnchorBody;
+    };
   }
 
   function goPage(p: number) {
@@ -324,15 +357,26 @@ export default function BrowseListings() {
 
   function goPageFromBottom(p: number) {
     if (p === page) return;
+    setBottomScrollPending(true);
     goPage(p);
+  }
 
-    // Defer to avoid any scroll restoration / layout shifts immediately after the URL change.
+  // Bottom pager only: scroll after the next page has actually loaded/rendered.
+  // This avoids browser scroll-anchoring undoing the scroll when the page buttons reflow.
+  useEffect(() => {
+    if (!bottomScrollPending) return;
+    if (loading) return;
+    setBottomScrollPending(false);
+    let cleanup: (() => void) | null = null;
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
-        scrollToTop();
+        cleanup = scrollToTopFromBottomReliable();
       });
     });
-  }
+    return () => {
+      cleanup?.();
+    };
+  }, [bottomScrollPending, loading, page]);
 
   const activeCount = browseType === "sale" ? saleItems.length : wantedItems.length;
   const showingFrom = total === 0 ? 0 : (page - 1) * per + 1;
@@ -627,17 +671,19 @@ export default function BrowseListings() {
                 ))}
             </div>
 
-            <PaginationBar
-              page={Math.min(page, totalPages)}
-              totalPages={totalPages}
-              loading={loading}
-              canPrev={canPrev}
-              canNext={canNext}
-              pageButtons={pageButtons}
-              onPrev={() => goPageFromBottom(page - 1)}
-              onNext={() => goPageFromBottom(page + 1)}
-              onGoPage={goPageFromBottom}
-            />
+            <div style={{ overflowAnchor: "none" }}>
+              <PaginationBar
+                page={Math.min(page, totalPages)}
+                totalPages={totalPages}
+                loading={loading}
+                canPrev={canPrev}
+                canNext={canNext}
+                pageButtons={pageButtons}
+                onPrev={() => goPageFromBottom(page - 1)}
+                onNext={() => goPageFromBottom(page + 1)}
+                onGoPage={goPageFromBottom}
+              />
+            </div>
           </section>
         </div>
       </main>

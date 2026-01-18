@@ -251,23 +251,20 @@ export default function ListingPage() {
                   </div>
                 </div>
 
-                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                  <div className="bg-slate-100">
-                    {/* Image box */}
-                    <div className="relative aspect-4/3 w-full bg-slate-100">
-                      {hero ? (
-                        <img src={hero} alt={item.title} className="h-full w-full object-cover" />
-                      ) : (
-                        <NoPhotoPlaceholder title={item.title} variant="detail" />
-                      )}
+                {assets.length > 0 ? (
+                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                    <div className="bg-slate-100">
+                      {/* Image box */}
+                      <div className="relative aspect-4/3 w-full bg-slate-100">
+                        {hero ? <img src={hero} alt={item.title} className="h-full w-full object-cover" /> : null}
 
-                      {/* Maximize button (top-right) */}
-                      {hero && (
-                        <button
-                          type="button"
-                          onClick={openLightbox}
-                          aria-label="Maximize image"
-                          className="
+                        {/* Maximize button (top-right) */}
+                        {hero && (
+                          <button
+                            type="button"
+                            onClick={openLightbox}
+                            aria-label="Maximize image"
+                            className="
                           absolute right-3 top-3
                           rounded-full border border-white/30
                           bg-slate-900/15 backdrop-blur
@@ -279,20 +276,20 @@ export default function ListingPage() {
                           focus:outline-none
                           focus-visible:ring-2 focus-visible:ring-white/60
                         "
-                          title="View full size"
-                        >
-                          ⤢
-                        </button>
-                      )}
+                            title="View full size"
+                          >
+                            ⤢
+                          </button>
+                        )}
 
-                      {/* Navigation arrows (only if >1 image) */}
-                      {hasMultiple && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={prevImage}
-                            aria-label="Previous image"
-                            className="
+                        {/* Navigation arrows (only if >1 image) */}
+                        {hasMultiple && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={prevImage}
+                              aria-label="Previous image"
+                              className="
                             absolute left-3 top-1/2 -translate-y-1/2
                             rounded-full border border-white/30
                             bg-slate-900/15 backdrop-blur
@@ -304,15 +301,15 @@ export default function ListingPage() {
                             focus:outline-none
                             focus-visible:ring-2 focus-visible:ring-white/60
                           "
-                          >
-                            ‹
-                          </button>
+                            >
+                              ‹
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={nextImage}
-                            aria-label="Next image"
-                            className="
+                            <button
+                              type="button"
+                              onClick={nextImage}
+                              aria-label="Next image"
+                              className="
                             absolute right-3 top-1/2 -translate-y-1/2
                             rounded-full border border-white/30
                             bg-slate-900/15 backdrop-blur
@@ -324,15 +321,14 @@ export default function ListingPage() {
                             focus:outline-none
                             focus-visible:ring-2 focus-visible:ring-white/60
                           "
-                          >
-                            ›
-                          </button>
-                        </>
-                      )}
-                    </div>
+                            >
+                              ›
+                            </button>
+                          </>
+                        )}
+                      </div>
 
-                    {/* Thumbnails */}
-                    {assets.length > 0 && (
+                      {/* Thumbnails */}
                       <div className="flex gap-2 overflow-x-auto p-3">
                         {assets.map((a, i) => (
                           <button
@@ -356,9 +352,15 @@ export default function ListingPage() {
                           </button>
                         ))}
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                    <div className="rounded-xl bg-slate-50 p-6">
+                      <NoPhotoPlaceholder variant="tile" />
+                    </div>
+                  </div>
+                )}
 
                 <div className="rounded-2xl border border-slate-200 bg-white p-5">
                   <div className="text-sm font-extrabold text-slate-900">Description</div>

@@ -161,82 +161,6 @@ function WantedStatusText({ w }: { w: WantedPost }) {
   );
 }
 
-function sortListings(items: Listing[], sortKey: SortKey, sortDir: SortDir, nowMs: number) {
-  const dirMul = sortDir === "asc" ? 1 : -1;
-  const withIdx = items.map((l, idx) => ({ l, idx }));
-
-  function cmpNum(a: number | null, b: number | null) {
-    const av = a ?? Number.POSITIVE_INFINITY;
-    const bv = b ?? Number.POSITIVE_INFINITY;
-    return av === bv ? 0 : av < bv ? -1 : 1;
-  }
-
-  function cmpStr(a: string, b: string) {
-    return a.localeCompare(b, undefined, { sensitivity: "base" });
-  }
-
-  function cmpListing(a: Listing, b: Listing) {
-    if (sortKey === "status") {
-      const r = (statusRank(a) - statusRank(b)) * dirMul;
-      if (r) return r;
-      // Secondary: updated newest first (always).
-      const au = parseMs(a.updatedAt) ?? 0;
-      const bu = parseMs(b.updatedAt) ?? 0;
-      return bu - au;
-    }
-
-    let r = 0;
-    switch (sortKey) {
-      case "listing":
-        r = cmpStr(a.title, b.title) * dirMul;
-        break;
-      case "price":
-        r = (a.priceCents - b.priceCents) * dirMul;
-        break;
-      case "views":
-        r = (Number(a.views ?? 0) - Number(b.views ?? 0)) * dirMul;
-        break;
-      case "created": {
-        const ac = parseMs(a.createdAt);
-        const bc = parseMs(b.createdAt);
-        r = cmpNum(ac, bc) * dirMul;
-        break;
-      }
-      case "updated": {
-        const au = parseMs(a.updatedAt);
-        const bu = parseMs(b.updatedAt);
-        r = cmpNum(au, bu) * dirMul;
-        break;
-      }
-      case "expiresIn": {
-        const ae = parseMs(a.expiresAt);
-        const be = parseMs(b.expiresAt);
-        const an = ae === null ? null : Math.max(0, ae - nowMs);
-        const bn = be === null ? null : Math.max(0, be - nowMs);
-        r = cmpNum(an, bn) * dirMul;
-        break;
-      }
-    }
-
-    if (r) return r;
-    // Secondary: status (asc priority), then updated newest first.
-    const sr = statusRank(a) - statusRank(b);
-    if (sr) return sr;
-    const au = parseMs(a.updatedAt) ?? 0;
-    const bu = parseMs(b.updatedAt) ?? 0;
-    if (bu !== au) return bu - au;
-    return 0;
-  }
-
-  withIdx.sort((aa, bb) => {
-    const r = cmpListing(aa.l, bb.l);
-    if (r) return r;
-    return aa.idx - bb.idx;
-  });
-
-  return withIdx.map((x) => x.l);
-}
-
 function ActionButton(props: {
   label: string;
   title?: string;
@@ -281,6 +205,133 @@ function ActionLink(props: { to: string; label: string; icon?: React.ReactNode }
   );
 }
 
+type RowKind = "sale" | "wanted";
+type MixedRow = { kind: RowKind; key: string; idx: number; sale?: Listing; wanted?: WantedPost };
+
+function sortMixedRows(rows: MixedRow[], sortKey: SortKey, sortDir: SortDir, nowMs: number) {
+  const dirMul = sortDir === "asc" ? 1 : -1;
+  const withIdx = rows.map((r, idx) => ({ r, idx }));
+
+  function cmpStr(a: string, b: string) {
+    return a.localeCompare(b, undefined, { sensitivity: "base" });
+  }
+
+  function cmpNumNullLast(a: number | null, b: number | null) {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return a === b ? 0 : a < b ? -1 : 1;
+  }
+
+  function getTitle(r: MixedRow) {
+    return r.kind === "sale" ? String(r.sale?.title ?? "") : String(r.wanted?.title ?? "");
+  }
+
+  function getPriceSort(r: MixedRow): number | null {
+    if (r.kind === "sale") return Number.isFinite(Number(r.sale?.priceCents)) ? Number(r.sale!.priceCents) : null;
+    const max = r.wanted?.budgetMaxCents ?? null;
+    return Number.isFinite(Number(max)) ? Number(max) : null;
+  }
+
+  function getViewsSort(r: MixedRow): number | null {
+    if (r.kind === "sale") return Number.isFinite(Number(r.sale?.views)) ? Number(r.sale!.views) : 0;
+    return null;
+  }
+
+  function getCreatedMs(r: MixedRow): number | null {
+    const iso = r.kind === "sale" ? r.sale?.createdAt : r.wanted?.createdAt;
+    return parseMs(iso);
+  }
+
+  function getUpdatedMs(r: MixedRow): number | null {
+    const iso = r.kind === "sale" ? r.sale?.updatedAt : r.wanted?.updatedAt;
+    return parseMs(iso);
+  }
+
+  function getExpiresInMs(r: MixedRow): number | null {
+    if (r.kind !== "sale") return null;
+    const exp = parseMs(r.sale?.expiresAt);
+    if (exp == null) return null;
+    return Math.max(0, exp - nowMs);
+  }
+
+  function getStatusRankMixed(r: MixedRow) {
+    if (r.kind === "sale") return statusRank(r.sale!);
+    return r.wanted?.status === "open" ? 0 : 2;
+  }
+
+  function cmpRow(a: MixedRow, b: MixedRow) {
+    if (sortKey === "status") {
+      const r = (getStatusRankMixed(a) - getStatusRankMixed(b)) * dirMul;
+      if (r) return r;
+      // Secondary: updated newest first (always).
+      const au = getUpdatedMs(a) ?? 0;
+      const bu = getUpdatedMs(b) ?? 0;
+      return bu - au;
+    }
+
+    let r = 0;
+    switch (sortKey) {
+      case "listing":
+        r = cmpStr(getTitle(a), getTitle(b)) * dirMul;
+        break;
+      case "price": {
+        const ar = getPriceSort(a);
+        const br = getPriceSort(b);
+        // Nulls always go last, regardless of direction.
+        const base = cmpNumNullLast(ar, br);
+        r = base * (ar == null || br == null ? 1 : dirMul);
+        break;
+      }
+      case "views": {
+        const ar = getViewsSort(a);
+        const br = getViewsSort(b);
+        const base = cmpNumNullLast(ar, br);
+        r = base * (ar == null || br == null ? 1 : dirMul);
+        break;
+      }
+      case "created": {
+        const ar = getCreatedMs(a);
+        const br = getCreatedMs(b);
+        const base = cmpNumNullLast(ar, br);
+        r = base * (ar == null || br == null ? 1 : dirMul);
+        break;
+      }
+      case "updated": {
+        const ar = getUpdatedMs(a);
+        const br = getUpdatedMs(b);
+        const base = cmpNumNullLast(ar, br);
+        r = base * (ar == null || br == null ? 1 : dirMul);
+        break;
+      }
+      case "expiresIn": {
+        const ar = getExpiresInMs(a);
+        const br = getExpiresInMs(b);
+        const base = cmpNumNullLast(ar, br);
+        r = base * (ar == null || br == null ? 1 : dirMul);
+        break;
+      }
+    }
+
+    if (r) return r;
+    // Secondary: status (asc priority), then updated newest first.
+    const sr = getStatusRankMixed(a) - getStatusRankMixed(b);
+    if (sr) return sr;
+    const au = getUpdatedMs(a) ?? 0;
+    const bu = getUpdatedMs(b) ?? 0;
+    if (bu !== au) return bu - au;
+    return 0;
+  }
+
+  withIdx.sort((aa, bb) => {
+    const r = cmpRow(aa.r, bb.r);
+    if (r) return r;
+    return aa.idx - bb.idx;
+  });
+
+  return withIdx.map((x) => x.r);
+}
+
 export default function MyListingsPage() {
   const nav = useNavigate();
   const routerLocation = useLocation();
@@ -291,7 +342,6 @@ export default function MyListingsPage() {
 
   const [items, setItems] = useState<Listing[]>([]);
   const [wantedItems, setWantedItems] = useState<WantedPost[]>([]);
-  const [displayOrder, setDisplayOrder] = useState<string[]>([]);
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "status", dir: "asc" });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -318,9 +368,6 @@ export default function MyListingsPage() {
           if (!cancelled) {
             const nextItems = res.items ?? [];
             setItems(nextItems);
-            // Apply default sort on load (and on hard refresh).
-            const ordered = sortListings(nextItems, sort.key, sort.dir, nowMs).map((l) => l.id);
-            setDisplayOrder(ordered);
           }
         } else {
           const [saleRes, wantedRes] = await Promise.all([
@@ -330,8 +377,6 @@ export default function MyListingsPage() {
           if (!cancelled) {
             const nextItems = saleRes.items ?? [];
             setItems(nextItems);
-            const ordered = sortListings(nextItems, sort.key, sort.dir, nowMs).map((l) => l.id);
-            setDisplayOrder(ordered);
             setWantedItems(wantedRes.items ?? []);
           }
         }
@@ -345,7 +390,7 @@ export default function MyListingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, viewType, nowMs, sort.key, sort.dir]);
+  }, [user, viewType]);
 
   function setViewType(next: "all" | "sale" | "wanted") {
     const nextSp = new URLSearchParams(sp);
@@ -419,7 +464,6 @@ export default function MyListingsPage() {
     try {
       await deleteListing(id);
       setItems((prev) => prev.filter((l) => l.id !== id));
-      setDisplayOrder((prev) => prev.filter((x) => x !== id));
     } catch (e: any) {
       setErr(e?.message ?? "Delete failed");
     }
@@ -493,19 +537,22 @@ export default function MyListingsPage() {
       const same = prev.key === next;
       const dir = same ? (prev.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next];
       const key = next;
-      // Recompute order only on explicit sort click (not when row data changes).
-      setDisplayOrder(sortListings(items, key, dir, nowMs).map((l) => l.id));
       return { key, dir };
     });
   }
 
-  const displayItems = useMemo(() => {
-    const map = new Map(items.map((l) => [l.id, l] as const));
-    const orderedSet = new Set(displayOrder);
-    const ordered = displayOrder.map((id) => map.get(id)).filter((x): x is Listing => !!x);
-    const extras = items.filter((l) => !orderedSet.has(l.id));
-    return [...ordered, ...extras];
-  }, [items, displayOrder]);
+  const mixedRows = useMemo(() => {
+    const out: MixedRow[] = [];
+    if (viewType === "sale" || viewType === "all") {
+      items.forEach((l, idx) => out.push({ kind: "sale", key: `sale:${l.id}`, idx, sale: l }));
+    }
+    if (viewType === "wanted" || viewType === "all") {
+      wantedItems.forEach((w, idx) => out.push({ kind: "wanted", key: `wanted:${w.id}`, idx: 10_000 + idx, wanted: w }));
+    }
+    return out;
+  }, [items, wantedItems, viewType]);
+
+  const sortedRows = useMemo(() => sortMixedRows(mixedRows, sort.key, sort.dir, nowMs), [mixedRows, sort.key, sort.dir, nowMs]);
 
   function SortTh(props: { label: string; k: SortKey; className?: string; title?: string; align?: "left" | "right" | "center" }) {
     const { label, k, className, title, align = "left" } = props;
@@ -643,11 +690,12 @@ export default function MyListingsPage() {
                   </tr>
                 </thead>
 
-                {/* For sale rows */}
-                {(viewType === "sale" || viewType === "all") &&
-                  displayItems.map((l, idx) => {
-                    const rowBorder = idx === 0 ? "" : "border-t border-slate-200";
+                {sortedRows.map((row, idx) => {
+                  const rowBorder = idx === 0 ? "" : "border-t border-slate-200";
+                  const isExpanded = expandedId === row.key;
 
+                  if (row.kind === "sale") {
+                    const l = row.sale!;
                     const assets = resolveAssets(l.images ?? []);
                     const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
 
@@ -657,12 +705,10 @@ export default function MyListingsPage() {
                     const toggleTitle = l.status === "paused" ? "Resume" : "Pause";
                     const canFeature = l.status === "active" && l.resolution === "none";
                     const isSold = l.resolution === "sold";
-                    const expandedKey = `sale:${l.id}`;
-                    const isExpanded = expandedId === expandedKey;
 
                     return (
-                      <tbody key={expandedKey} className="group">
-                        <tr className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")} onClick={() => toggleExpanded(expandedKey)}>
+                      <tbody key={row.key} className="group">
+                        <tr className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")} onClick={() => toggleExpanded(row.key)}>
                           <td className="px-4 py-4 align-top text-left">
                             <div className="flex min-h-20 items-center gap-3">
                               <Link
@@ -691,9 +737,7 @@ export default function MyListingsPage() {
                                   <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
                                     For sale
                                   </span>
-                                  <span className="min-w-0 truncate">
-                                    {l.category} • {l.species} • {l.location}
-                                  </span>
+                                  <span className="min-w-0 truncate">{l.category} • {l.species} • {l.location}</span>
                                 </div>
                                 <div className="mt-1">{renderFeaturedText(l)}</div>
                               </div>
@@ -729,10 +773,11 @@ export default function MyListingsPage() {
                           </td>
 
                           <td className="px-4 py-4 align-top text-center">
-                            <div className="flex justify-center"
+                            <div
+                              className="flex justify-center"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                toggleExpanded(expandedKey);
+                                toggleExpanded(row.key);
                               }}
                             >
                               <ActionButton label={isExpanded ? "Hide" : "Actions"} title={isExpanded ? "Hide actions" : "Show actions"} />
@@ -741,7 +786,7 @@ export default function MyListingsPage() {
                         </tr>
 
                         {isExpanded && (
-                          <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(expandedKey)}>
+                          <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(row.key)}>
                             <td colSpan={8} className="px-4 pb-4 pt-0">
                               <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
                                 {!isSold ? (
@@ -803,133 +848,115 @@ export default function MyListingsPage() {
                         )}
                       </tbody>
                     );
-                  })}
+                  }
 
-                {/* Divider between types in All */}
-                {viewType === "all" && displayItems.length > 0 && wantedItems.length > 0 ? (
-                  <tbody>
-                    <tr className="border-t border-slate-200 bg-slate-50">
-                      <td colSpan={8} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600">
-                        Wanted
-                      </td>
-                    </tr>
-                  </tbody>
-                ) : null}
+                  const w = row.wanted!;
+                  const assets = resolveAssets(w.images ?? []);
+                  const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
 
-                {/* Wanted rows */}
-                {(viewType === "wanted" || viewType === "all") &&
-                  wantedItems.map((w, idx) => {
-                    const rowBorder =
-                      viewType === "wanted" && idx === 0 ? "" : viewType !== "wanted" && displayItems.length > 0 && idx === 0 ? "" : "border-t border-slate-200";
+                  return (
+                    <tbody key={row.key} className="group">
+                      <tr className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")} onClick={() => toggleExpanded(row.key)}>
+                        <td className="px-4 py-4 align-top text-left">
+                          <div className="flex min-h-20 items-center gap-3">
+                            <Link
+                              to={`/wanted/${w.id}`}
+                              state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+                            >
+                              {hero ? (
+                                <img src={hero} alt={w.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                              ) : (
+                                <NoPhotoPlaceholder variant="tile" className="px-1 text-center" />
+                              )}
+                            </Link>
 
-                    const assets = resolveAssets(w.images ?? []);
-                    const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
-
-                    const expandedKey = `wanted:${w.id}`;
-                    const isExpanded = expandedId === expandedKey;
-
-                    return (
-                      <tbody key={expandedKey} className="group">
-                        <tr className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")} onClick={() => toggleExpanded(expandedKey)}>
-                          <td className="px-4 py-4 align-top text-left">
-                            <div className="flex min-h-20 items-center gap-3">
+                            <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
                               <Link
                                 to={`/wanted/${w.id}`}
                                 state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
                                 onClick={(e) => e.stopPropagation()}
-                                className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+                                className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
                               >
-                                {hero ? (
-                                  <img src={hero} alt={w.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                                ) : (
-                                  <NoPhotoPlaceholder variant="tile" className="px-1 text-center" />
-                                )}
+                                {w.title}
                               </Link>
-
-                              <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
-                                <Link
-                                  to={`/wanted/${w.id}`}
-                                  state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
-                                >
-                                  {w.title}
-                                </Link>
-                                <div className="mt-1 flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-600">
-                                  <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
-                                    Wanted
-                                  </span>
-                                  <span className="min-w-0 truncate">
-                                    {w.category}
-                                    {w.species ? ` • ${w.species}` : ""} • {w.location}
-                                  </span>
-                                </div>
+                              <div className="mt-1 flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-600">
+                                <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                  Wanted
+                                </span>
+                                <span className="min-w-0 truncate">
+                                  {w.category}
+                                  {w.species ? ` • ${w.species}` : ""} • {w.location}
+                                </span>
                               </div>
                             </div>
-                          </td>
+                          </div>
+                        </td>
 
-                          <td className="px-4 py-4 align-top text-right">
-                            <div className="text-sm font-extrabold text-slate-900">{budgetLabel(w)}</div>
-                          </td>
+                        <td className="px-4 py-4 align-top text-right">
+                          <div className="text-sm font-extrabold text-slate-900">{budgetLabel(w)}</div>
+                        </td>
 
-                          <td className="px-4 py-4 align-top text-right">
-                            <div className="text-sm font-semibold text-slate-600">—</div>
-                          </td>
+                        <td className="px-4 py-4 align-top text-right">
+                          <div className="text-sm font-semibold text-slate-600">—</div>
+                        </td>
 
-                          <td className="px-4 py-4 align-top text-left">
-                            <WantedStatusText w={w} />
-                          </td>
+                        <td className="px-4 py-4 align-top text-left">
+                          <WantedStatusText w={w} />
+                        </td>
 
-                          <td className="px-4 py-4 align-top text-left">
-                            <div className="text-sm font-semibold text-slate-700">{new Date(w.createdAt).toLocaleDateString()}</div>
-                          </td>
+                        <td className="px-4 py-4 align-top text-left">
+                          <div className="text-sm font-semibold text-slate-700">{new Date(w.createdAt).toLocaleDateString()}</div>
+                        </td>
 
-                          <td className="px-4 py-4 align-top text-left">
-                            <div className="text-sm font-semibold text-slate-700" title={new Date(w.updatedAt).toLocaleString()}>
-                              {relativeTime(w.updatedAt)}
-                            </div>
-                          </td>
+                        <td className="px-4 py-4 align-top text-left">
+                          <div className="text-sm font-semibold text-slate-700" title={new Date(w.updatedAt).toLocaleString()}>
+                            {relativeTime(w.updatedAt)}
+                          </div>
+                        </td>
 
-                          <td className="px-4 py-4 align-top text-right">
-                            <div className="text-sm font-semibold text-slate-600">—</div>
-                          </td>
+                        <td className="px-4 py-4 align-top text-right">
+                          <div className="text-sm font-semibold text-slate-600">—</div>
+                        </td>
 
-                          <td className="px-4 py-4 align-top text-center">
-                            <div className="flex justify-center"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleExpanded(expandedKey);
-                              }}
-                            >
-                              <ActionButton label={isExpanded ? "Hide" : "Actions"} title={isExpanded ? "Hide actions" : "Show actions"} />
+                        <td className="px-4 py-4 align-top text-center">
+                          <div
+                            className="flex justify-center"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleExpanded(row.key);
+                            }}
+                          >
+                            <ActionButton label={isExpanded ? "Hide" : "Actions"} title={isExpanded ? "Hide actions" : "Show actions"} />
+                          </div>
+                        </td>
+                      </tr>
+
+                      {isExpanded && (
+                        <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(row.key)}>
+                          <td colSpan={8} className="px-4 pb-4 pt-0">
+                            <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              <ActionLink to={`/wanted/edit/${w.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
+                              <ActionButton
+                                label={w.status === "open" ? "Close" : "Reopen"}
+                                title={w.status === "open" ? "Close wanted post" : "Reopen wanted post"}
+                                onClick={() => onToggleWantedStatus(w)}
+                              />
+                              <ActionButton
+                                label="Delete"
+                                title="Delete wanted post"
+                                variant="danger"
+                                onClick={() => onDeleteWanted(w.id)}
+                                icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
+                              />
                             </div>
                           </td>
                         </tr>
-
-                        {isExpanded && (
-                          <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(expandedKey)}>
-                            <td colSpan={8} className="px-4 pb-4 pt-0">
-                              <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                <ActionLink to={`/wanted/edit/${w.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
-                                <ActionButton
-                                  label={w.status === "open" ? "Close" : "Reopen"}
-                                  title={w.status === "open" ? "Close wanted post" : "Reopen wanted post"}
-                                  onClick={() => onToggleWantedStatus(w)}
-                                />
-                                <ActionButton
-                                  label="Delete"
-                                  title="Delete wanted post"
-                                  variant="danger"
-                                  onClick={() => onDeleteWanted(w.id)}
-                                  icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
-                                />
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    );
-                  })}
+                      )}
+                    </tbody>
+                  );
+                })}
               </table>
             </div>
           </div>

@@ -507,8 +507,8 @@ export default function MyListingsPage() {
     return [...ordered, ...extras];
   }, [items, displayOrder]);
 
-  function SortTh(props: { label: string; k: SortKey; className?: string; title?: string }) {
-    const { label, k, className, title } = props;
+  function SortTh(props: { label: string; k: SortKey; className?: string; title?: string; align?: "left" | "right" | "center" }) {
+    const { label, k, className, title, align = "left" } = props;
     const active = sort.key === k;
     const icon = !active ? (
       <ArrowUpDown aria-hidden="true" className="h-4 w-4 text-slate-400" />
@@ -518,13 +518,16 @@ export default function MyListingsPage() {
       <MoveDown aria-hidden="true" className="h-3 w-4 text-slate-400" />
     );
 
+    const thAlign = align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
+    const btnJustify = align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start";
+
     return (
-      <th className={className}>
+      <th className={[thAlign, className].filter(Boolean).join(" ")}>
         <button
           type="button"
           onClick={() => toggleSort(k)}
           title={title ?? `Sort by ${label}`}
-          className="inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100"
+          className={["inline-flex w-full items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100", btnJustify].join(" ")}
         >
           <span>{label}</span>
           {icon}
@@ -628,15 +631,15 @@ export default function MyListingsPage() {
             <div className="overflow-x-auto lg:overflow-x-visible">
               <table className="w-full min-w-[1080px] lg:min-w-0">
                 <thead className="bg-slate-50">
-                  <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-600">
-                    <SortTh label="Listing" k="listing" className="px-4 py-3" />
-                    <SortTh label="Price" k="price" className="px-4 py-3" />
-                    <SortTh label="Views" k="views" className="px-4 py-3" />
-                    <SortTh label="Status" k="status" className="px-4 py-3" title="Default: Status then Updated" />
-                    <SortTh label="Created" k="created" className="px-4 py-3" />
-                    <SortTh label="Updated" k="updated" className="px-4 py-3" />
-                    <SortTh label="Expires in" k="expiresIn" className="px-4 py-3" />
-                    <th className="px-4 py-3">Actions</th>
+                  <tr className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    <SortTh label="Listing" k="listing" className="px-4 py-3" align="left" />
+                    <SortTh label="Price" k="price" className="px-4 py-3" align="right" />
+                    <SortTh label="Views" k="views" className="px-4 py-3" align="right" />
+                    <SortTh label="Status" k="status" className="px-4 py-3" title="Default: Status then Updated" align="left" />
+                    <SortTh label="Created" k="created" className="px-4 py-3" align="left" />
+                    <SortTh label="Updated" k="updated" className="px-4 py-3" align="left" />
+                    <SortTh label="Expires in" k="expiresIn" className="px-4 py-3" align="right" />
+                    <th className="px-4 py-3 text-center">Actions</th>
                   </tr>
                 </thead>
 
@@ -660,7 +663,7 @@ export default function MyListingsPage() {
                     return (
                       <tbody key={expandedKey} className="group">
                         <tr className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")} onClick={() => toggleExpanded(expandedKey)}>
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top text-left">
                             <div className="flex min-h-20 items-center gap-3">
                               <Link
                                 to={`/listing/${l.id}`}
@@ -671,7 +674,7 @@ export default function MyListingsPage() {
                                 {hero ? (
                                   <img src={hero} alt={l.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                                 ) : (
-                                  <NoPhotoPlaceholder variant="tile" />
+                                  <NoPhotoPlaceholder variant="tile" className="px-1 text-center" />
                                 )}
                               </Link>
 
@@ -692,36 +695,36 @@ export default function MyListingsPage() {
                             </div>
                           </td>
 
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top text-right">
                             <div className="text-sm font-extrabold text-slate-900">{centsToDollars(l.priceCents)}</div>
                           </td>
 
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top text-right">
                             <div className="text-sm font-semibold text-slate-700">{Number(l.views ?? 0).toLocaleString()}</div>
                           </td>
 
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top text-left">
                             <StatusText l={l} />
                           </td>
 
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top text-left">
                             <div className="text-sm font-semibold text-slate-700">{new Date(l.createdAt).toLocaleDateString()}</div>
                           </td>
 
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top text-left">
                             <div className="text-sm font-semibold text-slate-700" title={new Date(l.updatedAt).toLocaleString()}>
                               {relativeTime(l.updatedAt)}
                             </div>
                           </td>
 
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top text-right">
                             <div className="text-sm font-semibold text-slate-700" title={l.expiresAt ? new Date(l.expiresAt).toLocaleString() : ""}>
                               {expiresInShort(l.expiresAt)}
                             </div>
                           </td>
 
-                          <td className="px-4 py-4 align-top">
-                            <div
+                          <td className="px-4 py-4 align-top text-center">
+                            <div className="flex justify-center"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 toggleExpanded(expandedKey);
@@ -823,7 +826,7 @@ export default function MyListingsPage() {
                     return (
                       <tbody key={expandedKey} className="group">
                         <tr className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")} onClick={() => toggleExpanded(expandedKey)}>
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top text-left">
                             <div className="flex min-h-20 items-center gap-3">
                               <Link
                                 to={`/wanted/${w.id}`}
@@ -834,7 +837,7 @@ export default function MyListingsPage() {
                                 {hero ? (
                                   <img src={hero} alt={w.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                                 ) : (
-                                  <NoPhotoPlaceholder variant="tile" />
+                                  <NoPhotoPlaceholder variant="tile" className="px-1 text-center" />
                                 )}
                               </Link>
 
@@ -855,34 +858,34 @@ export default function MyListingsPage() {
                             </div>
                           </td>
 
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top text-right">
                             <div className="text-sm font-extrabold text-slate-900">{budgetLabel(w)}</div>
                           </td>
 
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top text-right">
                             <div className="text-sm font-semibold text-slate-600">—</div>
                           </td>
 
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top text-left">
                             <WantedStatusText w={w} />
                           </td>
 
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top text-left">
                             <div className="text-sm font-semibold text-slate-700">{new Date(w.createdAt).toLocaleDateString()}</div>
                           </td>
 
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top text-left">
                             <div className="text-sm font-semibold text-slate-700" title={new Date(w.updatedAt).toLocaleString()}>
                               {relativeTime(w.updatedAt)}
                             </div>
                           </td>
 
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top text-right">
                             <div className="text-sm font-semibold text-slate-600">—</div>
                           </td>
 
-                          <td className="px-4 py-4 align-top">
-                            <div
+                          <td className="px-4 py-4 align-top text-center">
+                            <div className="flex justify-center"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 toggleExpanded(expandedKey);

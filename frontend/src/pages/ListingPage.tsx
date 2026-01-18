@@ -156,6 +156,8 @@ export default function ListingPage() {
           ? `(${wantedDetails.customPriceText})`
           : "(custom)";
 
+  const wantedHasBudget = kind === "wanted" ? (item as WantedPost | null)?.budgetCents != null : false;
+
   const qtyLabel = kind === "wanted" ? `Qty ${(item as any)?.quantity ?? 1} wanted` : `Qty ${details.quantity} available`;
   const postedAgo = item?.createdAt ? timeAgo(item.createdAt) : "";
 
@@ -431,7 +433,7 @@ export default function ListingPage() {
                     <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Budget</div>
                     <div className="mt-1 flex items-baseline gap-2">
                       <div className="text-2xl font-extrabold text-slate-900">{budgetLabel(item as WantedPost)}</div>
-                      <div className="text-sm font-semibold text-slate-600">{wantedPriceSuffix}</div>
+                      {wantedHasBudget ? <div className="text-sm font-semibold text-slate-600">{wantedPriceSuffix}</div> : null}
                     </div>
                     <div className="mt-2 text-sm font-semibold text-slate-700">
                       <span className="text-slate-500">{qtyLabel}</span>
@@ -556,10 +558,19 @@ export default function ListingPage() {
                                 : details.quantity}
                             </dd>
                           </div>
-                          <div className="flex items-baseline justify-between gap-4">
-                            <dt className="font-semibold text-slate-600">Price type</dt>
-                            <dd className="font-semibold text-slate-900">{kind === "wanted" ? wantedPriceSuffix : priceSuffix}</dd>
-                          </div>
+                          {kind === "wanted" ? (
+                            wantedHasBudget ? (
+                              <div className="flex items-baseline justify-between gap-4">
+                                <dt className="font-semibold text-slate-600">Price type</dt>
+                                <dd className="font-semibold text-slate-900">{wantedPriceSuffix}</dd>
+                              </div>
+                            ) : null
+                          ) : (
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="font-semibold text-slate-600">Price type</dt>
+                              <dd className="font-semibold text-slate-900">{priceSuffix}</dd>
+                            </div>
+                          )}
                           <div className="flex items-baseline justify-between gap-4">
                             <dt className="font-semibold text-slate-600">Location</dt>
                             <dd className="font-semibold text-slate-900">{item.location}</dd>

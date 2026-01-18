@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { fetchListings, resolveAssets, type Listing } from "../api";
+import { fetchFeatured, resolveAssets, type FeaturedItem, type Listing, type WantedPost } from "../api";
 import { useAuth } from "../auth";
 import Header from "../components/Header";
 import homepageBackground from "../assets/homepage_background_1.jpg";
@@ -17,15 +17,30 @@ function featuredHeroUrl(listing: Listing) {
   return hero;
 }
 
-function FeaturedCard({ item }: { item: Listing }) {
-  const hero = featuredHeroUrl(item);
+function featuredHeroUrlWanted(w: WantedPost) {
+  const assets = resolveAssets(w.images ?? []);
+  const hero = assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+  return hero;
+}
+
+function budgetLabel(w: WantedPost) {
+  const min = w.budgetMinCents ?? null;
+  const max = w.budgetMaxCents ?? null;
+  if (min == null && max == null) return "Unspecified";
+  if (min != null && max != null) return `${centsToDollars(min)}–${centsToDollars(max)}`;
+  if (min != null) return `${centsToDollars(min)}+`;
+  return `Under ${centsToDollars(max!)}`;
+}
+
+function FeaturedCard({ item }: { item: FeaturedItem }) {
+  const hero = item.kind === "sale" ? featuredHeroUrl(item.item) : featuredHeroUrlWanted(item.item);
   return (
     <div className="group min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
       <div className="relative aspect-4/3 w-full bg-slate-100">
         {hero ? (
           <img
             src={hero}
-            alt={item.title}
+            alt={item.item.title}
             className="h-full w-full object-cover opacity-90 transition-transform duration-300 group-hover:scale-[1.02]"
             loading="lazy"
             decoding="async"
@@ -34,19 +49,19 @@ function FeaturedCard({ item }: { item: Listing }) {
           <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">No image</div>
         )}
         <div className="absolute left-3 top-3 rounded-full bg-slate-900 px-2 py-1 text-[11px] font-bold text-white">
-          Featured
+         {item.kind === "wanted" ? "Wanted" : "For sale"}
         </div>
       </div>
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="truncate text-sm font-extrabold text-slate-900">{item.title}</div>
+            <div className="truncate text-sm font-extrabold text-slate-900">{item.item.title}</div>
             <div className="mt-1 truncate text-xs font-semibold text-slate-600">
-              {item.category} • {item.species} • {item.location}
+              {item.item.category} • {item.kind === "sale" ? item.item.species : item.item.species ?? "—"} • {item.item.location}
             </div>
           </div>
           <div className="shrink-0 rounded-xl bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">
-            {centsToDollars(item.priceCents)}
+            {item.kind === "sale" ? centsToDollars(item.item.priceCents) : budgetLabel(item.item)}
           </div>
         </div>
       </div>
@@ -54,7 +69,7 @@ function FeaturedCard({ item }: { item: Listing }) {
   );
 }
 
-type FeaturedTile = { kind: "listing"; listing: Listing } | { kind: "promo" };
+type FeaturedTile = { kind: "sale"; item: Listing } | { kind: "wanted"; item: WantedPost } | { kind: "promo" };
 
 function FeaturedPromoCard() {
   return (
@@ -119,7 +134,7 @@ export default function HomePage() {
   const nav = useNavigate();
   const routerLocation = useLocation();
   const { user, loading: authLoading } = useAuth();
-  const [featured, setFeatured] = useState<Listing[]>([]);
+  const [featured, setFeatured] = useState<FeaturedItem[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
   const [featuredErr, setFeaturedErr] = useState<string | null>(null);
   const [featuredIndex, setFeaturedIndex] = useState(0);
@@ -200,7 +215,7 @@ export default function HomePage() {
       setFeaturedErr(null);
       try {
         // Fetch more than the visible count so the carousel can scroll and show arrows when overflow exists.
-        const res = await fetchListings({ featured: true, sort: "newest", limit: 24, offset: 0 });
+        const res = await fetchFeatured({ limit: 24, offset: 0 });
         if (cancelled) return;
         setFeatured(res.items ?? []);
       } catch (e: any) {
@@ -441,7 +456,7 @@ export default function HomePage() {
                 const VISIBLE_COLS = Math.max(1, featuredCols);
 
                 const tiles: FeaturedTile[] = [
-                  ...featured.map((l) => ({ kind: "listing" as const, listing: l })),
+                  ...featured.map((x) => (x.kind === "sale" ? ({ kind: "sale" as const, item: x.item }) : ({ kind: "wanted" as const, item: x.item }))),
                   // Always show the promo tile as the final item.
                   { kind: "promo" as const },
                 ];
@@ -575,11 +590,11 @@ export default function HomePage() {
                               <div className="flex flex-col gap-4">
                                 {cols[colIdx]?.map((t, r) => {
                                   if (!t) return null;
-                                  if (t.kind === "listing") {
+                                  if (t.kind === "sale") {
                                     return (
                                       <Link
-                                        key={t.listing.id}
-                                        to={`/listing/${t.listing.id}`}
+                                        key={t.item.id}
+                                        to={`/listing/${t.item.id}`}
                                         state={{
                                           from: {
                                             pathname: routerLocation.pathname,
@@ -589,7 +604,25 @@ export default function HomePage() {
                                         }}
                                         className="block min-w-0"
                                       >
-                                        <FeaturedCard item={t.listing} />
+                                        <FeaturedCard item={{ kind: "sale", item: t.item }} />
+                                      </Link>
+                                    );
+                                  }
+                                  if (t.kind === "wanted") {
+                                    return (
+                                      <Link
+                                        key={t.item.id}
+                                        to={`/wanted/${t.item.id}`}
+                                        state={{
+                                          from: {
+                                            pathname: routerLocation.pathname,
+                                            search: routerLocation.search,
+                                            label: "homepage",
+                                          },
+                                        }}
+                                        className="block min-w-0"
+                                      >
+                                        <FeaturedCard item={{ kind: "wanted", item: t.item }} />
                                       </Link>
                                     );
                                   }
@@ -621,11 +654,11 @@ export default function HomePage() {
                                 <div className="flex flex-col gap-4">
                                   {cols[colIdx]?.map((t, r) => {
                                     if (!t) return null;
-                                    if (t.kind === "listing") {
+                                    if (t.kind === "sale") {
                                       return (
                                         <Link
-                                          key={t.listing.id}
-                                          to={`/listing/${t.listing.id}`}
+                                          key={t.item.id}
+                                          to={`/listing/${t.item.id}`}
                                           state={{
                                             from: {
                                               pathname: routerLocation.pathname,
@@ -635,7 +668,25 @@ export default function HomePage() {
                                           }}
                                           className="block min-w-0"
                                         >
-                                          <FeaturedCard item={t.listing} />
+                                          <FeaturedCard item={{ kind: "sale", item: t.item }} />
+                                        </Link>
+                                      );
+                                    }
+                                    if (t.kind === "wanted") {
+                                      return (
+                                        <Link
+                                          key={t.item.id}
+                                          to={`/wanted/${t.item.id}`}
+                                          state={{
+                                            from: {
+                                              pathname: routerLocation.pathname,
+                                              search: routerLocation.search,
+                                              label: "homepage",
+                                            },
+                                          }}
+                                          className="block min-w-0"
+                                        >
+                                          <FeaturedCard item={{ kind: "wanted", item: t.item }} />
                                         </Link>
                                       );
                                     }

@@ -403,6 +403,8 @@ const UpdateWantedSchema = z.object({
   description: z.string().min(1).max(1000).optional(),
   phone: z.string().min(6).max(30).optional(),
   images: ImagesInputSchema.optional(),
+  featured: z.boolean().optional(),
+  featuredUntil: z.number().int().min(0).nullable().optional(),
 });
 
 app.use("/api/auth", authRoutes);
@@ -853,6 +855,62 @@ LIMIT ? OFFSET ?
   });
 });
 
+app.get("/api/featured", (req, res) => {
+  runAutoExpirePass();
+  ensureWantedExpiresAtPass();
+
+  const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 24;
+  const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
+  const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
+
+  const nowMs = Date.now();
+  const totalRow = db
+    .prepare(
+      `
+SELECT COUNT(*) as c
+FROM listings l
+WHERE l.featured = 1
+AND (l.featured_until IS NULL OR l.featured_until > ?)
+AND l.status IN('active','pending')
+AND (
+  (l.listing_type = 0 AND l.resolution = 'none')
+  OR
+  (l.listing_type = 1 AND l.wanted_status = 'open')
+)
+`
+    )
+    .get(nowMs) as any;
+  const total = Number(totalRow?.c ?? 0);
+
+  const rows = db
+    .prepare(
+      `
+SELECT l.*, u.username as user_username
+FROM listings l
+JOIN users u ON u.id = l.user_id
+WHERE l.featured = 1
+AND (l.featured_until IS NULL OR l.featured_until > ?)
+AND l.status IN('active','pending')
+AND (
+  (l.listing_type = 0 AND l.resolution = 'none')
+  OR
+  (l.listing_type = 1 AND l.wanted_status = 'open')
+)
+ORDER BY l.created_at DESC, l.id DESC
+LIMIT ? OFFSET ?
+`
+    )
+    .all(nowMs, limit, offset) as any[];
+
+  const items = rows.map((r) => {
+    const lt = Number((r as any).listing_type ?? 0);
+    return lt === 1 ? ({ kind: "wanted", item: mapWantedRow(req, r) } as const) : ({ kind: "sale", item: mapListing(req, r) } as const);
+  });
+
+  return res.json({ items, total, limit, offset });
+});
+
 app.get("/api/listings", (req, res) => {
   runAutoExpirePass();
   const q = String(req.query.q ?? "").trim().toLowerCase();
@@ -1101,6 +1159,8 @@ function mapWantedRow(req: express.Request, row: any) {
     username: row.user_username ? String(row.user_username) : null,
     sellerAvatarUrl,
     sellerBio,
+    featured: Boolean(Number((row as any).featured ?? 0)),
+    featuredUntil: (row as any).featured_until ?? null,
     views: Number((row as any).views ?? 0),
     title: String(row.title),
     category: String(row.category),
@@ -1371,6 +1431,15 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
 
   const p = parsed.data;
 
+  // Only allow featuring for active, open, unexpired wanted posts.
+  if (p.featured !== undefined || p.featuredUntil !== undefined) {
+    const life = String(row.status ?? "active") as ListingStatus;
+    const wantedStatus = String(row.wanted_status ?? "open");
+    if (life !== "active" || wantedStatus !== "open") {
+      return res.status(400).json({ error: "Only active, open wanted posts can be featured." });
+    }
+  }
+
   const nextMin = p.budgetMinCents !== undefined ? p.budgetMinCents : row.budget_min_cents ?? null;
   const nextMax = p.budgetMaxCents !== undefined ? p.budgetMaxCents : row.budget_max_cents ?? null;
   if (nextMin != null && nextMax != null && nextMin > nextMax) {
@@ -1394,6 +1463,22 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
     budget_min_cents: p.budgetMinCents,
     budget_max_cents: p.budgetMaxCents,
   };
+
+  // Featuring support (same columns as regular listings).
+  if (p.featuredUntil !== undefined) {
+    map.featured_until = p.featuredUntil;
+    // If client sets/clears featured_until but doesn't explicitly set featured, keep them in sync.
+    if (p.featured === undefined) {
+      map.featured = p.featuredUntil === null ? 0 : 1;
+    }
+  }
+  if (p.featured !== undefined) {
+    map.featured = p.featured ? 1 : 0;
+    // Turning off featuring clears the timer unless explicitly provided.
+    if (!p.featured && p.featuredUntil === undefined) {
+      map.featured_until = null;
+    }
+  }
 
   const nextCategory = String(p.category ?? row.category);
   const bioRequired = isBioFieldsRequiredCategory(nextCategory);

@@ -48,6 +48,8 @@ export type WantedPost = {
   username: string | null;
   sellerAvatarUrl?: string | null;
   sellerBio?: string | null;
+  featured?: boolean;
+  featuredUntil?: number | null;
   views?: number;
   title: string;
   category: Category;
@@ -68,6 +70,8 @@ export type WantedPost = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type FeaturedItem = { kind: "sale"; item: Listing } | { kind: "wanted"; item: WantedPost };
 
 const API_BASE = (import.meta as any).env?.VITE_API_URL?.toString().trim() || "http://localhost:3001";
 
@@ -209,6 +213,14 @@ export async function fetchMyWanted(params?: { limit?: number; offset?: number }
   return apiFetch<{ items: WantedPost[]; total: number; limit: number; offset: number }>(`/api/my/wanted${suffix}`);
 }
 
+export async function fetchFeatured(params?: { limit?: number; offset?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<{ items: FeaturedItem[]; total: number; limit: number; offset: number }>(`/api/featured${suffix}`);
+}
+
 export async function fetchListings(params?: {
   q?: string;
   category?: Category;
@@ -299,6 +311,8 @@ export async function updateWantedPost(
     description?: string;
     phone?: string;
     images?: Array<string | ImageAsset>;
+    featured?: boolean;
+    featuredUntil?: number | null;
   }
 ) {
   return apiFetch<WantedPost>(`/api/wanted/${encodeURIComponent(id)}`, {
@@ -306,6 +320,19 @@ export async function updateWantedPost(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
+}
+
+export async function setWantedFeaturingForDays(id: string, days: number) {
+  const ms = Math.max(1, Math.floor(days)) * 24 * 60 * 60 * 1000;
+  return updateWantedPost(id, { featured: true, featuredUntil: Date.now() + ms });
+}
+
+export async function setWantedFeaturingUntilMs(id: string, featuredUntilMs: number) {
+  return updateWantedPost(id, { featured: true, featuredUntil: featuredUntilMs });
+}
+
+export async function clearWantedFeaturing(id: string) {
+  return updateWantedPost(id, { featured: false, featuredUntil: null });
 }
 
 async function postWantedAction(id: string, action: "close" | "reopen") {

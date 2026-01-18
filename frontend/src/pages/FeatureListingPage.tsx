@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
-import { clearListingFeaturing, fetchListing, setListingFeaturingForDays, setListingFeaturingUntilMs, type Listing } from "../api";
+import { clearListingFeaturing, clearWantedFeaturing, fetchListing, fetchWantedPost, setListingFeaturingForDays, setListingFeaturingUntilMs, setWantedFeaturingForDays, setWantedFeaturingUntilMs, type Listing, type WantedPost } from "../api";
 import { useAuth } from "../auth";
 
 export default function FeatureListingPage() {
@@ -9,7 +9,7 @@ export default function FeatureListingPage() {
   const nav = useNavigate();
   const { user, loading: authLoading } = useAuth();
 
-  const [item, setItem] = useState<Listing | null>(null);
+  const [item, setItem] = useState<{ kind: "sale"; item: Listing } | { kind: "wanted"; item: WantedPost } | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -30,8 +30,13 @@ export default function FeatureListingPage() {
       setErr(null);
       setLoading(true);
       try {
-        const l = await fetchListing(id);
-        if (!cancelled) setItem(l);
+        try {
+          const l = await fetchListing(id);
+          if (!cancelled) setItem({ kind: "sale", item: l });
+        } catch {
+          const w = await fetchWantedPost(id);
+          if (!cancelled) setItem({ kind: "wanted", item: w });
+        }
       } catch (e: any) {
         if (!cancelled) setErr(e?.message ?? "Failed to load listing");
       } finally {
@@ -46,14 +51,15 @@ export default function FeatureListingPage() {
 
   const canBeFeatured = useMemo(() => {
     if (!item) return false;
-    return item.status === "active" && item.resolution === "none";
+    if (item.kind === "sale") return item.item.status === "active" && item.item.resolution === "none";
+    return item.item.lifecycleStatus === "active" && item.item.status === "open";
   }, [item]);
 
   const featuringState = useMemo<"none" | "active" | "expired">(() => {
     if (!item) return "none";
-    const until = item.featuredUntil ?? null;
+    const until = item.item.featuredUntil ?? null;
     if (until !== null) return until > Date.now() ? "active" : "expired";
-    return item.featured ? "active" : "none";
+    return item.item.featured ? "active" : "none";
   }, [item]);
 
   async function onConfirm(featured: boolean) {
@@ -62,12 +68,17 @@ export default function FeatureListingPage() {
     setBusy(true);
     try {
       if (featured) {
-        if (plan === "7d") await setListingFeaturingForDays(id, 7);
-        else if (plan === "30d") await setListingFeaturingForDays(id, 30);
-        else if (plan === "15h") await setListingFeaturingUntilMs(id, Date.now() + 15 * 60 * 60 * 1000);
-        else await setListingFeaturingUntilMs(id, Date.now() - 10 * 60 * 60 * 1000); // expired dev option
+        if (!item) return;
+        const setForDays = item.kind === "sale" ? setListingFeaturingForDays : setWantedFeaturingForDays;
+        const setUntil = item.kind === "sale" ? setListingFeaturingUntilMs : setWantedFeaturingUntilMs;
+        if (plan === "7d") await setForDays(id, 7);
+        else if (plan === "30d") await setForDays(id, 30);
+        else if (plan === "15h") await setUntil(id, Date.now() + 15 * 60 * 60 * 1000);
+        else await setUntil(id, Date.now() - 10 * 60 * 60 * 1000); // expired dev option
       } else {
-        await clearListingFeaturing(id);
+        if (!item) return;
+        if (item.kind === "sale") await clearListingFeaturing(id);
+        else await clearWantedFeaturing(id);
       }
       nav("/me");
     } catch (e: any) {
@@ -101,9 +112,9 @@ export default function FeatureListingPage() {
           <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_360px]">
             <section className="rounded-2xl border border-slate-200 bg-white p-5">
               <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Listing</div>
-              <div className="mt-2 text-lg font-extrabold text-slate-900">{item.title}</div>
+              <div className="mt-2 text-lg font-extrabold text-slate-900">{item.item.title}</div>
               <div className="mt-1 text-sm font-semibold text-slate-600">
-                {item.category} • {item.species} • {item.location}
+                {item.item.category} • {"species" in item.item && item.item.species ? item.item.species : "—"} • {item.item.location}
               </div>
 
               {featuringState === "active" ? (

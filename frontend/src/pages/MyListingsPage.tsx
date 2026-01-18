@@ -407,9 +407,12 @@ export default function MyListingsPage() {
   }, []);
 
   function renderFeaturedText(l: Listing) {
+    return renderFeaturedTextAny(l.featured, l.featuredUntil ?? null);
+  }
+
+  function renderFeaturedTextAny(featured: boolean | undefined, until: number | null) {
     // We show this line if there is an active/expired featuring timer, or if the legacy `featured` flag is set.
-    const until = l.featuredUntil ?? null;
-    const shouldShow = Boolean(l.featured) || until !== null;
+    const shouldShow = Boolean(featured) || until !== null;
     if (!shouldShow) return null;
 
     // Legacy fallback (no timer set)
@@ -890,6 +893,7 @@ export default function MyListingsPage() {
                                   {w.species ? ` • ${w.species}` : ""} • {w.location}
                                 </span>
                               </div>
+                              <div className="mt-1">{renderFeaturedTextAny(Boolean(w.featured), w.featuredUntil ?? null)}</div>
                             </div>
                           </div>
                         </td>
@@ -939,6 +943,19 @@ export default function MyListingsPage() {
                         <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(row.key)}>
                           <td colSpan={8} className="px-4 pb-4 pt-0">
                             <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              {(() => {
+                                const canFeature = w.lifecycleStatus === "active" && w.status === "open";
+                                return (
+                                  <ActionButton
+                                    label={w.featured ? "Manage featuring" : "Feature this listing"}
+                                    title={!canFeature ? "Only active, open wanted posts can be featured." : w.featured ? "Manage featuring" : "Feature this listing"}
+                                    variant="feature"
+                                    disabled={!canFeature}
+                                    onClick={() => nav(`/feature/${encodeURIComponent(w.id)}`)}
+                                    icon={w.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
+                                  />
+                                );
+                              })()}
                               <ActionLink to={`/wanted/edit/${w.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
                               <ActionButton
                                 label={w.status === "open" ? "Close" : "Reopen"}

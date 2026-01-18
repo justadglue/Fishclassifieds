@@ -1310,7 +1310,8 @@ function WantedEditForm() {
               </label>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            {/* Row: Species + Water type + Sex + Age (match wanted post layout) */}
+            <div className="grid gap-3 sm:grid-cols-4">
               <label className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Species {bioFieldsRequiredForUser ? <span className="text-red-600">*</span> : null}</div>
                 <input
@@ -1451,20 +1452,24 @@ function WantedEditForm() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
+                <div className="mb-1 text-xs font-semibold text-slate-700">
+                  Phone number <span className="text-red-600">*</span>
+                </div>
                 <input
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                   disabled={saving || !isOwner}
                   className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
                 />
               </label>
 
               <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Phone number</div>
+                <div className="mb-1 text-xs font-semibold text-slate-700">
+                  Location <span className="text-red-600">*</span>
+                </div>
                 <input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
                   disabled={saving || !isOwner}
                   className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
                 />

@@ -20,10 +20,9 @@ import {
   deleteListing,
   fetchMyListings,
   fetchMyWanted,
-  resolveAssets,
   pauseListing,
   pauseWantedPost,
-  relistWantedPost,
+  resolveAssets,
   resumeListing,
   resumeWantedPost,
   markSold,
@@ -524,6 +523,8 @@ export default function MyListingsPage() {
   async function onCloseWanted(w: WantedPost) {
     setErr(null);
     try {
+      const ok = window.confirm("Mark this wanted post as closed? It will be hidden from public browsing.");
+      if (!ok) return;
       const updated = await closeWantedPost(w.id);
       setWantedItems((prev) => prev.map((x) => (x.id === w.id ? updated : x)));
       setExpandedId(`wanted:${w.id}`);
@@ -533,14 +534,9 @@ export default function MyListingsPage() {
   }
 
   async function onRelistWanted(w: WantedPost) {
-    setErr(null);
-    try {
-      const updated = await relistWantedPost(w.id);
-      setWantedItems((prev) => prev.map((x) => (x.id === w.id ? updated : x)));
-      setExpandedId(`wanted:${w.id}`);
-    } catch (e: any) {
-      setErr(e?.message ?? "Failed to relist wanted post");
-    }
+    const ok = window.confirm("Relist this wanted post? You'll review and confirm details before relisting.");
+    if (!ok) return;
+    nav(`/wanted/edit/${encodeURIComponent(w.id)}?relist=1`);
   }
 
   async function onDeleteWanted(id: string) {
@@ -569,6 +565,8 @@ export default function MyListingsPage() {
   async function doSold(id: string) {
     setErr(null);
     try {
+      const ok = window.confirm("Mark this listing as sold? This will deactivate it and hide it from browsing.");
+      if (!ok) return;
       const updated = await markSold(id);
       setItems((prev) => prev.map((x) => (x.id === id ? updated : x)));
       setExpandedId(`sale:${id}`);
@@ -579,6 +577,8 @@ export default function MyListingsPage() {
 
   async function doRelist(id: string) {
     setErr(null);
+    const ok = window.confirm("Relist this listing? You'll review and confirm details before relisting.");
+    if (!ok) return;
     nav(`/edit/${encodeURIComponent(id)}?relist=1`);
   }
 

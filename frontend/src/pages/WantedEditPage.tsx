@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
 import {
   type ImageAsset,
+  createWantedPost,
+  deleteWantedPost,
   fetchWantedPost,
   getListingOptionsCached,
   updateWantedPost,
@@ -32,6 +34,8 @@ export default function WantedEditPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { user, loading } = useAuth();
+  const [sp] = useSearchParams();
+  const relistMode = sp.get("relist") === "1";
   const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
   const [initialPhotoAssets, setInitialPhotoAssets] = useState<ImageAsset[]>([]);
 
@@ -179,6 +183,29 @@ export default function WantedEditPage() {
         throw new Error("Images were selected but none uploaded successfully. Remove broken images or retry upload.");
       }
 
+      if (relistMode) {
+        // Relist: create a new wanted post with these details, then archive the old one.
+        const created = await createWantedPost({
+          title: title.trim(),
+          category,
+          species: bioFieldsEnabled ? (species.trim() ? species.trim() : null) : null,
+          waterType: bioFieldsEnabled && waterType ? waterType : null,
+          sex: bioFieldsEnabled && sex ? sex : null,
+          age: age.trim(),
+          quantity: qty,
+          budgetMinCents: dollarsToCents(minBudget),
+          budgetMaxCents: dollarsToCents(maxBudget),
+          location: location.trim(),
+          phone: phoneTrim,
+          description: description.trim(),
+          images: uploadedAssets,
+        });
+
+        await deleteWantedPost(id);
+        nav(`/wanted/${created.id}`);
+        return;
+      }
+
       const updated = await updateWantedPost(id, {
         title: title.trim(),
         category,
@@ -206,7 +233,7 @@ export default function WantedEditPage() {
     <div className="min-h-full">
       <Header maxWidth="6xl" />
       <main className="mx-auto max-w-3xl px-4 py-8">
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Edit wanted</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">{relistMode ? "Relist wanted" : "Edit wanted"}</h1>
 
         {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
         {!item && !err && (

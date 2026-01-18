@@ -3,7 +3,7 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { fetchListings, fetchWanted, getListingOptionsCached, resolveAssets, type Category, type Listing, type WantedPost, type WantedStatus } from "../api";
 import Header from "../components/Header";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
-import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
+import { decodeSaleDetailsFromDescription, decodeWantedDetailsFromDescription } from "../utils/listingDetailsBlock";
 
 type SortMode = "newest" | "price_asc" | "price_desc";
 type PageSize = 12 | 24 | 48 | 96;
@@ -29,6 +29,12 @@ function relativeTime(iso: string) {
 
 function descriptionPreview(raw: string) {
   const decoded = decodeSaleDetailsFromDescription(raw);
+  const body = decoded.hadPrefix ? decoded.body : raw;
+  return body.replace(/\s+/g, " ").trim();
+}
+
+function wantedDescriptionPreview(raw: string) {
+  const decoded = decodeWantedDetailsFromDescription(raw);
   const body = decoded.hadPrefix ? decoded.body : raw;
   return body.replace(/\s+/g, " ").trim();
 }
@@ -683,7 +689,9 @@ export default function BrowseListings() {
                         </div>
                       </div>
 
-                      <div className="mt-3 line-clamp-3 text-xs text-slate-700">{w.description}</div>
+                      <div className="mt-3 line-clamp-3 text-xs text-slate-700">
+                        {wantedDescriptionPreview(w.description) || "No description."}
+                      </div>
 
                     </div>
 

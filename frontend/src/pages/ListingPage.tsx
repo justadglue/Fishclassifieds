@@ -156,7 +156,7 @@ export default function ListingPage() {
           ? `(${wantedDetails.customPriceText})`
           : "(custom)";
 
-  const qtyLabel = kind === "wanted" ? `Qty ${(item as any)?.quantity ?? 1} Available` : `Qty ${details.quantity} Available`;
+  const qtyLabel = kind === "wanted" ? `Qty ${(item as any)?.quantity ?? 1} wanted` : `Qty ${details.quantity} available`;
   const postedAgo = item?.createdAt ? timeAgo(item.createdAt) : "";
 
   function DefaultAvatar() {

@@ -126,7 +126,9 @@ export default function WantedEditPage() {
   const bioFieldsRequired = bioRequiredCategories.has(String(category));
   const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
   const bioFieldsEnabled = !bioFieldsDisabled;
-  const bioFieldsRequiredForUser = bioFieldsRequired && !isOtherCategory;
+  // Default to required (bio is the common case). If a non-bio category is chosen,
+  // these inputs become disabled and requirements/asterisks effectively drop.
+  const bioFieldsRequiredForUser = bioFieldsEnabled && !isOtherCategory;
   const ageRequired = bioFieldsEnabled && !isOtherCategory;
   const wantedSexOptions = useMemo(() => {
     const base = (listingSexes ?? []).map(String);
@@ -221,20 +223,20 @@ export default function WantedEditPage() {
 
             <PhotoUploader ref={photoUploaderRef} initialAssets={initialPhotoAssets} disabled={saving || !isOwner} />
 
-            <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Title</div>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-                minLength={3}
-                maxLength={80}
-                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
-              />
-            </label>
-
-            <div className="grid gap-3 sm:grid-cols-10">
+            <div className="grid gap-3 sm:grid-cols-3">
               <label className="block sm:col-span-2">
+                <div className="mb-1 text-xs font-semibold text-slate-700">Title</div>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                  minLength={3}
+                  maxLength={80}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+                />
+              </label>
+
+              <label className="block sm:col-span-1">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Category</div>
                 <select
                   value={category}
@@ -260,8 +262,10 @@ export default function WantedEditPage() {
                   )}
                 </select>
               </label>
+            </div>
 
-              <label className="block sm:col-span-4">
+            <div className="grid gap-3 sm:grid-cols-4">
+              <label className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">
                   Species {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
                 </div>
@@ -274,7 +278,7 @@ export default function WantedEditPage() {
                 />
               </label>
 
-              <label className="block sm:col-span-2">
+              <label className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">
                   Water type {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
                 </div>
@@ -302,7 +306,7 @@ export default function WantedEditPage() {
                 </select>
               </label>
 
-              <label className="block sm:col-span-2">
+              <label className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">
                   Sex {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
                 </div>
@@ -329,6 +333,20 @@ export default function WantedEditPage() {
                   )}
                 </select>
               </label>
+
+              <label className="block">
+                <div className="mb-1 text-xs font-semibold text-slate-700">
+                  Age {ageRequired && <span className="text-red-600">*</span>}
+                </div>
+                <input
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                  disabled={bioFieldsDisabled}
+                  required={ageRequired}
+                  maxLength={40}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                />
+              </label>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
@@ -346,14 +364,40 @@ export default function WantedEditPage() {
               </label>
 
               <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Age</div>
+                <div className="mb-1 text-xs font-semibold text-slate-700">Budget min ($, optional)</div>
                 <input
-                  value={age}
-                  onChange={(e) => setAge(e.target.value)}
-                  disabled={bioFieldsDisabled}
-                  required={ageRequired}
-                  maxLength={40}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                  value={minBudget}
+                  onChange={(e) => setMinBudget(sanitizeMoneyInput(e.target.value))}
+                  inputMode="decimal"
+                  maxLength={MAX_MONEY_INPUT_LEN}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+                />
+              </label>
+
+              <label className="block">
+                <div className="mb-1 text-xs font-semibold text-slate-700">Budget max ($, optional)</div>
+                <input
+                  value={maxBudget}
+                  onChange={(e) => setMaxBudget(sanitizeMoneyInput(e.target.value))}
+                  inputMode="decimal"
+                  maxLength={MAX_MONEY_INPUT_LEN}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+                />
+              </label>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <div className="mb-1 text-xs font-semibold text-slate-700">Phone number</div>
+                <input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                  minLength={6}
+                  maxLength={30}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+                  autoComplete="tel"
+                  inputMode="tel"
                 />
               </label>
 
@@ -365,43 +409,6 @@ export default function WantedEditPage() {
                   required
                   minLength={2}
                   maxLength={80}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
-                />
-              </label>
-            </div>
-
-            <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Phone number</div>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                required
-                minLength={6}
-                maxLength={30}
-                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
-                autoComplete="tel"
-                inputMode="tel"
-              />
-            </label>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Budget min ($, optional)</div>
-                <input
-                  value={minBudget}
-                  onChange={(e) => setMinBudget(sanitizeMoneyInput(e.target.value))}
-                  inputMode="decimal"
-                  maxLength={MAX_MONEY_INPUT_LEN}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
-                />
-              </label>
-              <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Budget max ($, optional)</div>
-                <input
-                  value={maxBudget}
-                  onChange={(e) => setMaxBudget(sanitizeMoneyInput(e.target.value))}
-                  inputMode="decimal"
-                  maxLength={MAX_MONEY_INPUT_LEN}
                   className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
                 />
               </label>

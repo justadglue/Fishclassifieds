@@ -92,7 +92,9 @@ export default function WantedPostPage() {
   const bioFieldsRequired = bioRequiredCategories.has(String(category));
   const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
   const bioFieldsEnabled = !bioFieldsDisabled;
-  const bioFieldsRequiredForUser = bioFieldsRequired && !isOtherCategory;
+  // Default to required (bio is the common case). If a non-bio category is chosen,
+  // these inputs become disabled and requirements/asterisks effectively drop.
+  const bioFieldsRequiredForUser = bioFieldsEnabled && !isOtherCategory;
   const ageRequired = bioFieldsEnabled && !isOtherCategory;
   const wantedSexOptions = useMemo(() => {
     const base = (listingSexes ?? []).map(String);
@@ -204,29 +206,29 @@ export default function WantedPostPage() {
         <form onSubmit={onSubmit} noValidate className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6">
           <PhotoUploader ref={photoUploaderRef} disabled={submitting} />
 
-          <label className="block">
-            <div className={["mb-1 text-xs font-semibold", fieldErrors.title ? "text-red-700" : "text-slate-700"].join(" ")}>
-              Title <span className="text-red-600">*</span>
-            </div>
-            <input
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                clearFieldError("title");
-              }}
-              required
-              minLength={3}
-              maxLength={80}
-              className={[
-                "w-full rounded-xl border px-3 py-3 text-sm outline-none",
-                fieldErrors.title ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
-              ].join(" ")}
-            />
-            {fieldErrors.title && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.title}</div>}
-          </label>
-
-          <div className="grid gap-3 sm:grid-cols-10">
+          <div className="grid gap-3 sm:grid-cols-3">
             <label className="block sm:col-span-2">
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.title ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Title <span className="text-red-600">*</span>
+              </div>
+              <input
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  clearFieldError("title");
+                }}
+                required
+                minLength={3}
+                maxLength={80}
+                className={[
+                  "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                  fieldErrors.title ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                ].join(" ")}
+              />
+              {fieldErrors.title && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.title}</div>}
+            </label>
+
+            <label className="block sm:col-span-1">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.category ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Category <span className="text-red-600">*</span>
               </div>
@@ -261,8 +263,10 @@ export default function WantedPostPage() {
               </select>
               {fieldErrors.category && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.category}</div>}
             </label>
+          </div>
 
-            <label className="block sm:col-span-4">
+          <div className="grid gap-3 sm:grid-cols-4">
+            <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.species ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Species {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
               </div>
@@ -283,7 +287,7 @@ export default function WantedPostPage() {
               {fieldErrors.species && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.species}</div>}
             </label>
 
-            <label className="block sm:col-span-2">
+            <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.waterType ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Water type {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
               </div>
@@ -313,7 +317,7 @@ export default function WantedPostPage() {
               {fieldErrors.waterType && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.waterType}</div>}
             </label>
 
-            <label className="block sm:col-span-2">
+            <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.sex ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Sex {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
               </div>
@@ -342,6 +346,28 @@ export default function WantedPostPage() {
               </select>
               {fieldErrors.sex && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.sex}</div>}
             </label>
+
+            <label className="block">
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.age ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Age {ageRequired && <span className="text-red-600">*</span>}
+              </div>
+              <input
+                value={age}
+                onChange={(e) => {
+                  setAge(e.target.value);
+                  clearFieldError("age");
+                }}
+                disabled={bioFieldsDisabled}
+                required={ageRequired}
+                maxLength={40}
+                className={[
+                  "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                  fieldErrors.age ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500",
+                ].join(" ")}
+              />
+              {fieldErrors.age && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.age}</div>}
+            </label>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
@@ -368,25 +394,51 @@ export default function WantedPostPage() {
             </label>
 
             <label className="block">
-              <div className={["mb-1 text-xs font-semibold", fieldErrors.age ? "text-red-700" : "text-slate-700"].join(" ")}>
-                Age {ageRequired && <span className="text-red-600">*</span>}
+              <div className="mb-1 text-xs font-semibold text-slate-700">Budget min ($, optional)</div>
+              <input
+                value={minBudget}
+                onChange={(e) => setMinBudget(sanitizeMoneyInput(e.target.value))}
+                inputMode="decimal"
+                placeholder="0"
+                maxLength={MAX_MONEY_INPUT_LEN}
+                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+              />
+            </label>
+            <label className="block">
+              <div className="mb-1 text-xs font-semibold text-slate-700">Budget max ($, optional)</div>
+              <input
+                value={maxBudget}
+                onChange={(e) => setMaxBudget(sanitizeMoneyInput(e.target.value))}
+                inputMode="decimal"
+                placeholder="200"
+                maxLength={MAX_MONEY_INPUT_LEN}
+                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.phone ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Phone number <span className="text-red-600">*</span>
               </div>
               <input
-                value={age}
+                value={phone}
                 onChange={(e) => {
-                  setAge(e.target.value);
-                  clearFieldError("age");
+                  setPhone(e.target.value);
+                  clearFieldError("phone");
                 }}
-                disabled={bioFieldsDisabled}
-                required={ageRequired}
-                maxLength={40}
+                required
+                minLength={6}
+                maxLength={30}
                 className={[
                   "w-full rounded-xl border px-3 py-3 text-sm outline-none",
-                  fieldErrors.age ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
-                  "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500",
+                  fieldErrors.phone ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                 ].join(" ")}
+                autoComplete="tel"
+                inputMode="tel"
               />
-              {fieldErrors.age && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.age}</div>}
+              {fieldErrors.phone && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.phone}</div>}
             </label>
 
             <label className="block">
@@ -408,54 +460,6 @@ export default function WantedPostPage() {
                 ].join(" ")}
               />
               {fieldErrors.location && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.location}</div>}
-            </label>
-          </div>
-
-          <label className="block">
-            <div className={["mb-1 text-xs font-semibold", fieldErrors.phone ? "text-red-700" : "text-slate-700"].join(" ")}>
-              Phone number <span className="text-red-600">*</span>
-            </div>
-            <input
-              value={phone}
-              onChange={(e) => {
-                setPhone(e.target.value);
-                clearFieldError("phone");
-              }}
-              required
-              minLength={6}
-              maxLength={30}
-              className={[
-                "w-full rounded-xl border px-3 py-3 text-sm outline-none",
-                fieldErrors.phone ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
-              ].join(" ")}
-              autoComplete="tel"
-              inputMode="tel"
-            />
-            {fieldErrors.phone && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.phone}</div>}
-          </label>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Budget min ($, optional)</div>
-              <input
-                value={minBudget}
-                onChange={(e) => setMinBudget(sanitizeMoneyInput(e.target.value))}
-                inputMode="decimal"
-                placeholder="0"
-                maxLength={MAX_MONEY_INPUT_LEN}
-                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
-              />
-            </label>
-            <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Budget max ($, optional)</div>
-              <input
-                value={maxBudget}
-                onChange={(e) => setMaxBudget(sanitizeMoneyInput(e.target.value))}
-                inputMode="decimal"
-                placeholder="200"
-                maxLength={MAX_MONEY_INPUT_LEN}
-                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
-              />
             </label>
           </div>
 

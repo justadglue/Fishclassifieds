@@ -83,6 +83,9 @@ export default function PostListingPage() {
   const bioFieldsRequired = bioRequiredCategories.has(String(category));
   const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
   const bioFieldsEnabled = !bioFieldsDisabled;
+  // Show bio-field asterisks by default (before a category is selected). If a non-bio (disabled) or "Other"
+  // category is chosen, requirements drop as they do today.
+  const bioFieldsRequiredForUser = !category ? true : bioFieldsRequired && !isOtherCategory;
   const ageRequired = bioFieldsEnabled && !isOtherCategory;
 
   useEffect(() => {
@@ -163,9 +166,9 @@ export default function PostListingPage() {
     const nextErrors: Partial<Record<FieldKey, string>> = {};
     if (!title.trim()) nextErrors.title = "Required field";
     if (!category) nextErrors.category = "Required field";
-    if (bioFieldsRequired && !species.trim()) nextErrors.species = "Required field";
-    if (bioFieldsRequired && !waterType) nextErrors.waterType = "Required field";
-    if (bioFieldsRequired && !sex) nextErrors.sex = "Required field";
+    if (bioFieldsRequiredForUser && !species.trim()) nextErrors.species = "Required field";
+    if (bioFieldsRequiredForUser && !waterType) nextErrors.waterType = "Required field";
+    if (bioFieldsRequiredForUser && !sex) nextErrors.sex = "Required field";
     if (ageRequired && !age.trim()) nextErrors.age = "Required field";
     if (!location.trim()) nextErrors.location = "Required field";
 
@@ -207,7 +210,7 @@ export default function PostListingPage() {
     }
     // Narrow types for TS (should be unreachable due to validation above).
     if (priceCents === null) return;
-    if (bioFieldsRequired && !sex) return;
+    if (bioFieldsRequiredForUser && !sex) return;
     const sexToSubmit: ListingSex = ((bioFieldsEnabled && sex ? sex : "Unknown") as ListingSex) ?? "Unknown";
     const speciesToSubmit = bioFieldsEnabled ? species.trim() : "";
 
@@ -329,7 +332,7 @@ export default function PostListingPage() {
           <div className="grid gap-3 sm:grid-cols-4">
             <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.species ? "text-red-700" : "text-slate-700"].join(" ")}>
-                Species {bioFieldsRequired && <span className="text-red-600">*</span>}
+                Species {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
               </div>
               <input
                 value={species}
@@ -342,7 +345,7 @@ export default function PostListingPage() {
                   fieldErrors.species ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                   "disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed",
                 ].join(" ")}
-                required={bioFieldsRequired}
+                required={bioFieldsRequiredForUser}
                 disabled={bioFieldsDisabled}
                 minLength={2}
                 maxLength={60}
@@ -352,7 +355,7 @@ export default function PostListingPage() {
 
             <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.waterType ? "text-red-700" : "text-slate-700"].join(" ")}>
-                Water type {bioFieldsRequired && <span className="text-red-600">*</span>}
+                Water type {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
               </div>
               <select
                 value={waterType}
@@ -365,7 +368,7 @@ export default function PostListingPage() {
                   fieldErrors.waterType ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                   "disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed",
                 ].join(" ")}
-                required={bioFieldsRequired}
+                required={bioFieldsRequiredForUser}
                 disabled={bioFieldsDisabled}
               >
                 <option value="" disabled hidden>
@@ -382,7 +385,7 @@ export default function PostListingPage() {
 
             <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.sex ? "text-red-700" : "text-slate-700"].join(" ")}>
-                Sex {bioFieldsRequired && <span className="text-red-600">*</span>}
+                Sex {bioFieldsRequiredForUser && <span className="text-red-600">*</span>}
               </div>
               <select
                 value={sex}
@@ -395,7 +398,7 @@ export default function PostListingPage() {
                   fieldErrors.sex ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                   "disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed",
                 ].join(" ")}
-                required={bioFieldsRequired}
+                required={bioFieldsRequiredForUser}
                 disabled={bioFieldsDisabled}
               >
                 <option value="" disabled hidden>

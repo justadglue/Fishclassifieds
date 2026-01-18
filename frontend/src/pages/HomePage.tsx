@@ -353,7 +353,7 @@ export default function HomePage() {
               onClick={() => nav("/browse?type=sale")}
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
-              <div className="text-sm font-extrabold text-white">Explore listings →</div>
+              <div className="text-sm font-extrabold text-white">Explore sale listings →</div>
               <div className="mt-1 text-xs font-semibold text-white/75">Fish, plants, shrimp, equipment and more</div>
             </button>
 
@@ -362,7 +362,7 @@ export default function HomePage() {
               onClick={() => goRequireAuth("/post/sale")}
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
-              <div className="text-sm font-extrabold text-white">Create a listing →</div>
+              <div className="text-sm font-extrabold text-white">Post a sale listing →</div>
               <div className="mt-1 text-xs font-semibold text-white/75">Reach interested buyers</div>
             </button>
 
@@ -371,7 +371,7 @@ export default function HomePage() {
               onClick={() => nav("/browse?type=wanted")}
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
-              <div className="text-sm font-extrabold text-white">Browse wanted posts →</div>
+              <div className="text-sm font-extrabold text-white">Browse wanted listings →</div>
               <div className="mt-1 text-xs font-semibold text-white/75">See what buyers are looking for</div>
             </button>
 
@@ -380,7 +380,7 @@ export default function HomePage() {
               onClick={() => goRequireAuth("/post/wanted")}
               className="group rounded-2xl border border-white/25 bg-white/15 p-4 text-left shadow-lg shadow-black/25 backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             >
-              <div className="text-sm font-extrabold text-white">Create a wanted post →</div>
+              <div className="text-sm font-extrabold text-white">Post a wanted listing →</div>
               <div className="mt-1 text-xs font-semibold text-white/75">Let sellers know what you need</div>
             </button>
           </div>

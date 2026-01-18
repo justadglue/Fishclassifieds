@@ -498,7 +498,7 @@ function SaleEditForm() {
       <Header maxWidth="3xl" />
       <main className="mx-auto max-w-3xl px-4 py-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold text-slate-900">{relistMode ? "Relist listing" : "Edit listing"}</h1>
+          <h1 className="text-2xl font-extrabold text-slate-900">{relistMode ? "Relist sale listing" : "Edit sale listing"}</h1>
           {id && (
             <Link to={listingDetailPath("sale", id)} className="text-sm font-semibold text-slate-700 hover:text-slate-900">
               View
@@ -1246,7 +1246,7 @@ function WantedEditForm() {
       <Header maxWidth="6xl" />
       <main className="mx-auto max-w-3xl px-4 py-8">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">{relistMode ? "Relist wanted" : "Edit wanted"}</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">{relistMode ? "Relist wanted listing" : "Edit wanted listing"}</h1>
           {id ? (
             <Link to={listingDetailPath("wanted", id)} className="text-sm font-semibold text-slate-700 hover:text-slate-900">
               View
@@ -1487,7 +1487,7 @@ function WantedEditForm() {
                 disabled={saving || !isOwner}
                 className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
               >
-                {saving ? "Saving..." : "Update wanted"}
+                {saving ? "Saving..." : "Update listing"}
               </button>
               <button
                 type="button"

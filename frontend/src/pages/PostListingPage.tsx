@@ -264,7 +264,7 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
     <div className="min-h-full">
       <Header maxWidth="3xl" />
       <main className="mx-auto max-w-3xl px-4 py-6">
-        <h1 className="text-2xl font-extrabold text-slate-900">Post a listing</h1>
+        <h1 className="text-2xl font-extrabold text-slate-900">Create a sale listing</h1>
         <div className="mt-1 text-sm text-slate-600">Add details, photos, and pricing to publish your listing.</div>
 
         <form onSubmit={onSubmit} noValidate className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
@@ -897,7 +897,7 @@ function WantedPostForm() {
     <div className="min-h-full">
       <Header maxWidth="6xl" />
       <main className="mx-auto max-w-3xl px-4 py-8">
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Post a wanted listing</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Create a wanted listing</h1>
         <p className="mt-1 text-sm text-slate-600">Add details, photos, and pricing to publish your listing.</p>
 
         {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
@@ -1231,7 +1231,7 @@ function WantedPostForm() {
               disabled={submitting}
               className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
             >
-              {submitting ? "Posting..." : "Post wanted"}
+              {submitting ? "Posting..." : "Post listing"}
             </button>
 
             <Link to="/" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-50">

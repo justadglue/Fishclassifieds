@@ -499,11 +499,6 @@ function SaleEditForm() {
       <main className="mx-auto max-w-3xl px-4 py-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-extrabold text-slate-900">{relistMode ? "Relist sale listing" : "Edit sale listing"}</h1>
-          {id && (
-            <Link to={listingDetailPath("sale", id)} className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-              View
-            </Link>
-          )}
         </div>
 
         {err && !orig && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
@@ -1247,11 +1242,6 @@ function WantedEditForm() {
       <main className="mx-auto max-w-3xl px-4 py-8">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">{relistMode ? "Relist wanted listing" : "Edit wanted listing"}</h1>
-          {id ? (
-            <Link to={listingDetailPath("wanted", id)} className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-              View
-            </Link>
-          ) : null}
         </div>
 
         {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}

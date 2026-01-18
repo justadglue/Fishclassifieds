@@ -267,29 +267,29 @@ export default function PostListingPage() {
           <PhotoUploader ref={photoUploaderRef} disabled={loading} />
 
           {/* Fields */}
-          <label className="block">
-            <div className={["mb-1 text-xs font-semibold", fieldErrors.title ? "text-red-700" : "text-slate-700"].join(" ")}>
-              Title <span className="text-red-600">*</span>
-            </div>
-            <input
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                clearFieldError("title");
-              }}
-              className={[
-                "w-full rounded-xl border px-3 py-2 text-sm outline-none",
-                fieldErrors.title ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
-              ].join(" ")}
-              required
-              minLength={3}
-              maxLength={80}
-            />
-            {fieldErrors.title && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.title}</div>}
-          </label>
-
-          <div className="grid gap-3 sm:grid-cols-10">
+          <div className="grid gap-3 sm:grid-cols-3">
             <label className="block sm:col-span-2">
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.title ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Title <span className="text-red-600">*</span>
+              </div>
+              <input
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  clearFieldError("title");
+                }}
+                className={[
+                  "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                  fieldErrors.title ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                ].join(" ")}
+                required
+                minLength={3}
+                maxLength={80}
+              />
+              {fieldErrors.title && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.title}</div>}
+            </label>
+
+            <label className="block sm:col-span-1">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.category ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Category <span className="text-red-600">*</span>
               </div>
@@ -324,8 +324,10 @@ export default function PostListingPage() {
               </select>
               {fieldErrors.category && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.category}</div>}
             </label>
+          </div>
 
-            <label className="block sm:col-span-4">
+          <div className="grid gap-3 sm:grid-cols-4">
+            <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.species ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Species {bioFieldsRequired && <span className="text-red-600">*</span>}
               </div>
@@ -348,7 +350,7 @@ export default function PostListingPage() {
               {fieldErrors.species && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.species}</div>}
             </label>
 
-            <label className="block sm:col-span-2">
+            <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.waterType ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Water type {bioFieldsRequired && <span className="text-red-600">*</span>}
               </div>
@@ -378,7 +380,7 @@ export default function PostListingPage() {
               {fieldErrors.waterType && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.waterType}</div>}
             </label>
 
-            <label className="block sm:col-span-2">
+            <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.sex ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Sex {bioFieldsRequired && <span className="text-red-600">*</span>}
               </div>
@@ -413,10 +415,31 @@ export default function PostListingPage() {
               </select>
               {fieldErrors.sex && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.sex}</div>}
             </label>
+            <label className="block">
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.age ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Age {ageRequired && <span className="text-red-600">*</span>}
+              </div>
+              <input
+                value={age}
+                onChange={(e) => {
+                  setAge(e.target.value);
+                  clearFieldError("age");
+                }}
+                className={[
+                  "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                  fieldErrors.age ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  "disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed",
+                ].join(" ")}
+                required={ageRequired}
+                maxLength={40}
+                disabled={loading || bioFieldsDisabled}
+              />
+              {fieldErrors.age && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.age}</div>}
+            </label>
           </div>
 
-          {/* Row 2: Price + Quantity + Age + Price type */}
-          <div className="grid gap-3 sm:grid-cols-4">
+          {/* Row 2: Price + Quantity + Price type */}
+          <div className="grid gap-3 sm:grid-cols-3">
             <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.price ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Price ($) <span className="text-red-600">*</span>
@@ -458,28 +481,6 @@ export default function PostListingPage() {
                 required
               />
               {fieldErrors.quantity && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.quantity}</div>}
-            </label>
-
-            <label className="block">
-              <div className={["mb-1 text-xs font-semibold", fieldErrors.age ? "text-red-700" : "text-slate-700"].join(" ")}>
-                Age {ageRequired && <span className="text-red-600">*</span>}
-              </div>
-              <input
-                value={age}
-                onChange={(e) => {
-                  setAge(e.target.value);
-                  clearFieldError("age");
-                }}
-                className={[
-                  "w-full rounded-xl border px-3 py-2 text-sm outline-none",
-                  fieldErrors.age ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
-                  "disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed",
-                ].join(" ")}
-                required={ageRequired}
-                maxLength={40}
-                disabled={loading || bioFieldsDisabled}
-              />
-              {fieldErrors.age && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.age}</div>}
             </label>
 
             <div className="block">
@@ -544,9 +545,32 @@ export default function PostListingPage() {
             </div>
           </div>
 
-          {/* Row 3: Location + Shipping */}
-          <div className="grid gap-3 sm:grid-cols-3">
-            <label className="block">
+          {/* Row 3: Phone + Location + Shipping */}
+          <div className="grid gap-3 sm:grid-cols-4">
+            <label className="block sm:col-span-1">
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.phone ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Phone number <span className="text-red-600">*</span>
+              </div>
+              <input
+                value={phone}
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  clearFieldError("phone");
+                }}
+                inputMode="tel"
+                autoComplete="tel"
+                className={[
+                  "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                  fieldErrors.phone ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                ].join(" ")}
+                required
+                minLength={6}
+                maxLength={30}
+              />
+              {fieldErrors.phone && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.phone}</div>}
+            </label>
+
+            <label className="block sm:col-span-1">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.location ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Location <span className="text-red-600">*</span>
               </div>
@@ -570,7 +594,7 @@ export default function PostListingPage() {
             <div className="grid sm:col-span-2">
               {/* Spacer so checkbox aligns with the input row (not the label row) */}
               <div className="mb-1 text-xs font-semibold text-transparent select-none" aria-hidden="true">
-                Location
+                Phone number
               </div>
               <div className="flex h-10 items-center">
                 <div className="inline-flex items-center gap-1 min-w-0">
@@ -600,32 +624,6 @@ export default function PostListingPage() {
                 </div>
               </div>
             </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <label className="block sm:col-span-1">
-              <div className={["mb-1 text-xs font-semibold", fieldErrors.phone ? "text-red-700" : "text-slate-700"].join(" ")}>
-                Phone number <span className="text-red-600">*</span>
-              </div>
-              <input
-                value={phone}
-                onChange={(e) => {
-                  setPhone(e.target.value);
-                  clearFieldError("phone");
-                }}
-                inputMode="tel"
-                autoComplete="tel"
-                className={[
-                  "w-full rounded-xl border px-3 py-2 text-sm outline-none",
-                  fieldErrors.phone ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
-                ].join(" ")}
-                required
-                minLength={6}
-                maxLength={30}
-              />
-              {fieldErrors.phone && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.phone}</div>}
-            </label>
-            <div className="hidden sm:block sm:col-span-2" aria-hidden="true" />
           </div>
 
           <label className="block">

@@ -1,25 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import {
   fetchListings,
   fetchWanted,
-  getListingOptionsCached,
   resolveAssets,
-  type Category,
   type Listing,
-  type ListingSex,
   type WantedPost,
-  type WantedStatus,
-  type WaterType,
 } from "../api";
 import Header from "../components/Header";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 import { decodeSaleDetailsFromDescription, decodeWantedDetailsFromDescription } from "../utils/listingDetailsBlock";
 import BrowseFilters from "./browse/BrowseFilters";
+import { SPECIES_PRESETS, useBrowseFilterState } from "./browse/useBrowseFilterState";
 
-type SortMode = "newest" | "price_asc" | "price_desc";
 type PageSize = 12 | 24 | 48 | 96;
-type BrowseType = "sale" | "wanted";
 
 function centsToDollars(cents: number) {
   const s = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -57,12 +51,6 @@ function budgetPillText(w: WantedPost) {
   const budget = w.budgetCents ?? null;
   if (budget == null) return "Make an offer";
   return `Up to ${centsToDollars(budget)}`;
-}
-
-function clampInt(v: string | null, fallback: number, min: number, max: number) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(min, Math.min(max, Math.floor(n)));
 }
 
 function buildPageButtons(current: number, totalPages: number) {
@@ -163,45 +151,37 @@ function StatusPill({ l }: { l: Listing }) {
 
 export default function BrowseListings() {
   const routerLocation = useLocation();
-  const [sp, setSp] = useSearchParams();
-  const topRef = useRef<HTMLDivElement | null>(null);
-
-  const browseType: BrowseType = sp.get("type") === "wanted" ? "wanted" : "sale";
-
-  const q = sp.get("q") ?? "";
-  const category = (sp.get("category") ?? "") as "" | Category;
-  const species = sp.get("species") ?? "";
-  const location = sp.get("location") ?? "";
-  const waterType = sp.get("waterType") ?? "";
-  const sex = sp.get("sex") ?? "";
-  const age = sp.get("age") ?? "";
-  const minDollars = sp.get("min") ?? "";
-  const maxDollars = sp.get("max") ?? "";
-  const sort = (sp.get("sort") ?? "newest") as SortMode;
-  const featuredOnly = sp.get("featured") === "1";
-  const wantedStatus = (sp.get("status") ?? "") as "" | WantedStatus;
-
-  const page = clampInt(sp.get("page"), 1, 1, 999999);
-  const per = clampInt(sp.get("per"), 24, 12, 200) as PageSize;
-
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [waterTypes, setWaterTypes] = useState<WaterType[]>([]);
-  const [listingSexes, setListingSexes] = useState<ListingSex[]>([]);
-  const [bioRequiredCategories, setBioRequiredCategories] = useState<Set<string>>(new Set());
-  const [otherCategoryName, setOtherCategoryName] = useState("Other");
-  const categoryOptions = useMemo(() => ["", ...categories] as Array<"" | Category>, [categories]);
-
-  const isOtherCategory = String(category) === String(otherCategoryName);
-  const bioFieldsRequired = bioRequiredCategories.has(String(category));
-  // Only treat bio as disabled when a specific non-bio category is selected.
-  const bioFieldsDisabled = Boolean(category) && !bioFieldsRequired && !isOtherCategory;
-
-  const wantedSexOptions = useMemo(() => {
-    const base = (listingSexes ?? []).map(String);
-    const out = [...base];
-    if (!out.includes("No preference")) out.push("No preference");
-    return out as ListingSex[];
-  }, [listingSexes]);
+  const filter = useBrowseFilterState();
+  const {
+    sp,
+    setSp,
+    topRef,
+    browseType,
+    q,
+    category,
+    species,
+    location,
+    waterType,
+    sex,
+    age,
+    minDollars,
+    maxDollars,
+    sort,
+    featuredOnly,
+    wantedStatus,
+    page,
+    per,
+    minCents,
+    maxCents,
+    bioFieldsDisabled,
+    categoryOptions,
+    waterTypes,
+    listingSexes,
+    wantedSexOptions,
+    setParam,
+    setBrowseType,
+    clearFilters,
+  } = filter;
 
   const [saleItems, setSaleItems] = useState<Listing[]>([]);
   const [wantedItems, setWantedItems] = useState<WantedPost[]>([]);
@@ -210,72 +190,9 @@ export default function BrowseListings() {
   const [err, setErr] = useState<string | null>(null);
   const [bottomScrollPending, setBottomScrollPending] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    getListingOptionsCached()
-      .then((opts) => {
-        if (cancelled) return;
-        setCategories(opts.categories as Category[]);
-        setWaterTypes((opts as any).waterTypes as WaterType[]);
-        setListingSexes((opts as any).listingSexes as ListingSex[]);
-        setBioRequiredCategories(new Set(((opts as any).bioFieldsRequiredCategories as string[]) ?? []));
-        setOtherCategoryName(String((opts as any).otherCategory ?? "Other"));
-      })
-      .catch(() => {
-        // ignore
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    // If a non-bio category is chosen, clear bio-only filters so results aren't confusing.
-    if (!category) return;
-    if (!bioFieldsDisabled) return;
-    const next = new URLSearchParams(sp);
-    const had = next.has("species") || next.has("waterType") || next.has("sex") || next.has("age");
-    if (!had) return;
-    next.delete("species");
-    next.delete("waterType");
-    next.delete("sex");
-    next.delete("age");
-    next.set("page", "1");
-    setSp(next, { replace: true });
-  }, [bioFieldsDisabled, category, setSp, sp]);
-
-  const minCents = useMemo(() => {
-    const s = String(minDollars ?? "").trim();
-    if (!s) return undefined;
-    const n = Number(s);
-    return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : undefined;
-  }, [minDollars]);
-
-  const maxCents = useMemo(() => {
-    const s = String(maxDollars ?? "").trim();
-    if (!s) return undefined;
-    const n = Number(s);
-    return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : undefined;
-  }, [maxDollars]);
-
   const offset = (page - 1) * per;
   const totalPages = Math.max(1, Math.ceil(total / per));
   const pageButtons = buildPageButtons(page, totalPages);
-
-  const speciesPresets = [
-    "",
-    "guppy",
-    "betta",
-    "goldfish",
-    "angelfish",
-    "discus",
-    "neon tetra",
-    "corydoras",
-    "shrimp",
-    "snails",
-    "plants",
-    "equipment",
-  ];
 
   useEffect(() => {
     let cancelled = false;
@@ -362,37 +279,6 @@ export default function BrowseListings() {
     sp,
     setSp,
   ]);
-
-  function setParam(key: string, value: string) {
-    const next = new URLSearchParams(sp);
-    const resetsPage = key !== "page";
-    if (resetsPage) next.set("page", "1");
-    if (!value) next.delete(key);
-    else next.set(key, value);
-    setSp(next, { replace: true });
-  }
-
-  function setBrowseType(nextType: BrowseType) {
-    const next = new URLSearchParams(sp);
-    next.set("type", nextType);
-    next.set("page", "1");
-    if (nextType === "wanted") {
-      next.delete("sort");
-      next.delete("featured");
-    } else {
-      if (!next.get("sort")) next.set("sort", "newest");
-      next.delete("status");
-    }
-    setSp(next, { replace: true });
-  }
-
-  function clearFilters() {
-    const next = new URLSearchParams();
-    next.set("type", browseType);
-    next.set("page", "1");
-    if (browseType === "sale") next.set("sort", "newest");
-    setSp(next, { replace: true });
-  }
 
   function scrollToTop(behaviorOverride?: ScrollBehavior) {
     const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
@@ -490,7 +376,7 @@ export default function BrowseListings() {
             categoryOptions={categoryOptions}
             species={species}
             setSpecies={(v) => setParam("species", v)}
-            speciesPresets={speciesPresets}
+            speciesPresets={[...SPECIES_PRESETS]}
             waterType={waterType}
             setWaterType={(v) => setParam("waterType", v)}
             waterTypes={waterTypes}

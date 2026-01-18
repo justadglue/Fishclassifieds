@@ -12,7 +12,7 @@ import {
 } from "../api";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
-import { buildSaleDetailsPrefix, encodeSaleDetailsIntoDescription, type PriceType } from "../utils/listingDetailsBlock";
+import { buildSaleDetailsPrefix, encodeSaleDetailsIntoDescription, encodeWantedDetailsIntoDescription, type PriceType } from "../utils/listingDetailsBlock";
 import ShippingInfoButton from "../components/ShippingInfoButton";
 import PhotoUploader, { type PhotoUploaderHandle } from "../components/PhotoUploader";
 import { MAX_MONEY_INPUT_LEN, sanitizeMoneyInput } from "../utils/money";
@@ -708,6 +708,8 @@ function WantedPostForm() {
     | "sex"
     | "age"
     | "quantity"
+    | "priceType"
+    | "customPriceText"
     | "location"
     | "phone"
     | "description";
@@ -728,7 +730,11 @@ function WantedPostForm() {
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
   const [budget, setBudget] = useState("");
+  const [priceType, setPriceType] = useState<PriceType>("each");
+  const [customPriceText, setCustomPriceText] = useState("");
   const [description, setDescription] = useState("");
+
+  const customPriceInputRef = useRef<HTMLInputElement | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -805,6 +811,11 @@ function WantedPostForm() {
   const budgetCents = useMemo(() => dollarsToCentsMaybe(budget), [budget]);
   const maxDescLen = 1000;
 
+  useEffect(() => {
+    if (priceType !== "custom") return;
+    window.setTimeout(() => customPriceInputRef.current?.focus(), 0);
+  }, [priceType]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
@@ -830,6 +841,13 @@ function WantedPostForm() {
 
     if (!String(description ?? "").trim()) nextErrors.description = "Required field";
 
+    if (!priceType) nextErrors.priceType = "Required field";
+    const custom = customPriceText.trim();
+    if (priceType === "custom" && !custom) nextErrors.customPriceText = "Required field";
+    else if (priceType === "custom" && custom.length > MAX_CUSTOM_PRICE_TYPE_LEN) {
+      nextErrors.customPriceText = `Custom price type must be ${MAX_CUSTOM_PRICE_TYPE_LEN} characters or less.`;
+    }
+
     if (Object.values(nextErrors).some(Boolean)) {
       setFieldErrors(nextErrors);
       setErr("Please fill out the required fields.");
@@ -850,7 +868,9 @@ function WantedPostForm() {
         throw new Error("Images were selected but none uploaded successfully. Remove broken images or retry upload.");
       }
 
-      const finalDescription = String(description ?? "").trim();
+      const custom = customPriceText.trim();
+      const body = String(description ?? "").trim();
+      const finalDescription = encodeWantedDetailsIntoDescription({ priceType, customPriceText: custom }, body);
       const w = await createWantedPost({
         title: title.trim(),
         category,
@@ -1036,7 +1056,18 @@ function WantedPostForm() {
             </label>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          {/* Row: Budget + Quantity + Price type (match sale form order) */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block">
+              <div className="mb-1 text-xs font-semibold text-slate-700">Budget ($)</div>
+              <input
+                inputMode="decimal"
+                value={budget}
+                onChange={(e) => setBudget(sanitizeMoneyInput(e.target.value, MAX_MONEY_INPUT_LEN))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+              />
+            </label>
+
             <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.quantity ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Quantity <span className="text-red-600">*</span>
@@ -1063,15 +1094,73 @@ function WantedPostForm() {
               {fieldErrors.quantity && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.quantity}</div>}
             </label>
 
-            <label className="block">
-              <div className="mb-1 text-xs font-semibold text-slate-700">Budget ($)</div>
-              <input
-                inputMode="decimal"
-                value={budget}
-                onChange={(e) => setBudget(sanitizeMoneyInput(e.target.value, MAX_MONEY_INPUT_LEN))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
-              />
-            </label>
+            <div className="block">
+              <div
+                className={[
+                  "mb-1 text-xs font-semibold",
+                  fieldErrors.priceType || fieldErrors.customPriceText ? "text-red-700" : "text-slate-700",
+                ].join(" ")}
+              >
+                Price type <span className="text-red-600">*</span>
+              </div>
+
+              {priceType === "custom" ? (
+                <div className="relative">
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={customPriceInputRef}
+                      value={customPriceText}
+                      onChange={(e) => {
+                        setCustomPriceText(e.target.value);
+                        clearFieldError("customPriceText");
+                        clearFieldError("priceType");
+                      }}
+                      className={[
+                        "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                        fieldErrors.customPriceText ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                      ].join(" ")}
+                      placeholder="e.g. breeding pair"
+                      maxLength={MAX_CUSTOM_PRICE_TYPE_LEN}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPriceType("each")}
+                      className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      title="Return to dropdown options"
+                      aria-label="Return to dropdown options"
+                    >
+                      <Undo2 aria-hidden="true" className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="pointer-events-none absolute left-0 top-full text-[11px] leading-4 font-semibold text-slate-500">
+                    ({customPriceText.trim().length}/{MAX_CUSTOM_PRICE_TYPE_LEN})
+                  </div>
+                  {fieldErrors.customPriceText && (
+                    <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.customPriceText}</div>
+                  )}
+                </div>
+              ) : (
+                <select
+                  value={priceType}
+                  onChange={(e) => {
+                    setPriceType(e.target.value as PriceType);
+                    clearFieldError("priceType");
+                  }}
+                  className={[
+                    "w-full rounded-xl border bg-white px-3 py-3 text-sm outline-none",
+                    fieldErrors.priceType ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  ].join(" ")}
+                  required
+                >
+                  <option value="each">Each</option>
+                  <option value="all">All</option>
+                  <option value="custom">Custom</option>
+                </select>
+              )}
+
+              {fieldErrors.priceType && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.priceType}</div>}
+            </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">

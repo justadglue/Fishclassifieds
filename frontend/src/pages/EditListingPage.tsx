@@ -27,6 +27,8 @@ import {
   buildSaleDetailsPrefix,
   decodeSaleDetailsFromDescription,
   encodeSaleDetailsIntoDescription,
+  decodeWantedDetailsFromDescription,
+  encodeWantedDetailsIntoDescription,
   type PriceType,
 } from "../utils/listingDetailsBlock";
 import ShippingInfoButton from "../components/ShippingInfoButton";
@@ -1052,7 +1054,16 @@ function WantedEditForm() {
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
   const [budget, setBudget] = useState("");
+  const [priceType, setPriceType] = useState<PriceType>("each");
+  const [customPriceText, setCustomPriceText] = useState("");
   const [description, setDescription] = useState("");
+
+  const customPriceInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (priceType !== "custom") return;
+    window.setTimeout(() => customPriceInputRef.current?.focus(), 0);
+  }, [priceType]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1100,7 +1111,10 @@ function WantedEditForm() {
         setLocation(w.location);
         setPhone((w as any).phone ?? "");
         setBudget(centsToDollarsMaybe(w.budgetCents));
-        setDescription(w.description);
+        const decoded = decodeWantedDetailsFromDescription(w.description);
+        setPriceType(decoded.details.priceType);
+        setCustomPriceText(decoded.details.customPriceText);
+        setDescription(decoded.hadPrefix ? decoded.body : w.description);
         setInitialPhotoAssets((w as any).images ?? []);
       } catch (e: any) {
         if (!cancelled) setErr(e?.message ?? "Failed to load wanted post");
@@ -1162,6 +1176,13 @@ function WantedEditForm() {
       if (phoneTrim.length < 6) throw new Error("Phone number looks too short.");
       if (phoneTrim.length > 30) throw new Error("Phone number is too long.");
 
+      if (!priceType) throw new Error("Price type is required.");
+      const custom = customPriceText.trim();
+      if (priceType === "custom" && !custom) throw new Error("Custom price type is required.");
+      if (priceType === "custom" && custom.length > MAX_CUSTOM_PRICE_TYPE_LEN) {
+        throw new Error(`Custom price type must be ${MAX_CUSTOM_PRICE_TYPE_LEN} characters or less.`);
+      }
+
       const photoCounts = photoUploaderRef.current?.getCounts() ?? { total: 0, uploaded: 0 };
       if (photoCounts.total === 0) {
         const ok = window.confirm("You haven't added any photos. Update this wanted listing without photos?");
@@ -1175,6 +1196,8 @@ function WantedEditForm() {
         throw new Error("Images were selected but none uploaded successfully. Remove broken images or retry upload.");
       }
 
+      const finalDescription = encodeWantedDetailsIntoDescription({ priceType, customPriceText: custom }, description.trim());
+
       if (relistMode) {
         const created = await createWantedPost({
           title: title.trim(),
@@ -1187,7 +1210,7 @@ function WantedEditForm() {
           budgetCents: dollarsToCentsMaybe(budget),
           location: location.trim(),
           phone: phoneTrim,
-          description: description.trim(),
+          description: finalDescription,
           images: uploadedAssets,
         });
 
@@ -1207,7 +1230,7 @@ function WantedEditForm() {
         budgetCents: dollarsToCentsMaybe(budget),
         location: location.trim(),
         phone: phoneTrim,
-        description: description.trim(),
+        description: finalDescription,
         images: uploadedAssets,
       });
       nav(listingDetailPath("wanted", updated.id));
@@ -1345,7 +1368,19 @@ function WantedEditForm() {
               </label>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            {/* Row: Budget + Quantity + Price type (match sale form order) */}
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className="block">
+                <div className="mb-1 text-xs font-semibold text-slate-700">Budget ($)</div>
+                <input
+                  inputMode="decimal"
+                  value={budget}
+                  onChange={(e) => setBudget(sanitizeMoneyInput(e.target.value, MAX_MONEY_INPUT_LEN))}
+                  disabled={saving || !isOwner}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
+                />
+              </label>
+
               <label className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Quantity</div>
                 <input
@@ -1366,16 +1401,52 @@ function WantedEditForm() {
                 />
               </label>
 
-              <label className="block">
-                <div className="mb-1 text-xs font-semibold text-slate-700">Budget ($)</div>
-                <input
-                  inputMode="decimal"
-                  value={budget}
-                  onChange={(e) => setBudget(sanitizeMoneyInput(e.target.value, MAX_MONEY_INPUT_LEN))}
-                  disabled={saving || !isOwner}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
-                />
-              </label>
+              <div className="block">
+                <div className="mb-1 text-xs font-semibold text-slate-700">
+                  Price type <span className="text-red-600">*</span>
+                </div>
+
+                {priceType === "custom" ? (
+                  <div className="relative">
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={customPriceInputRef}
+                        value={customPriceText}
+                        onChange={(e) => setCustomPriceText(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
+                        placeholder="e.g. breeding pair"
+                        maxLength={MAX_CUSTOM_PRICE_TYPE_LEN}
+                        disabled={saving || !isOwner}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPriceType("each")}
+                        className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                        title="Return to dropdown options"
+                        aria-label="Return to dropdown options"
+                        disabled={saving || !isOwner}
+                      >
+                        <Undo2 aria-hidden="true" className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="pointer-events-none absolute left-0 top-full text-[11px] leading-4 font-semibold text-slate-500">
+                      ({customPriceText.trim().length}/{MAX_CUSTOM_PRICE_TYPE_LEN})
+                    </div>
+                  </div>
+                ) : (
+                  <select
+                    value={priceType}
+                    onChange={(e) => setPriceType(e.target.value as PriceType)}
+                    disabled={saving || !isOwner}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
+                    required
+                  >
+                    <option value="each">Each</option>
+                    <option value="all">All</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                )}
+              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">

@@ -5,7 +5,7 @@ import { Flag } from "lucide-react";
 import { fetchListing, fetchWantedPost, getListingOptionsCached, resolveAssets, type Listing, type WantedPost } from "../api";
 import Header from "../components/Header";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
-import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
+import { decodeSaleDetailsFromDescription, decodeWantedDetailsFromDescription } from "../utils/listingDetailsBlock";
 import ShippingInfoButton from "../components/ShippingInfoButton";
 import { browsePath, parseListingKind, type ListingKind } from "../listings/routes";
 
@@ -119,6 +119,11 @@ export default function ListingPage() {
     return decodeSaleDetailsFromDescription((item as Listing).description);
   }, [item, kind]);
 
+  const wantedDecoded = useMemo(() => {
+    if (!item || kind !== "wanted") return null;
+    return decodeWantedDetailsFromDescription((item as WantedPost).description);
+  }, [item, kind]);
+
   const bodyDescription = useMemo(() => {
     if (!item) return "";
     if (kind === "sale") {
@@ -126,8 +131,10 @@ export default function ListingPage() {
       const raw = (item as Listing).description ?? "";
       return d?.hadPrefix ? d.body : raw;
     }
-    return String((item as WantedPost).description ?? "");
-  }, [decoded, item, kind]);
+    const d = wantedDecoded;
+    const raw = (item as WantedPost).description ?? "";
+    return d?.hadPrefix ? d.body : String(raw);
+  }, [decoded, wantedDecoded, item, kind]);
 
   const details = decoded?.details ?? { quantity: 1, priceType: "each" as const, customPriceText: "", willingToShip: false };
   const priceSuffix =
@@ -137,6 +144,16 @@ export default function ListingPage() {
         ? "for all"
         : details.customPriceText
           ? `(${details.customPriceText})`
+          : "(custom)";
+
+  const wantedDetails = wantedDecoded?.details ?? ({ priceType: "each", customPriceText: "" } as const);
+  const wantedPriceSuffix =
+    wantedDetails.priceType === "each"
+      ? "each"
+      : wantedDetails.priceType === "all"
+        ? "for all"
+        : wantedDetails.customPriceText
+          ? `(${wantedDetails.customPriceText})`
           : "(custom)";
 
   const qtyLabel = kind === "wanted" ? `Qty ${(item as any)?.quantity ?? 1} Available` : `Qty ${details.quantity} Available`;
@@ -412,7 +429,10 @@ export default function ListingPage() {
                 ) : (
                   <>
                     <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Budget</div>
-                    <div className="mt-1 text-2xl font-extrabold text-slate-900">{budgetLabel(item as WantedPost)}</div>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <div className="text-2xl font-extrabold text-slate-900">{budgetLabel(item as WantedPost)}</div>
+                      <div className="text-sm font-semibold text-slate-600">{wantedPriceSuffix}</div>
+                    </div>
                     <div className="mt-2 text-sm font-semibold text-slate-700">
                       <span className="text-slate-500">{qtyLabel}</span>
                     </div>
@@ -536,12 +556,10 @@ export default function ListingPage() {
                                 : details.quantity}
                             </dd>
                           </div>
-                          {kind === "wanted" ? null : (
-                            <div className="flex items-baseline justify-between gap-4">
-                              <dt className="font-semibold text-slate-600">Price type</dt>
-                              <dd className="font-semibold text-slate-900">{priceSuffix}</dd>
-                            </div>
-                          )}
+                          <div className="flex items-baseline justify-between gap-4">
+                            <dt className="font-semibold text-slate-600">Price type</dt>
+                            <dd className="font-semibold text-slate-900">{kind === "wanted" ? wantedPriceSuffix : priceSuffix}</dd>
+                          </div>
                           <div className="flex items-baseline justify-between gap-4">
                             <dt className="font-semibold text-slate-600">Location</dt>
                             <dd className="font-semibold text-slate-900">{item.location}</dd>

@@ -37,7 +37,7 @@ export default function PostChoosePage() {
             <div className="text-sm font-bold text-slate-500">For sale</div>
             <div className="mt-2 text-xl font-extrabold text-slate-900">Post a sale listing →</div>
             <div className="mt-2 text-sm font-semibold text-slate-600">
-              Post livestock, plants, equipment, or services for buyers to discover.
+              Post live fish, plants, equipment, or services for buyers to discover.
             </div>
           </Link>
 

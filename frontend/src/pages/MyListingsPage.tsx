@@ -150,6 +150,17 @@ function StatusText({ l }: { l: Listing }) {
   );
 }
 
+function WantedStatusText({ w }: { w: WantedPost }) {
+  const s = w.status;
+  const cls =
+    s === "open" ? "text-emerald-700" : s === "closed" ? "text-slate-700" : "text-slate-700";
+  return (
+    <div className={`text-sm font-semibold ${cls}`}>
+      <div>{s === "open" ? "Open" : "Closed"}</div>
+    </div>
+  );
+}
+
 function sortListings(items: Listing[], sortKey: SortKey, sortDir: SortDir, nowMs: number) {
   const dirMul = sortDir === "asc" ? 1 : -1;
   const withIdx = items.map((l, idx) => ({ l, idx }));
@@ -276,7 +287,7 @@ export default function MyListingsPage() {
   const [sp, setSp] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
 
-  const viewType = sp.get("type") === "wanted" ? ("wanted" as const) : ("sale" as const);
+  const viewType = sp.get("type") === "wanted" ? ("wanted" as const) : sp.get("type") === "sale" ? ("sale" as const) : ("all" as const);
 
   const [items, setItems] = useState<Listing[]>([]);
   const [wantedItems, setWantedItems] = useState<WantedPost[]>([]);
@@ -302,7 +313,7 @@ export default function MyListingsPage() {
         if (viewType === "wanted") {
           const res = await fetchMyWanted({ limit: 200, offset: 0 });
           if (!cancelled) setWantedItems(res.items ?? []);
-        } else {
+        } else if (viewType === "sale") {
           const res = await fetchMyListings({ limit: 200, offset: 0 });
           if (!cancelled) {
             const nextItems = res.items ?? [];
@@ -310,6 +321,18 @@ export default function MyListingsPage() {
             // Apply default sort on load (and on hard refresh).
             const ordered = sortListings(nextItems, sort.key, sort.dir, nowMs).map((l) => l.id);
             setDisplayOrder(ordered);
+          }
+        } else {
+          const [saleRes, wantedRes] = await Promise.all([
+            fetchMyListings({ limit: 200, offset: 0 }),
+            fetchMyWanted({ limit: 200, offset: 0 }),
+          ]);
+          if (!cancelled) {
+            const nextItems = saleRes.items ?? [];
+            setItems(nextItems);
+            const ordered = sortListings(nextItems, sort.key, sort.dir, nowMs).map((l) => l.id);
+            setDisplayOrder(ordered);
+            setWantedItems(wantedRes.items ?? []);
           }
         }
       } catch (e: any) {
@@ -324,9 +347,10 @@ export default function MyListingsPage() {
     };
   }, [user, viewType, nowMs, sort.key, sort.dir]);
 
-  function setViewType(next: "sale" | "wanted") {
+  function setViewType(next: "all" | "sale" | "wanted") {
     const nextSp = new URLSearchParams(sp);
     if (next === "wanted") nextSp.set("type", "wanted");
+    else if (next === "sale") nextSp.set("type", "sale");
     else nextSp.delete("type");
     setSp(nextSp, { replace: true });
   }
@@ -521,8 +545,22 @@ export default function MyListingsPage() {
           <div className="flex overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <button
               type="button"
+              onClick={() => setViewType("all")}
+              className={[
+                "px-4 py-2 text-sm font-bold",
+                viewType === "all" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+              ].join(" ")}
+              aria-pressed={viewType === "all"}
+            >
+              All
+            </button>
+            <button
+              type="button"
               onClick={() => setViewType("sale")}
-              className={["px-4 py-2 text-sm font-bold", viewType === "sale" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50"].join(" ")}
+              className={[
+                "px-4 py-2 text-sm font-bold",
+                viewType === "sale" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+              ].join(" ")}
               aria-pressed={viewType === "sale"}
             >
               For sale
@@ -530,7 +568,10 @@ export default function MyListingsPage() {
             <button
               type="button"
               onClick={() => setViewType("wanted")}
-              className={["px-4 py-2 text-sm font-bold", viewType === "wanted" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50"].join(" ")}
+              className={[
+                "px-4 py-2 text-sm font-bold",
+                viewType === "wanted" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+              ].join(" ")}
               aria-pressed={viewType === "wanted"}
             >
               Wanted
@@ -551,6 +592,24 @@ export default function MyListingsPage() {
           </div>
         )}
 
+        {!loading && viewType === "all" && items.length === 0 && wantedItems.length === 0 && (
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+            <div className="text-sm font-semibold text-slate-900">No listings yet</div>
+            <div className="mt-1 text-sm text-slate-600">Post a for sale listing or a wanted post and it will show here.</div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link to="/post" className="inline-flex rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+                Post a listing
+              </Link>
+              <Link
+                to="/post/wanted"
+                className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+              >
+                Post a wanted
+              </Link>
+            </div>
+          </div>
+        )}
+
         {!loading && viewType === "wanted" && wantedItems.length === 0 && (
           <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
             <div className="text-sm font-semibold text-slate-900">No wanted posts yet</div>
@@ -564,267 +623,304 @@ export default function MyListingsPage() {
           </div>
         )}
 
-        {viewType === "wanted" ? (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {wantedItems.map((w) => {
-              const assets = resolveAssets(w.images ?? []);
-              const hero = assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
-              return (
-                <div key={w.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                  <div className="relative aspect-4/3 w-full bg-slate-100">
-                    {w.status === "open" ? (
-                      <div className="absolute left-3 top-3 rounded-full bg-emerald-50/95 px-2 py-1 text-[11px] font-bold text-emerald-700 backdrop-blur">
-                        Open
-                      </div>
-                    ) : (
-                      <div className="absolute left-3 top-3 rounded-full bg-slate-100/95 px-2 py-1 text-[11px] font-bold text-slate-700 backdrop-blur">
-                        Closed
-                      </div>
-                    )}
-                    {hero ? (
-                      <img src={hero} alt={w.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                    ) : (
-                      <NoPhotoPlaceholder variant="tile" />
-                    )}
-                  </div>
-                  <div className="p-4">
-                    <div className="truncate text-sm font-extrabold text-slate-900">{w.title}</div>
-                    <div className="mt-1 truncate text-xs font-semibold text-slate-600">
-                      {w.category}
-                      {w.species ? ` • ${w.species}` : ""} • {w.location}
-                    </div>
-                    <div className="mt-2 text-xs font-semibold text-slate-700">Budget: {budgetLabel(w)}</div>
-                    <div className="mt-2 text-[11px] font-semibold text-slate-500">{relativeTime(w.createdAt)}</div>
+        {(viewType === "sale" && items.length > 0) || (viewType === "wanted" && wantedItems.length > 0) || (viewType === "all" && (items.length > 0 || wantedItems.length > 0)) ? (
+          <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="overflow-x-auto lg:overflow-x-visible">
+              <table className="w-full min-w-[1080px] lg:min-w-0">
+                <thead className="bg-slate-50">
+                  <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                    <SortTh label="Listing" k="listing" className="px-4 py-3" />
+                    <SortTh label="Price" k="price" className="px-4 py-3" />
+                    <SortTh label="Views" k="views" className="px-4 py-3" />
+                    <SortTh label="Status" k="status" className="px-4 py-3" title="Default: Status then Updated" />
+                    <SortTh label="Created" k="created" className="px-4 py-3" />
+                    <SortTh label="Updated" k="updated" className="px-4 py-3" />
+                    <SortTh label="Expires in" k="expiresIn" className="px-4 py-3" />
+                    <th className="px-4 py-3">Actions</th>
+                  </tr>
+                </thead>
 
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Link
-                        to={`/wanted/${w.id}`}
-                        state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
-                        className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 hover:bg-slate-50"
-                      >
-                        View
-                      </Link>
-                      <Link
-                        to={`/wanted/edit/${w.id}`}
-                        className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 hover:bg-slate-50"
-                      >
-                        Edit
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => onToggleWantedStatus(w)}
-                        className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 hover:bg-slate-50"
-                      >
-                        {w.status === "open" ? "Close" : "Reopen"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDeleteWanted(w.id)}
-                        className="inline-flex h-9 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 hover:bg-red-100"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-        <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="overflow-x-auto lg:overflow-x-visible">
-            <table className="w-full min-w-[1080px] lg:min-w-0">
-              <thead className="bg-slate-50">
-                <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-600">
-                  <SortTh label="Listing" k="listing" className="px-4 py-3" />
-                  <SortTh label="Price" k="price" className="px-4 py-3" />
-                  <SortTh label="Views" k="views" className="px-4 py-3" />
-                  <SortTh label="Status" k="status" className="px-4 py-3" title="Default: Status then Updated" />
-                  <SortTh label="Created" k="created" className="px-4 py-3" />
-                  <SortTh label="Updated" k="updated" className="px-4 py-3" />
-                  <SortTh label="Expires in" k="expiresIn" className="px-4 py-3" />
-                  <th className="px-4 py-3">Actions</th>
-                </tr>
-              </thead>
-              {displayItems.map((l, idx) => {
-                const rowBorder = idx === 0 ? "" : "border-t border-slate-200";
+                {/* For sale rows */}
+                {(viewType === "sale" || viewType === "all") &&
+                  displayItems.map((l, idx) => {
+                    const rowBorder = idx === 0 ? "" : "border-t border-slate-200";
 
-                const assets = resolveAssets(l.images ?? []);
-                const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+                    const assets = resolveAssets(l.images ?? []);
+                    const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
 
-                const canToggle = l.status !== "expired" && l.status !== "deleted" && l.status !== "draft" && l.resolution === "none";
-                const canResolve = l.status !== "expired" && l.status !== "deleted" && l.resolution === "none";
+                    const canToggle = l.status !== "expired" && l.status !== "deleted" && l.status !== "draft" && l.resolution === "none";
+                    const canResolve = l.status !== "expired" && l.status !== "deleted" && l.resolution === "none";
 
-                const toggleTitle = l.status === "paused" ? "Resume" : "Pause";
-                const canFeature = l.status === "active" && l.resolution === "none";
-                const isSold = l.resolution === "sold";
-                const isExpanded = expandedId === l.id;
+                    const toggleTitle = l.status === "paused" ? "Resume" : "Pause";
+                    const canFeature = l.status === "active" && l.resolution === "none";
+                    const isSold = l.resolution === "sold";
+                    const expandedKey = `sale:${l.id}`;
+                    const isExpanded = expandedId === expandedKey;
 
-                return (
-                  <tbody key={l.id} className="group">
-                    <tr
-                      className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")}
-                      onClick={() => toggleExpanded(l.id)}
-                    >
-                      <td className="px-4 py-4 align-top">
-                        <div className="flex min-h-20 items-center gap-3">
-                          <Link
-                            to={`/listing/${l.id}`}
-                            state={{
-                              from: {
-                                pathname: routerLocation.pathname,
-                                search: routerLocation.search,
-                                label: "my listings",
-                              },
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
-                          >
-                            {hero ? (
-                              <img src={hero} alt={l.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                            ) : null}
-                          </Link>
+                    return (
+                      <tbody key={expandedKey} className="group">
+                        <tr className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")} onClick={() => toggleExpanded(expandedKey)}>
+                          <td className="px-4 py-4 align-top">
+                            <div className="flex min-h-20 items-center gap-3">
+                              <Link
+                                to={`/listing/${l.id}`}
+                                state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+                              >
+                                {hero ? (
+                                  <img src={hero} alt={l.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                                ) : (
+                                  <NoPhotoPlaceholder variant="tile" />
+                                )}
+                              </Link>
 
-                          <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
-                            <Link
-                              to={`/listing/${l.id}`}
-                              state={{
-                                from: {
-                                  pathname: routerLocation.pathname,
-                                  search: routerLocation.search,
-                                  label: "my listings",
-                                },
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
-                            >
-                              {l.title}
-                            </Link>
-                            <div className="mt-1 min-w-0 truncate text-xs font-semibold text-slate-600">
-                              {l.category} • {l.species} • {l.location}
+                              <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
+                                <Link
+                                  to={`/listing/${l.id}`}
+                                  state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
+                                >
+                                  {l.title}
+                                </Link>
+                                <div className="mt-1 min-w-0 truncate text-xs font-semibold text-slate-600">
+                                  {l.category} • {l.species} • {l.location}
+                                </div>
+                                <div className="mt-1">{renderFeaturedText(l)}</div>
+                              </div>
                             </div>
-                            <div className="mt-1">{renderFeaturedText(l)}</div>
-                          </div>
-                        </div>
-                      </td>
+                          </td>
 
-                      <td className="px-4 py-4 align-top">
-                        <div className="text-sm font-extrabold text-slate-900">{centsToDollars(l.priceCents)}</div>
-                      </td>
+                          <td className="px-4 py-4 align-top">
+                            <div className="text-sm font-extrabold text-slate-900">{centsToDollars(l.priceCents)}</div>
+                          </td>
 
-                      <td className="px-4 py-4 align-top">
-                        <div className="text-sm font-semibold text-slate-700">{Number(l.views ?? 0).toLocaleString()}</div>
-                      </td>
+                          <td className="px-4 py-4 align-top">
+                            <div className="text-sm font-semibold text-slate-700">{Number(l.views ?? 0).toLocaleString()}</div>
+                          </td>
 
-                      <td className="px-4 py-4 align-top">
-                        <StatusText l={l} />
-                      </td>
+                          <td className="px-4 py-4 align-top">
+                            <StatusText l={l} />
+                          </td>
 
-                      <td className="px-4 py-4 align-top">
-                        <div className="text-sm font-semibold text-slate-700">{new Date(l.createdAt).toLocaleDateString()}</div>
-                      </td>
+                          <td className="px-4 py-4 align-top">
+                            <div className="text-sm font-semibold text-slate-700">{new Date(l.createdAt).toLocaleDateString()}</div>
+                          </td>
 
-                      <td className="px-4 py-4 align-top">
-                        <div className="text-sm font-semibold text-slate-700" title={new Date(l.updatedAt).toLocaleString()}>
-                          {relativeTime(l.updatedAt)}
-                        </div>
-                      </td>
+                          <td className="px-4 py-4 align-top">
+                            <div className="text-sm font-semibold text-slate-700" title={new Date(l.updatedAt).toLocaleString()}>
+                              {relativeTime(l.updatedAt)}
+                            </div>
+                          </td>
 
-                      <td className="px-4 py-4 align-top">
-                        <div className="text-sm font-semibold text-slate-700" title={l.expiresAt ? new Date(l.expiresAt).toLocaleString() : ""}>
-                          {expiresInShort(l.expiresAt)}
-                        </div>
-                      </td>
+                          <td className="px-4 py-4 align-top">
+                            <div className="text-sm font-semibold text-slate-700" title={l.expiresAt ? new Date(l.expiresAt).toLocaleString() : ""}>
+                              {expiresInShort(l.expiresAt)}
+                            </div>
+                          </td>
 
-                      <td className="px-4 py-4 align-top">
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleExpanded(l.id);
-                          }}
-                        >
-                          <ActionButton label={isExpanded ? "Hide" : "Actions"} title={isExpanded ? "Hide actions" : "Show actions"} />
-                        </div>
+                          <td className="px-4 py-4 align-top">
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpanded(expandedKey);
+                              }}
+                            >
+                              <ActionButton label={isExpanded ? "Hide" : "Actions"} title={isExpanded ? "Hide actions" : "Show actions"} />
+                            </div>
+                          </td>
+                        </tr>
+
+                        {isExpanded && (
+                          <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(expandedKey)}>
+                            <td colSpan={8} className="px-4 pb-4 pt-0">
+                              <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                {!isSold ? (
+                                  <>
+                                    <ActionButton
+                                      label={l.featured ? "Manage featuring" : "Feature this listing"}
+                                      title={
+                                        !canFeature
+                                          ? "Only active, unsold listings can be featured."
+                                          : l.featured
+                                            ? "Manage featuring"
+                                            : "Feature this listing"
+                                      }
+                                      variant="feature"
+                                      disabled={!canFeature}
+                                      onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
+                                      icon={l.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
+                                    />
+
+                                    <ActionLink to={`/edit/${l.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
+
+                                    <ActionButton
+                                      label={toggleTitle}
+                                      title={toggleTitle}
+                                      disabled={!canToggle}
+                                      onClick={() => doTogglePauseResume(l)}
+                                      icon={l.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
+                                    />
+
+                                    <ActionButton
+                                      label="Mark sold"
+                                      title="Mark as sold"
+                                      variant="primary"
+                                      disabled={!canResolve}
+                                      onClick={() => doSold(l.id)}
+                                      icon={<Check aria-hidden="true" className="h-4 w-4" />}
+                                    />
+                                  </>
+                                ) : (
+                                  <ActionButton
+                                    label="Relist"
+                                    title="Relist"
+                                    variant="primary"
+                                    onClick={() => doRelist(l.id)}
+                                    icon={<RotateCcw aria-hidden="true" className="h-4 w-4" />}
+                                  />
+                                )}
+
+                                <ActionButton
+                                  label="Delete"
+                                  title="Delete"
+                                  variant="danger"
+                                  onClick={() => onDelete(l.id)}
+                                  icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    );
+                  })}
+
+                {/* Divider between types in All */}
+                {viewType === "all" && displayItems.length > 0 && wantedItems.length > 0 ? (
+                  <tbody>
+                    <tr className="border-t border-slate-200 bg-slate-50">
+                      <td colSpan={8} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600">
+                        Wanted
                       </td>
                     </tr>
-
-                    {isExpanded && (
-                      <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(l.id)}>
-                        <td colSpan={8} className="px-4 pb-4 pt-0">
-                          <div
-                            className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {!isSold ? (
-                              <>
-                                <ActionButton
-                                  label={l.featured ? "Manage featuring" : "Feature this listing"}
-                                  title={
-                                    !canFeature
-                                      ? "Only active, unsold listings can be featured."
-                                      : l.featured
-                                        ? "Manage featuring"
-                                        : "Feature this listing"
-                                  }
-                                  variant="feature"
-                                  disabled={!canFeature}
-                                  onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
-                                  icon={l.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
-                                />
-
-                                <ActionLink to={`/edit/${l.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
-
-                                <ActionButton
-                                  label={toggleTitle}
-                                  title={toggleTitle}
-                                  disabled={!canToggle}
-                                  onClick={() => doTogglePauseResume(l)}
-                                  icon={
-                                    l.status === "paused" ? (
-                                      <Play aria-hidden="true" className="h-4 w-4" />
-                                    ) : (
-                                      <Pause aria-hidden="true" className="h-4 w-4" />
-                                    )
-                                  }
-                                />
-
-                                <ActionButton
-                                  label="Mark sold"
-                                  title="Mark as sold"
-                                  variant="primary"
-                                  disabled={!canResolve}
-                                  onClick={() => doSold(l.id)}
-                                  icon={<Check aria-hidden="true" className="h-4 w-4" />}
-                                />
-                              </>
-                            ) : (
-                              <ActionButton
-                                label="Relist"
-                                title="Relist"
-                                variant="primary"
-                                onClick={() => doRelist(l.id)}
-                                icon={<RotateCcw aria-hidden="true" className="h-4 w-4" />}
-                              />
-                            )}
-
-                            <ActionButton
-                              label="Delete"
-                              title="Delete"
-                              variant="danger"
-                              onClick={() => onDelete(l.id)}
-                              icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                    )}
                   </tbody>
-                );
-              })}
-            </table>
+                ) : null}
+
+                {/* Wanted rows */}
+                {(viewType === "wanted" || viewType === "all") &&
+                  wantedItems.map((w, idx) => {
+                    const rowBorder =
+                      viewType === "wanted" && idx === 0 ? "" : viewType !== "wanted" && displayItems.length > 0 && idx === 0 ? "" : "border-t border-slate-200";
+
+                    const assets = resolveAssets(w.images ?? []);
+                    const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+
+                    const expandedKey = `wanted:${w.id}`;
+                    const isExpanded = expandedId === expandedKey;
+
+                    return (
+                      <tbody key={expandedKey} className="group">
+                        <tr className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")} onClick={() => toggleExpanded(expandedKey)}>
+                          <td className="px-4 py-4 align-top">
+                            <div className="flex min-h-20 items-center gap-3">
+                              <Link
+                                to={`/wanted/${w.id}`}
+                                state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+                              >
+                                {hero ? (
+                                  <img src={hero} alt={w.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                                ) : (
+                                  <NoPhotoPlaceholder variant="tile" />
+                                )}
+                              </Link>
+
+                              <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
+                                <Link
+                                  to={`/wanted/${w.id}`}
+                                  state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
+                                >
+                                  {w.title}
+                                </Link>
+                                <div className="mt-1 min-w-0 truncate text-xs font-semibold text-slate-600">
+                                  {w.category}
+                                  {w.species ? ` • ${w.species}` : ""} • {w.location}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-4 align-top">
+                            <div className="text-sm font-extrabold text-slate-900">{budgetLabel(w)}</div>
+                          </td>
+
+                          <td className="px-4 py-4 align-top">
+                            <div className="text-sm font-semibold text-slate-600">—</div>
+                          </td>
+
+                          <td className="px-4 py-4 align-top">
+                            <WantedStatusText w={w} />
+                          </td>
+
+                          <td className="px-4 py-4 align-top">
+                            <div className="text-sm font-semibold text-slate-700">{new Date(w.createdAt).toLocaleDateString()}</div>
+                          </td>
+
+                          <td className="px-4 py-4 align-top">
+                            <div className="text-sm font-semibold text-slate-700" title={new Date(w.updatedAt).toLocaleString()}>
+                              {relativeTime(w.updatedAt)}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-4 align-top">
+                            <div className="text-sm font-semibold text-slate-600">—</div>
+                          </td>
+
+                          <td className="px-4 py-4 align-top">
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpanded(expandedKey);
+                              }}
+                            >
+                              <ActionButton label={isExpanded ? "Hide" : "Actions"} title={isExpanded ? "Hide actions" : "Show actions"} />
+                            </div>
+                          </td>
+                        </tr>
+
+                        {isExpanded && (
+                          <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(expandedKey)}>
+                            <td colSpan={8} className="px-4 pb-4 pt-0">
+                              <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                <ActionLink to={`/wanted/edit/${w.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
+                                <ActionButton
+                                  label={w.status === "open" ? "Close" : "Reopen"}
+                                  title={w.status === "open" ? "Close wanted post" : "Reopen wanted post"}
+                                  onClick={() => onToggleWantedStatus(w)}
+                                />
+                                <ActionButton
+                                  label="Delete"
+                                  title="Delete wanted post"
+                                  variant="danger"
+                                  onClick={() => onDeleteWanted(w.id)}
+                                  icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    );
+                  })}
+              </table>
+            </div>
           </div>
-        </div>
-        )}
+        ) : null}
       </main>
     </div>
   );

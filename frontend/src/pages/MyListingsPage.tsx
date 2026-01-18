@@ -687,8 +687,13 @@ export default function MyListingsPage() {
                                 >
                                   {l.title}
                                 </Link>
-                                <div className="mt-1 min-w-0 truncate text-xs font-semibold text-slate-600">
-                                  {l.category} • {l.species} • {l.location}
+                                <div className="mt-1 flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-600">
+                                  <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                    For sale
+                                  </span>
+                                  <span className="min-w-0 truncate">
+                                    {l.category} • {l.species} • {l.location}
+                                  </span>
                                 </div>
                                 <div className="mt-1">{renderFeaturedText(l)}</div>
                               </div>
@@ -850,9 +855,14 @@ export default function MyListingsPage() {
                                 >
                                   {w.title}
                                 </Link>
-                                <div className="mt-1 min-w-0 truncate text-xs font-semibold text-slate-600">
-                                  {w.category}
-                                  {w.species ? ` • ${w.species}` : ""} • {w.location}
+                                <div className="mt-1 flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-600">
+                                  <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                    Wanted
+                                  </span>
+                                  <span className="min-w-0 truncate">
+                                    {w.category}
+                                    {w.species ? ` • ${w.species}` : ""} • {w.location}
+                                  </span>
                                 </div>
                               </div>
                             </div>

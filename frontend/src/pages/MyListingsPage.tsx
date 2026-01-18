@@ -631,7 +631,7 @@ export default function MyListingsPage() {
             <div className="overflow-x-auto lg:overflow-x-visible">
               <table className="w-full min-w-[1080px] lg:min-w-0">
                 <thead className="bg-slate-50">
-                  <tr className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                  <tr className="text-xs font-bold tracking-wider text-slate-600">
                     <SortTh label="Listing" k="listing" className="px-4 py-3" align="left" />
                     <SortTh label="Price" k="price" className="px-4 py-3" align="right" />
                     <SortTh label="Views" k="views" className="px-4 py-3" align="right" />

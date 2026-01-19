@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { MapPin } from "lucide-react";
 import Header from "../components/Header";
 import { clearListingFeaturing, clearWantedFeaturing, fetchListing, fetchWantedPost, setListingFeaturingForDays, setListingFeaturingUntilMs, setWantedFeaturingForDays, setWantedFeaturingUntilMs, type Listing, type WantedPost } from "../api";
 import { useAuth } from "../auth";
@@ -114,7 +115,12 @@ export default function FeatureListingPage() {
               <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Listing</div>
               <div className="mt-2 text-lg font-extrabold text-slate-900">{item.item.title}</div>
               <div className="mt-1 text-sm font-semibold text-slate-600">
-                {item.item.category} • {"species" in item.item && item.item.species ? item.item.species : "—"} • {item.item.location}
+                <span className="inline-flex items-center gap-1">
+                  <MapPin aria-hidden="true" className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 truncate">
+                    {item.item.location} • {item.item.shippingOffered ? "Shipping offered" : "Local only"}
+                  </span>
+                </span>
               </div>
 
               {featuringState === "active" ? (

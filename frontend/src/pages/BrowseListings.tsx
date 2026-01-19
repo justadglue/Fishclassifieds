@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { MapPin } from "lucide-react";
 import {
   fetchListings,
   fetchWanted,
@@ -518,7 +519,12 @@ export default function BrowseListings() {
                           <div className="min-w-0">
                             <div className="truncate text-sm font-extrabold text-slate-900">{l.title}</div>
                             <div className="mt-1 truncate text-xs font-semibold text-slate-600">
-                              {l.category} • {l.species} • {l.location}
+                              <span className="inline-flex items-center gap-1">
+                                <MapPin aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                                <span className="min-w-0 truncate">
+                                  {l.location} • {l.shippingOffered ? "Shipping offered" : "Local only"}
+                                </span>
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -569,8 +575,12 @@ export default function BrowseListings() {
                         <div className="min-w-0">
                           <div className="truncate text-sm font-extrabold text-slate-900">{w.title}</div>
                           <div className="mt-1 truncate text-xs font-semibold text-slate-600">
-                            {w.category}
-                            {w.species ? ` • ${w.species}` : ""} • {w.location}
+                            <span className="inline-flex items-center gap-1">
+                              <MapPin aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                              <span className="min-w-0 truncate">
+                                {w.location} • {w.shippingOffered ? "Shipping offered" : "Local only"}
+                              </span>
+                            </span>
                           </div>
                         </div>
                       </div>

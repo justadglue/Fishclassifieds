@@ -199,6 +199,22 @@ CREATE INDEX IF NOT EXISTS idx_listing_images_listing_id ON listing_images(listi
 `);
 }
 
+function assertListingsSchema(db: Database.Database) {
+  // We intentionally do NOT auto-migrate in runtime. If the DB file predates a schema change,
+  // fail fast with a clear message so the operator can run the migration script.
+  const cols = db.prepare(`PRAGMA table_info(listings)`).all() as Array<{ name: string }>;
+  const names = new Set(cols.map((c) => String((c as any).name)));
+  const required = ["shipping_offered"] as const;
+  for (const col of required) {
+    if (!names.has(col)) {
+      throw new Error(
+        `DB schema missing required column '${col}' on table 'listings'. ` +
+          `Run: npm --prefix backend run db:migration`
+      );
+    }
+  }
+}
+
 let _db: Database.Database | null = null;
 
 export function openDb() {
@@ -208,6 +224,7 @@ export function openDb() {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   createSchema(db);
+   assertListingsSchema(db);
   _db = db;
   return db;
 }

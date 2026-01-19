@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { MapPin } from "lucide-react";
 import { fetchFeatured, resolveAssets, type FeaturedItem, type Listing, type WantedPost } from "../api";
 import { useAuth } from "../auth";
 import Header from "../components/Header";
@@ -54,7 +55,12 @@ function FeaturedCard({ item }: { item: FeaturedItem }) {
           <div className="min-w-0">
             <div className="truncate text-sm font-extrabold text-slate-900">{item.item.title}</div>
             <div className="mt-1 truncate text-xs font-semibold text-slate-600">
-              {item.item.category} • {item.kind === "sale" ? item.item.species : item.item.species ?? "—"} • {item.item.location}
+              <span className="inline-flex items-center gap-1">
+                <MapPin aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                <span className="min-w-0 truncate">
+                  {item.item.location} • {item.item.shippingOffered ? "Shipping offered" : "Local only"}
+                </span>
+              </span>
             </div>
           </div>
           <div className="shrink-0 rounded-xl bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">

@@ -1,4 +1,5 @@
 import type { Category, ListingSex, WaterType } from "../api";
+import { LocationTypeaheadAU } from "./LocationTypeaheadAU";
 
 export type BrowseType = "sale" | "wanted";
 
@@ -110,12 +111,7 @@ export default function BrowseFilters(props: {
 
                 <label className="block">
                     <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
-                    <input
-                        value={location}
-                        onChange={(e) => setLocation(e.target.value)}
-                        placeholder="e.g. Brisbane"
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                    />
+                    <LocationTypeaheadAU value={location} onChange={setLocation} placeholder="Start typing your area…" />
                 </label>
 
                 <label className="flex items-center gap-2">

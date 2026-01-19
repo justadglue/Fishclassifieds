@@ -1,0 +1,3887 @@
+[
+  {
+    "id": "state:act",
+    "label": "ACT",
+    "lga": "ACT",
+    "state": "ACT",
+    "population": 473855
+  },
+  {
+    "id": "sa:adelaide hills",
+    "label": "Adelaide Hills, SA",
+    "lga": "Adelaide Hills",
+    "state": "SA",
+    "population": 42368
+  },
+  {
+    "id": "sa:adelaide plains",
+    "label": "Adelaide Plains, SA",
+    "lga": "Adelaide Plains",
+    "state": "SA",
+    "population": 11302
+  },
+  {
+    "id": "sa:adelaide",
+    "label": "Adelaide, SA",
+    "lga": "Adelaide",
+    "state": "SA",
+    "population": 29118
+  },
+  {
+    "id": "wa:albany",
+    "label": "Albany, WA",
+    "lga": "Albany",
+    "state": "WA",
+    "population": 41545
+  },
+  {
+    "id": "nsw:albury",
+    "label": "Albury, NSW",
+    "lga": "Albury",
+    "state": "NSW",
+    "population": 58317
+  },
+  {
+    "id": "sa:alexandrina",
+    "label": "Alexandrina, SA",
+    "lga": "Alexandrina",
+    "state": "SA",
+    "population": 30887
+  },
+  {
+    "id": "nt:alice springs",
+    "label": "Alice Springs, NT",
+    "lga": "Alice Springs",
+    "state": "NT",
+    "population": 29693
+  },
+  {
+    "id": "vic:alpine",
+    "label": "Alpine, VIC",
+    "lga": "Alpine",
+    "state": "VIC",
+    "population": 13199
+  },
+  {
+    "id": "sa:anangu pitjantjatjara yankunytjatjara",
+    "label": "Anangu Pitjantjatjara Yankunytjatjara, SA",
+    "lga": "Anangu Pitjantjatjara Yankunytjatjara",
+    "state": "SA",
+    "population": 2654
+  },
+  {
+    "id": "vic:ararat",
+    "label": "Ararat, VIC",
+    "lga": "Ararat",
+    "state": "VIC",
+    "population": 11686
+  },
+  {
+    "id": "wa:armadale",
+    "label": "Armadale, WA",
+    "lga": "Armadale",
+    "state": "WA",
+    "population": 109218
+  },
+  {
+    "id": "nsw:armidale",
+    "label": "Armidale, NSW",
+    "lga": "Armidale",
+    "state": "NSW",
+    "population": 29646
+  },
+  {
+    "id": "wa:ashburton",
+    "label": "Ashburton, WA",
+    "lga": "Ashburton",
+    "state": "WA",
+    "population": 8179
+  },
+  {
+    "id": "wa:augusta margaret river",
+    "label": "Augusta Margaret River, WA",
+    "lga": "Augusta Margaret River",
+    "state": "WA",
+    "population": 19410
+  },
+  {
+    "id": "qld:aurukun",
+    "label": "Aurukun, QLD",
+    "lga": "Aurukun",
+    "state": "QLD",
+    "population": 1163
+  },
+  {
+    "id": "vic:ballarat",
+    "label": "Ballarat, VIC",
+    "lga": "Ballarat",
+    "state": "VIC",
+    "population": 121050
+  },
+  {
+    "id": "nsw:ballina",
+    "label": "Ballina, NSW",
+    "lga": "Ballina",
+    "state": "NSW",
+    "population": 47935
+  },
+  {
+    "id": "qld:balonne",
+    "label": "Balonne, QLD",
+    "lga": "Balonne",
+    "state": "QLD",
+    "population": 4356
+  },
+  {
+    "id": "nsw:balranald",
+    "label": "Balranald, NSW",
+    "lga": "Balranald",
+    "state": "NSW",
+    "population": 2219
+  },
+  {
+    "id": "qld:banana",
+    "label": "Banana, QLD",
+    "lga": "Banana",
+    "state": "QLD",
+    "population": 15053
+  },
+  {
+    "id": "vic:banyule",
+    "label": "Banyule, VIC",
+    "lga": "Banyule",
+    "state": "VIC",
+    "population": 131931
+  },
+  {
+    "id": "qld:barcaldine",
+    "label": "Barcaldine, QLD",
+    "lga": "Barcaldine",
+    "state": "QLD",
+    "population": 2917
+  },
+  {
+    "id": "qld:barcoo",
+    "label": "Barcoo, QLD",
+    "lga": "Barcoo",
+    "state": "QLD",
+    "population": 317
+  },
+  {
+    "id": "nt:barkly",
+    "label": "Barkly, NT",
+    "lga": "Barkly",
+    "state": "NT",
+    "population": 7288
+  },
+  {
+    "id": "sa:barossa",
+    "label": "Barossa, SA",
+    "lga": "Barossa",
+    "state": "SA",
+    "population": 26590
+  },
+  {
+    "id": "sa:barunga west",
+    "label": "Barunga West, SA",
+    "lga": "Barunga West",
+    "state": "SA",
+    "population": 2672
+  },
+  {
+    "id": "vic:bass coast",
+    "label": "Bass Coast, VIC",
+    "lga": "Bass Coast",
+    "state": "VIC",
+    "population": 43557
+  },
+  {
+    "id": "wa:bassendean",
+    "label": "Bassendean, WA",
+    "lga": "Bassendean",
+    "state": "WA",
+    "population": 17145
+  },
+  {
+    "id": "nsw:bathurst",
+    "label": "Bathurst, NSW",
+    "lga": "Bathurst",
+    "state": "NSW",
+    "population": 44939
+  },
+  {
+    "id": "vic:baw baw",
+    "label": "Baw Baw, VIC",
+    "lga": "Baw Baw",
+    "state": "VIC",
+    "population": 61905
+  },
+  {
+    "id": "nsw:bayside (nsw)",
+    "label": "Bayside (NSW), NSW",
+    "lga": "Bayside (NSW)",
+    "state": "NSW",
+    "population": 185880
+  },
+  {
+    "id": "vic:bayside (vic.)",
+    "label": "Bayside (Vic.), VIC",
+    "lga": "Bayside (Vic.)",
+    "state": "VIC",
+    "population": 106118
+  },
+  {
+    "id": "wa:bayswater",
+    "label": "Bayswater, WA",
+    "lga": "Bayswater",
+    "state": "WA",
+    "population": 75981
+  },
+  {
+    "id": "nsw:bega valley",
+    "label": "Bega Valley, NSW",
+    "lga": "Bega Valley",
+    "state": "NSW",
+    "population": 36593
+  },
+  {
+    "id": "nsw:bellingen",
+    "label": "Bellingen, NSW",
+    "lga": "Bellingen",
+    "state": "NSW",
+    "population": 13278
+  },
+  {
+    "id": "wa:belmont",
+    "label": "Belmont, WA",
+    "lga": "Belmont",
+    "state": "WA",
+    "population": 47377
+  },
+  {
+    "id": "nt:belyuen",
+    "label": "Belyuen, NT",
+    "lga": "Belyuen",
+    "state": "NT",
+    "population": 167
+  },
+  {
+    "id": "vic:benalla",
+    "label": "Benalla, VIC",
+    "lga": "Benalla",
+    "state": "VIC",
+    "population": 14635
+  },
+  {
+    "id": "sa:berri barmera",
+    "label": "Berri Barmera, SA",
+    "lga": "Berri Barmera",
+    "state": "SA",
+    "population": 10747
+  },
+  {
+    "id": "nsw:berrigan",
+    "label": "Berrigan, NSW",
+    "lga": "Berrigan",
+    "state": "NSW",
+    "population": 8666
+  },
+  {
+    "id": "wa:beverley",
+    "label": "Beverley, WA",
+    "lga": "Beverley",
+    "state": "WA",
+    "population": 1795
+  },
+  {
+    "id": "qld:blackall tambo",
+    "label": "Blackall Tambo, QLD",
+    "lga": "Blackall Tambo",
+    "state": "QLD",
+    "population": 1969
+  },
+  {
+    "id": "nsw:blacktown",
+    "label": "Blacktown, NSW",
+    "lga": "Blacktown",
+    "state": "NSW",
+    "population": 438843
+  },
+  {
+    "id": "nsw:bland",
+    "label": "Bland, NSW",
+    "lga": "Bland",
+    "state": "NSW",
+    "population": 5454
+  },
+  {
+    "id": "nsw:blayney",
+    "label": "Blayney, NSW",
+    "lga": "Blayney",
+    "state": "NSW",
+    "population": 7767
+  },
+  {
+    "id": "nsw:blue mountains",
+    "label": "Blue Mountains, NSW",
+    "lga": "Blue Mountains",
+    "state": "NSW",
+    "population": 78891
+  },
+  {
+    "id": "wa:boddington",
+    "label": "Boddington, WA",
+    "lga": "Boddington",
+    "state": "WA",
+    "population": 1808
+  },
+  {
+    "id": "nsw:bogan",
+    "label": "Bogan, NSW",
+    "lga": "Bogan",
+    "state": "NSW",
+    "population": 2407
+  },
+  {
+    "id": "vic:boroondara",
+    "label": "Boroondara, VIC",
+    "lga": "Boroondara",
+    "state": "VIC",
+    "population": 178008
+  },
+  {
+    "id": "qld:boulia",
+    "label": "Boulia, QLD",
+    "lga": "Boulia",
+    "state": "QLD",
+    "population": 479
+  },
+  {
+    "id": "nsw:bourke",
+    "label": "Bourke, NSW",
+    "lga": "Bourke",
+    "state": "NSW",
+    "population": 2349
+  },
+  {
+    "id": "wa:boyup brook",
+    "label": "Boyup Brook, WA",
+    "lga": "Boyup Brook",
+    "state": "WA",
+    "population": 1959
+  },
+  {
+    "id": "tas:break o`day",
+    "label": "Break O`Day, TAS",
+    "lga": "Break O`Day",
+    "state": "TAS",
+    "population": 7163
+  },
+  {
+    "id": "nsw:brewarrina",
+    "label": "Brewarrina, NSW",
+    "lga": "Brewarrina",
+    "state": "NSW",
+    "population": 1408
+  },
+  {
+    "id": "wa:bridgetown-greenbushes",
+    "label": "Bridgetown-Greenbushes, WA",
+    "lga": "Bridgetown-Greenbushes",
+    "state": "WA",
+    "population": 5797
+  },
+  {
+    "id": "tas:brighton",
+    "label": "Brighton, TAS",
+    "lga": "Brighton",
+    "state": "TAS",
+    "population": 20284
+  },
+  {
+    "id": "vic:brimbank",
+    "label": "Brimbank, VIC",
+    "lga": "Brimbank",
+    "state": "VIC",
+    "population": 198152
+  },
+  {
+    "id": "qld:brisbane",
+    "label": "Brisbane, QLD",
+    "lga": "Brisbane",
+    "state": "QLD",
+    "population": 1355640
+  },
+  {
+    "id": "nsw:broken hill",
+    "label": "Broken Hill, NSW",
+    "lga": "Broken Hill",
+    "state": "NSW",
+    "population": 17541
+  },
+  {
+    "id": "wa:brookton",
+    "label": "Brookton, WA",
+    "lga": "Brookton",
+    "state": "WA",
+    "population": 962
+  },
+  {
+    "id": "wa:broome",
+    "label": "Broome, WA",
+    "lga": "Broome",
+    "state": "WA",
+    "population": 18870
+  },
+  {
+    "id": "wa:broomehill-tambellup",
+    "label": "Broomehill-Tambellup, WA",
+    "lga": "Broomehill-Tambellup",
+    "state": "WA",
+    "population": 1101
+  },
+  {
+    "id": "wa:bruce rock",
+    "label": "Bruce Rock, WA",
+    "lga": "Bruce Rock",
+    "state": "WA",
+    "population": 1066
+  },
+  {
+    "id": "qld:bulloo",
+    "label": "Bulloo, QLD",
+    "lga": "Bulloo",
+    "state": "QLD",
+    "population": 347
+  },
+  {
+    "id": "vic:buloke",
+    "label": "Buloke, VIC",
+    "lga": "Buloke",
+    "state": "VIC",
+    "population": 5956
+  },
+  {
+    "id": "wa:bunbury",
+    "label": "Bunbury, WA",
+    "lga": "Bunbury",
+    "state": "WA",
+    "population": 35174
+  },
+  {
+    "id": "qld:bundaberg",
+    "label": "Bundaberg, QLD",
+    "lga": "Bundaberg",
+    "state": "QLD",
+    "population": 106146
+  },
+  {
+    "id": "qld:burdekin",
+    "label": "Burdekin, QLD",
+    "lga": "Burdekin",
+    "state": "QLD",
+    "population": 17204
+  },
+  {
+    "id": "qld:burke",
+    "label": "Burke, QLD",
+    "lga": "Burke",
+    "state": "QLD",
+    "population": 444
+  },
+  {
+    "id": "tas:burnie",
+    "label": "Burnie, TAS",
+    "lga": "Burnie",
+    "state": "TAS",
+    "population": 20417
+  },
+  {
+    "id": "sa:burnside",
+    "label": "Burnside, SA",
+    "lga": "Burnside",
+    "state": "SA",
+    "population": 47810
+  },
+  {
+    "id": "nsw:burwood",
+    "label": "Burwood, NSW",
+    "lga": "Burwood",
+    "state": "NSW",
+    "population": 43346
+  },
+  {
+    "id": "wa:busselton",
+    "label": "Busselton, WA",
+    "lga": "Busselton",
+    "state": "WA",
+    "population": 45003
+  },
+  {
+    "id": "nsw:byron",
+    "label": "Byron, NSW",
+    "lga": "Byron",
+    "state": "NSW",
+    "population": 37826
+  },
+  {
+    "id": "nsw:cabonne",
+    "label": "Cabonne, NSW",
+    "lga": "Cabonne",
+    "state": "NSW",
+    "population": 13897
+  },
+  {
+    "id": "qld:cairns",
+    "label": "Cairns, QLD",
+    "lga": "Cairns",
+    "state": "QLD",
+    "population": 178104
+  },
+  {
+    "id": "wa:cambridge",
+    "label": "Cambridge, WA",
+    "lga": "Cambridge",
+    "state": "WA",
+    "population": 32006
+  },
+  {
+    "id": "nsw:camden",
+    "label": "Camden, NSW",
+    "lga": "Camden",
+    "state": "NSW",
+    "population": 141133
+  },
+  {
+    "id": "vic:campaspe",
+    "label": "Campaspe, VIC",
+    "lga": "Campaspe",
+    "state": "VIC",
+    "population": 38153
+  },
+  {
+    "id": "nsw:campbelltown (nsw)",
+    "label": "Campbelltown (NSW), NSW",
+    "lga": "Campbelltown (NSW)",
+    "state": "NSW",
+    "population": 188303
+  },
+  {
+    "id": "sa:campbelltown (sa)",
+    "label": "Campbelltown (SA), SA",
+    "lga": "Campbelltown (SA)",
+    "state": "SA",
+    "population": 57988
+  },
+  {
+    "id": "nsw:canada bay",
+    "label": "Canada Bay, NSW",
+    "lga": "Canada Bay",
+    "state": "NSW",
+    "population": 92255
+  },
+  {
+    "id": "act:canberra",
+    "label": "Canberra, ACT",
+    "lga": "Canberra",
+    "state": "ACT",
+    "population": null
+  },
+  {
+    "id": "wa:canning",
+    "label": "Canning, WA",
+    "lga": "Canning",
+    "state": "WA",
+    "population": 106944
+  },
+  {
+    "id": "nsw:canterbury-bankstown",
+    "label": "Canterbury-Bankstown, NSW",
+    "lga": "Canterbury-Bankstown",
+    "state": "NSW",
+    "population": 385242
+  },
+  {
+    "id": "wa:capel",
+    "label": "Capel, WA",
+    "lga": "Capel",
+    "state": "WA",
+    "population": 19701
+  },
+  {
+    "id": "vic:cardinia",
+    "label": "Cardinia, VIC",
+    "lga": "Cardinia",
+    "state": "VIC",
+    "population": 130383
+  },
+  {
+    "id": "wa:carnamah",
+    "label": "Carnamah, WA",
+    "lga": "Carnamah",
+    "state": "WA",
+    "population": 586
+  },
+  {
+    "id": "wa:carnarvon",
+    "label": "Carnarvon, WA",
+    "lga": "Carnarvon",
+    "state": "WA",
+    "population": 5599
+  },
+  {
+    "id": "qld:carpentaria",
+    "label": "Carpentaria, QLD",
+    "lga": "Carpentaria",
+    "state": "QLD",
+    "population": 2229
+  },
+  {
+    "id": "nsw:carrathool",
+    "label": "Carrathool, NSW",
+    "lga": "Carrathool",
+    "state": "NSW",
+    "population": 2767
+  },
+  {
+    "id": "vic:casey",
+    "label": "Casey, VIC",
+    "lga": "Casey",
+    "state": "VIC",
+    "population": 405415
+  },
+  {
+    "id": "qld:cassowary coast",
+    "label": "Cassowary Coast, QLD",
+    "lga": "Cassowary Coast",
+    "state": "QLD",
+    "population": 30390
+  },
+  {
+    "id": "sa:ceduna",
+    "label": "Ceduna, SA",
+    "lga": "Ceduna",
+    "state": "SA",
+    "population": 3744
+  },
+  {
+    "id": "nsw:central coast (nsw)",
+    "label": "Central Coast (NSW), NSW",
+    "lga": "Central Coast (NSW)",
+    "state": "NSW",
+    "population": 354803
+  },
+  {
+    "id": "tas:central coast (tas.)",
+    "label": "Central Coast (Tas.), TAS",
+    "lga": "Central Coast (Tas.)",
+    "state": "TAS",
+    "population": 23350
+  },
+  {
+    "id": "nsw:central darling",
+    "label": "Central Darling, NSW",
+    "lga": "Central Darling",
+    "state": "NSW",
+    "population": 1767
+  },
+  {
+    "id": "nt:central desert",
+    "label": "Central Desert, NT",
+    "lga": "Central Desert",
+    "state": "NT",
+    "population": 4128
+  },
+  {
+    "id": "vic:central goldfields",
+    "label": "Central Goldfields, VIC",
+    "lga": "Central Goldfields",
+    "state": "VIC",
+    "population": 13704
+  },
+  {
+    "id": "qld:central highlands (qld)",
+    "label": "Central Highlands (Qld), QLD",
+    "lga": "Central Highlands (Qld)",
+    "state": "QLD",
+    "population": 29336
+  },
+  {
+    "id": "tas:central highlands (tas.)",
+    "label": "Central Highlands (Tas.), TAS",
+    "lga": "Central Highlands (Tas.)",
+    "state": "TAS",
+    "population": 2588
+  },
+  {
+    "id": "nsw:cessnock",
+    "label": "Cessnock, NSW",
+    "lga": "Cessnock",
+    "state": "NSW",
+    "population": 69352
+  },
+  {
+    "id": "wa:chapman valley",
+    "label": "Chapman Valley, WA",
+    "lga": "Chapman Valley",
+    "state": "WA",
+    "population": 1698
+  },
+  {
+    "id": "sa:charles sturt",
+    "label": "Charles Sturt, SA",
+    "lga": "Charles Sturt",
+    "state": "SA",
+    "population": 129196
+  },
+  {
+    "id": "qld:charters towers",
+    "label": "Charters Towers, QLD",
+    "lga": "Charters Towers",
+    "state": "QLD",
+    "population": 12040
+  },
+  {
+    "id": "qld:cherbourg",
+    "label": "Cherbourg, QLD",
+    "lga": "Cherbourg",
+    "state": "QLD",
+    "population": 1281
+  },
+  {
+    "id": "wa:chittering",
+    "label": "Chittering, WA",
+    "lga": "Chittering",
+    "state": "WA",
+    "population": 6753
+  },
+  {
+    "id": "wa:christmas island",
+    "label": "Christmas Island, WA",
+    "lga": "Christmas Island",
+    "state": "WA",
+    "population": 1865
+  },
+  {
+    "id": "tas:circular head",
+    "label": "Circular Head, TAS",
+    "lga": "Circular Head",
+    "state": "TAS",
+    "population": 8315
+  },
+  {
+    "id": "sa:clare and gilbert valleys",
+    "label": "Clare and Gilbert Valleys, SA",
+    "lga": "Clare and Gilbert Valleys",
+    "state": "SA",
+    "population": 9417
+  },
+  {
+    "id": "wa:claremont",
+    "label": "Claremont, WA",
+    "lga": "Claremont",
+    "state": "WA",
+    "population": 12671
+  },
+  {
+    "id": "nsw:clarence valley",
+    "label": "Clarence Valley, NSW",
+    "lga": "Clarence Valley",
+    "state": "NSW",
+    "population": 56037
+  },
+  {
+    "id": "tas:clarence",
+    "label": "Clarence, TAS",
+    "lga": "Clarence",
+    "state": "TAS",
+    "population": 63973
+  },
+  {
+    "id": "sa:cleve",
+    "label": "Cleve, SA",
+    "lga": "Cleve",
+    "state": "SA",
+    "population": 1757
+  },
+  {
+    "id": "qld:cloncurry",
+    "label": "Cloncurry, QLD",
+    "lga": "Cloncurry",
+    "state": "QLD",
+    "population": 3882
+  },
+  {
+    "id": "nsw:cobar",
+    "label": "Cobar, NSW",
+    "lga": "Cobar",
+    "state": "NSW",
+    "population": 4015
+  },
+  {
+    "id": "wa:cockburn",
+    "label": "Cockburn, WA",
+    "lga": "Cockburn",
+    "state": "WA",
+    "population": 135149
+  },
+  {
+    "id": "wa:cocos islands",
+    "label": "Cocos Islands, WA",
+    "lga": "Cocos Islands",
+    "state": "WA",
+    "population": 625
+  },
+  {
+    "id": "nsw:coffs harbour",
+    "label": "Coffs Harbour, NSW",
+    "lga": "Coffs Harbour",
+    "state": "NSW",
+    "population": 81248
+  },
+  {
+    "id": "vic:colac otway",
+    "label": "Colac Otway, VIC",
+    "lga": "Colac Otway",
+    "state": "VIC",
+    "population": 22300
+  },
+  {
+    "id": "wa:collie",
+    "label": "Collie, WA",
+    "lga": "Collie",
+    "state": "WA",
+    "population": 9408
+  },
+  {
+    "id": "sa:coober pedy",
+    "label": "Coober Pedy, SA",
+    "lga": "Coober Pedy",
+    "state": "SA",
+    "population": 1526
+  },
+  {
+    "id": "qld:cook",
+    "label": "Cook, QLD",
+    "lga": "Cook",
+    "state": "QLD",
+    "population": 4824
+  },
+  {
+    "id": "nsw:coolamon",
+    "label": "Coolamon, NSW",
+    "lga": "Coolamon",
+    "state": "NSW",
+    "population": 4613
+  },
+  {
+    "id": "wa:coolgardie",
+    "label": "Coolgardie, WA",
+    "lga": "Coolgardie",
+    "state": "WA",
+    "population": 3779
+  },
+  {
+    "id": "nt:coomalie",
+    "label": "Coomalie, NT",
+    "lga": "Coomalie",
+    "state": "NT",
+    "population": 1410
+  },
+  {
+    "id": "nsw:coonamble",
+    "label": "Coonamble, NSW",
+    "lga": "Coonamble",
+    "state": "NSW",
+    "population": 3871
+  },
+  {
+    "id": "sa:coorong",
+    "label": "Coorong, SA",
+    "lga": "Coorong",
+    "state": "SA",
+    "population": 5614
+  },
+  {
+    "id": "wa:coorow",
+    "label": "Coorow, WA",
+    "lga": "Coorow",
+    "state": "WA",
+    "population": 1125
+  },
+  {
+    "id": "nsw:cootamundra-gundagai",
+    "label": "Cootamundra-Gundagai, NSW",
+    "lga": "Cootamundra-Gundagai",
+    "state": "NSW",
+    "population": 11424
+  },
+  {
+    "id": "sa:copper coast",
+    "label": "Copper Coast, SA",
+    "lga": "Copper Coast",
+    "state": "SA",
+    "population": 16299
+  },
+  {
+    "id": "vic:corangamite",
+    "label": "Corangamite, VIC",
+    "lga": "Corangamite",
+    "state": "VIC",
+    "population": 15846
+  },
+  {
+    "id": "wa:corrigin",
+    "label": "Corrigin, WA",
+    "lga": "Corrigin",
+    "state": "WA",
+    "population": 1039
+  },
+  {
+    "id": "wa:cottesloe",
+    "label": "Cottesloe, WA",
+    "lga": "Cottesloe",
+    "state": "WA",
+    "population": 8967
+  },
+  {
+    "id": "nsw:cowra",
+    "label": "Cowra, NSW",
+    "lga": "Cowra",
+    "state": "NSW",
+    "population": 12680
+  },
+  {
+    "id": "wa:cranbrook",
+    "label": "Cranbrook, WA",
+    "lga": "Cranbrook",
+    "state": "WA",
+    "population": 1152
+  },
+  {
+    "id": "qld:croydon",
+    "label": "Croydon, QLD",
+    "lga": "Croydon",
+    "state": "QLD",
+    "population": 270
+  },
+  {
+    "id": "wa:cuballing",
+    "label": "Cuballing, WA",
+    "lga": "Cuballing",
+    "state": "WA",
+    "population": 955
+  },
+  {
+    "id": "wa:cue",
+    "label": "Cue, WA",
+    "lga": "Cue",
+    "state": "WA",
+    "population": 229
+  },
+  {
+    "id": "nsw:cumberland",
+    "label": "Cumberland, NSW",
+    "lga": "Cumberland",
+    "state": "NSW",
+    "population": 252399
+  },
+  {
+    "id": "wa:cunderdin",
+    "label": "Cunderdin, WA",
+    "lga": "Cunderdin",
+    "state": "WA",
+    "population": 1316
+  },
+  {
+    "id": "wa:dalwallinu",
+    "label": "Dalwallinu, WA",
+    "lga": "Dalwallinu",
+    "state": "WA",
+    "population": 1466
+  },
+  {
+    "id": "wa:dandaragan",
+    "label": "Dandaragan, WA",
+    "lga": "Dandaragan",
+    "state": "WA",
+    "population": 3921
+  },
+  {
+    "id": "wa:dardanup",
+    "label": "Dardanup, WA",
+    "lga": "Dardanup",
+    "state": "WA",
+    "population": 15930
+  },
+  {
+    "id": "vic:darebin",
+    "label": "Darebin, VIC",
+    "lga": "Darebin",
+    "state": "VIC",
+    "population": 159963
+  },
+  {
+    "id": "nt:darwin waterfront precinct",
+    "label": "Darwin Waterfront Precinct, NT",
+    "lga": "Darwin Waterfront Precinct",
+    "state": "NT",
+    "population": 309
+  },
+  {
+    "id": "nt:darwin",
+    "label": "Darwin, NT",
+    "lga": "Darwin",
+    "state": "NT",
+    "population": 86070
+  },
+  {
+    "id": "wa:denmark",
+    "label": "Denmark, WA",
+    "lga": "Denmark",
+    "state": "WA",
+    "population": 6707
+  },
+  {
+    "id": "wa:derby-west kimberley",
+    "label": "Derby-West Kimberley, WA",
+    "lga": "Derby-West Kimberley",
+    "state": "WA",
+    "population": 8536
+  },
+  {
+    "id": "tas:derwent valley",
+    "label": "Derwent Valley, TAS",
+    "lga": "Derwent Valley",
+    "state": "TAS",
+    "population": 11436
+  },
+  {
+    "id": "tas:devonport",
+    "label": "Devonport, TAS",
+    "lga": "Devonport",
+    "state": "TAS",
+    "population": 27030
+  },
+  {
+    "id": "qld:diamantina",
+    "label": "Diamantina, QLD",
+    "lga": "Diamantina",
+    "state": "QLD",
+    "population": 271
+  },
+  {
+    "id": "wa:donnybrook-balingup",
+    "label": "Donnybrook-Balingup, WA",
+    "lga": "Donnybrook-Balingup",
+    "state": "WA",
+    "population": 6584
+  },
+  {
+    "id": "qld:doomadgee",
+    "label": "Doomadgee, QLD",
+    "lga": "Doomadgee",
+    "state": "QLD",
+    "population": 1473
+  },
+  {
+    "id": "tas:dorset",
+    "label": "Dorset, TAS",
+    "lga": "Dorset",
+    "state": "TAS",
+    "population": 7013
+  },
+  {
+    "id": "qld:douglas",
+    "label": "Douglas, QLD",
+    "lga": "Douglas",
+    "state": "QLD",
+    "population": 13071
+  },
+  {
+    "id": "wa:dowerin",
+    "label": "Dowerin, WA",
+    "lga": "Dowerin",
+    "state": "WA",
+    "population": 740
+  },
+  {
+    "id": "nsw:dubbo",
+    "label": "Dubbo, NSW",
+    "lga": "Dubbo",
+    "state": "NSW",
+    "population": 56997
+  },
+  {
+    "id": "wa:dumbleyung",
+    "label": "Dumbleyung, WA",
+    "lga": "Dumbleyung",
+    "state": "WA",
+    "population": 708
+  },
+  {
+    "id": "wa:dundas",
+    "label": "Dundas, WA",
+    "lga": "Dundas",
+    "state": "WA",
+    "population": 723
+  },
+  {
+    "id": "nsw:dungog",
+    "label": "Dungog, NSW",
+    "lga": "Dungog",
+    "state": "NSW",
+    "population": 9905
+  },
+  {
+    "id": "nt:east arnhem",
+    "label": "East Arnhem, NT",
+    "lga": "East Arnhem",
+    "state": "NT",
+    "population": 10040
+  },
+  {
+    "id": "wa:east fremantle",
+    "label": "East Fremantle, WA",
+    "lga": "East Fremantle",
+    "state": "WA",
+    "population": 8361
+  },
+  {
+    "id": "vic:east gippsland",
+    "label": "East Gippsland, VIC",
+    "lga": "East Gippsland",
+    "state": "VIC",
+    "population": 49422
+  },
+  {
+    "id": "wa:east pilbara",
+    "label": "East Pilbara, WA",
+    "lga": "East Pilbara",
+    "state": "WA",
+    "population": 10403
+  },
+  {
+    "id": "nsw:edward river",
+    "label": "Edward River, NSW",
+    "lga": "Edward River",
+    "state": "NSW",
+    "population": 8411
+  },
+  {
+    "id": "sa:elliston",
+    "label": "Elliston, SA",
+    "lga": "Elliston",
+    "state": "SA",
+    "population": 1053
+  },
+  {
+    "id": "wa:esperance",
+    "label": "Esperance, WA",
+    "lga": "Esperance",
+    "state": "WA",
+    "population": 14558
+  },
+  {
+    "id": "qld:etheridge",
+    "label": "Etheridge, QLD",
+    "lga": "Etheridge",
+    "state": "QLD",
+    "population": 727
+  },
+  {
+    "id": "nsw:eurobodalla",
+    "label": "Eurobodalla, NSW",
+    "lga": "Eurobodalla",
+    "state": "NSW",
+    "population": 41142
+  },
+  {
+    "id": "wa:exmouth",
+    "label": "Exmouth, WA",
+    "lga": "Exmouth",
+    "state": "WA",
+    "population": 3566
+  },
+  {
+    "id": "nsw:fairfield",
+    "label": "Fairfield, NSW",
+    "lga": "Fairfield",
+    "state": "NSW",
+    "population": 212210
+  },
+  {
+    "id": "nsw:federation",
+    "label": "Federation, NSW",
+    "lga": "Federation",
+    "state": "NSW",
+    "population": 13075
+  },
+  {
+    "id": "qld:flinders (qld)",
+    "label": "Flinders (Qld), QLD",
+    "lga": "Flinders (Qld)",
+    "state": "QLD",
+    "population": 1552
+  },
+  {
+    "id": "tas:flinders (tas.)",
+    "label": "Flinders (Tas.), TAS",
+    "lga": "Flinders (Tas.)",
+    "state": "TAS",
+    "population": 941
+  },
+  {
+    "id": "sa:flinders ranges",
+    "label": "Flinders Ranges, SA",
+    "lga": "Flinders Ranges",
+    "state": "SA",
+    "population": 1671
+  },
+  {
+    "id": "nsw:forbes",
+    "label": "Forbes, NSW",
+    "lga": "Forbes",
+    "state": "NSW",
+    "population": 9295
+  },
+  {
+    "id": "sa:franklin harbour",
+    "label": "Franklin Harbour, SA",
+    "lga": "Franklin Harbour",
+    "state": "SA",
+    "population": 1359
+  },
+  {
+    "id": "vic:frankston",
+    "label": "Frankston, VIC",
+    "lga": "Frankston",
+    "state": "VIC",
+    "population": 144615
+  },
+  {
+    "id": "qld:fraser coast",
+    "label": "Fraser Coast, QLD",
+    "lga": "Fraser Coast",
+    "state": "QLD",
+    "population": 120685
+  },
+  {
+    "id": "wa:fremantle",
+    "label": "Fremantle, WA",
+    "lga": "Fremantle",
+    "state": "WA",
+    "population": 36349
+  },
+  {
+    "id": "vic:gannawarra",
+    "label": "Gannawarra, VIC",
+    "lga": "Gannawarra",
+    "state": "VIC",
+    "population": 10404
+  },
+  {
+    "id": "sa:gawler",
+    "label": "Gawler, SA",
+    "lga": "Gawler",
+    "state": "SA",
+    "population": 27182
+  },
+  {
+    "id": "tas:george town",
+    "label": "George Town, TAS",
+    "lga": "George Town",
+    "state": "TAS",
+    "population": 7378
+  },
+  {
+    "id": "nsw:georges river",
+    "label": "Georges River, NSW",
+    "lga": "Georges River",
+    "state": "NSW",
+    "population": 161593
+  },
+  {
+    "id": "nsw:gilgandra",
+    "label": "Gilgandra, NSW",
+    "lga": "Gilgandra",
+    "state": "NSW",
+    "population": 4305
+  },
+  {
+    "id": "wa:gingin",
+    "label": "Gingin, WA",
+    "lga": "Gingin",
+    "state": "WA",
+    "population": 6348
+  },
+  {
+    "id": "qld:gladstone",
+    "label": "Gladstone, QLD",
+    "lga": "Gladstone",
+    "state": "QLD",
+    "population": 68065
+  },
+  {
+    "id": "tas:glamorgan-spring bay",
+    "label": "Glamorgan-Spring Bay, TAS",
+    "lga": "Glamorgan-Spring Bay",
+    "state": "TAS",
+    "population": 5283
+  },
+  {
+    "id": "vic:glen eira",
+    "label": "Glen Eira, VIC",
+    "lga": "Glen Eira",
+    "state": "VIC",
+    "population": 161057
+  },
+  {
+    "id": "nsw:glen innes severn",
+    "label": "Glen Innes Severn, NSW",
+    "lga": "Glen Innes Severn",
+    "state": "NSW",
+    "population": 8978
+  },
+  {
+    "id": "vic:glenelg",
+    "label": "Glenelg, VIC",
+    "lga": "Glenelg",
+    "state": "VIC",
+    "population": 20007
+  },
+  {
+    "id": "tas:glenorchy",
+    "label": "Glenorchy, TAS",
+    "lga": "Glenorchy",
+    "state": "TAS",
+    "population": 50743
+  },
+  {
+    "id": "wa:gnowangerup",
+    "label": "Gnowangerup, WA",
+    "lga": "Gnowangerup",
+    "state": "WA",
+    "population": 1271
+  },
+  {
+    "id": "qld:gold coast",
+    "label": "Gold Coast, QLD",
+    "lga": "Gold Coast",
+    "state": "QLD",
+    "population": 681389
+  },
+  {
+    "id": "vic:golden plains",
+    "label": "Golden Plains, VIC",
+    "lga": "Golden Plains",
+    "state": "VIC",
+    "population": 26337
+  },
+  {
+    "id": "wa:goomalling",
+    "label": "Goomalling, WA",
+    "lga": "Goomalling",
+    "state": "WA",
+    "population": 992
+  },
+  {
+    "id": "qld:goondiwindi",
+    "label": "Goondiwindi, QLD",
+    "lga": "Goondiwindi",
+    "state": "QLD",
+    "population": 10495
+  },
+  {
+    "id": "wa:gosnells",
+    "label": "Gosnells, WA",
+    "lga": "Gosnells",
+    "state": "WA",
+    "population": 141279
+  },
+  {
+    "id": "nsw:goulburn mulwaree",
+    "label": "Goulburn Mulwaree, NSW",
+    "lga": "Goulburn Mulwaree",
+    "state": "NSW",
+    "population": 33112
+  },
+  {
+    "id": "sa:goyder",
+    "label": "Goyder, SA",
+    "lga": "Goyder",
+    "state": "SA",
+    "population": 4135
+  },
+  {
+    "id": "sa:grant",
+    "label": "Grant, SA",
+    "lga": "Grant",
+    "state": "SA",
+    "population": 9140
+  },
+  {
+    "id": "vic:greater bendigo",
+    "label": "Greater Bendigo, VIC",
+    "lga": "Greater Bendigo",
+    "state": "VIC",
+    "population": 125805
+  },
+  {
+    "id": "vic:greater dandenong",
+    "label": "Greater Dandenong, VIC",
+    "lga": "Greater Dandenong",
+    "state": "VIC",
+    "population": 167298
+  },
+  {
+    "id": "vic:greater geelong",
+    "label": "Greater Geelong, VIC",
+    "lga": "Greater Geelong",
+    "state": "VIC",
+    "population": 289565
+  },
+  {
+    "id": "wa:greater geraldton",
+    "label": "Greater Geraldton, WA",
+    "lga": "Greater Geraldton",
+    "state": "WA",
+    "population": 42322
+  },
+  {
+    "id": "nsw:greater hume",
+    "label": "Greater Hume, NSW",
+    "lga": "Greater Hume",
+    "state": "NSW",
+    "population": 11582
+  },
+  {
+    "id": "vic:greater shepparton",
+    "label": "Greater Shepparton, VIC",
+    "lga": "Greater Shepparton",
+    "state": "VIC",
+    "population": 69874
+  },
+  {
+    "id": "nsw:griffith",
+    "label": "Griffith, NSW",
+    "lga": "Griffith",
+    "state": "NSW",
+    "population": 27340
+  },
+  {
+    "id": "nsw:gunnedah",
+    "label": "Gunnedah, NSW",
+    "lga": "Gunnedah",
+    "state": "NSW",
+    "population": 13392
+  },
+  {
+    "id": "nsw:gwydir",
+    "label": "Gwydir, NSW",
+    "lga": "Gwydir",
+    "state": "NSW",
+    "population": 4893
+  },
+  {
+    "id": "qld:gympie",
+    "label": "Gympie, QLD",
+    "lga": "Gympie",
+    "state": "QLD",
+    "population": 57449
+  },
+  {
+    "id": "wa:halls creek",
+    "label": "Halls Creek, WA",
+    "lga": "Halls Creek",
+    "state": "WA",
+    "population": 4213
+  },
+  {
+    "id": "wa:harvey",
+    "label": "Harvey, WA",
+    "lga": "Harvey",
+    "state": "WA",
+    "population": 31495
+  },
+  {
+    "id": "nsw:hawkesbury",
+    "label": "Hawkesbury, NSW",
+    "lga": "Hawkesbury",
+    "state": "NSW",
+    "population": 68704
+  },
+  {
+    "id": "nsw:hay",
+    "label": "Hay, NSW",
+    "lga": "Hay",
+    "state": "NSW",
+    "population": 2861
+  },
+  {
+    "id": "vic:hepburn",
+    "label": "Hepburn, VIC",
+    "lga": "Hepburn",
+    "state": "VIC",
+    "population": 16824
+  },
+  {
+    "id": "nsw:hilltops",
+    "label": "Hilltops, NSW",
+    "lga": "Hilltops",
+    "state": "NSW",
+    "population": 19300
+  },
+  {
+    "id": "qld:hinchinbrook",
+    "label": "Hinchinbrook, QLD",
+    "lga": "Hinchinbrook",
+    "state": "QLD",
+    "population": 11162
+  },
+  {
+    "id": "vic:hindmarsh",
+    "label": "Hindmarsh, VIC",
+    "lga": "Hindmarsh",
+    "state": "VIC",
+    "population": 5464
+  },
+  {
+    "id": "tas:hobart",
+    "label": "Hobart, TAS",
+    "lga": "Hobart",
+    "state": "TAS",
+    "population": 55977
+  },
+  {
+    "id": "vic:hobsons bay",
+    "label": "Hobsons Bay, VIC",
+    "lga": "Hobsons Bay",
+    "state": "VIC",
+    "population": 95633
+  },
+  {
+    "id": "sa:holdfast bay",
+    "label": "Holdfast Bay, SA",
+    "lga": "Holdfast Bay",
+    "state": "SA",
+    "population": 39308
+  },
+  {
+    "id": "qld:hope vale",
+    "label": "Hope Vale, QLD",
+    "lga": "Hope Vale",
+    "state": "QLD",
+    "population": 1053
+  },
+  {
+    "id": "nsw:hornsby",
+    "label": "Hornsby, NSW",
+    "lga": "Hornsby",
+    "state": "NSW",
+    "population": 154834
+  },
+  {
+    "id": "vic:horsham",
+    "label": "Horsham, VIC",
+    "lga": "Horsham",
+    "state": "VIC",
+    "population": 20376
+  },
+  {
+    "id": "vic:hume",
+    "label": "Hume, VIC",
+    "lga": "Hume",
+    "state": "VIC",
+    "population": 271709
+  },
+  {
+    "id": "nsw:hunters hill",
+    "label": "Hunters Hill, NSW",
+    "lga": "Hunters Hill",
+    "state": "NSW",
+    "population": 14062
+  },
+  {
+    "id": "tas:huon valley",
+    "label": "Huon Valley, TAS",
+    "lga": "Huon Valley",
+    "state": "TAS",
+    "population": 19742
+  },
+  {
+    "id": "vic:indigo",
+    "label": "Indigo, VIC",
+    "lga": "Indigo",
+    "state": "VIC",
+    "population": 17788
+  },
+  {
+    "id": "nsw:inner west",
+    "label": "Inner West, NSW",
+    "lga": "Inner West",
+    "state": "NSW",
+    "population": 190939
+  },
+  {
+    "id": "nsw:inverell",
+    "label": "Inverell, NSW",
+    "lga": "Inverell",
+    "state": "NSW",
+    "population": 18080
+  },
+  {
+    "id": "qld:ipswich",
+    "label": "Ipswich, QLD",
+    "lga": "Ipswich",
+    "state": "QLD",
+    "population": 259886
+  },
+  {
+    "id": "wa:irwin",
+    "label": "Irwin, WA",
+    "lga": "Irwin",
+    "state": "WA",
+    "population": 3864
+  },
+  {
+    "id": "qld:isaac",
+    "label": "Isaac, QLD",
+    "lga": "Isaac",
+    "state": "QLD",
+    "population": 23197
+  },
+  {
+    "id": "wa:jerramungup",
+    "label": "Jerramungup, WA",
+    "lga": "Jerramungup",
+    "state": "WA",
+    "population": 1217
+  },
+  {
+    "id": "wa:joondalup",
+    "label": "Joondalup, WA",
+    "lga": "Joondalup",
+    "state": "WA",
+    "population": 173469
+  },
+  {
+    "id": "nsw:junee",
+    "label": "Junee, NSW",
+    "lga": "Junee",
+    "state": "NSW",
+    "population": 6458
+  },
+  {
+    "id": "wa:kalamunda",
+    "label": "Kalamunda, WA",
+    "lga": "Kalamunda",
+    "state": "WA",
+    "population": 63827
+  },
+  {
+    "id": "wa:kalgoorlie-boulder",
+    "label": "Kalgoorlie-Boulder, WA",
+    "lga": "Kalgoorlie-Boulder",
+    "state": "WA",
+    "population": 30991
+  },
+  {
+    "id": "sa:kangaroo island",
+    "label": "Kangaroo Island, SA",
+    "lga": "Kangaroo Island",
+    "state": "SA",
+    "population": 5167
+  },
+  {
+    "id": "sa:karoonda east murray",
+    "label": "Karoonda East Murray, SA",
+    "lga": "Karoonda East Murray",
+    "state": "SA",
+    "population": 1026
+  },
+  {
+    "id": "wa:karratha",
+    "label": "Karratha, WA",
+    "lga": "Karratha",
+    "state": "WA",
+    "population": 24716
+  },
+  {
+    "id": "wa:katanning",
+    "label": "Katanning, WA",
+    "lga": "Katanning",
+    "state": "WA",
+    "population": 4294
+  },
+  {
+    "id": "nt:katherine",
+    "label": "Katherine, NT",
+    "lga": "Katherine",
+    "state": "NT",
+    "population": 10857
+  },
+  {
+    "id": "wa:kellerberrin",
+    "label": "Kellerberrin, WA",
+    "lga": "Kellerberrin",
+    "state": "WA",
+    "population": 1159
+  },
+  {
+    "id": "nsw:kempsey",
+    "label": "Kempsey, NSW",
+    "lga": "Kempsey",
+    "state": "NSW",
+    "population": 31718
+  },
+  {
+    "id": "wa:kent",
+    "label": "Kent, WA",
+    "lga": "Kent",
+    "state": "WA",
+    "population": 526
+  },
+  {
+    "id": "tas:kentish",
+    "label": "Kentish, TAS",
+    "lga": "Kentish",
+    "state": "TAS",
+    "population": 6859
+  },
+  {
+    "id": "nsw:kiama",
+    "label": "Kiama, NSW",
+    "lga": "Kiama",
+    "state": "NSW",
+    "population": 23173
+  },
+  {
+    "id": "sa:kimba",
+    "label": "Kimba, SA",
+    "lga": "Kimba",
+    "state": "SA",
+    "population": 1064
+  },
+  {
+    "id": "tas:king island",
+    "label": "King Island, TAS",
+    "lga": "King Island",
+    "state": "TAS",
+    "population": 1660
+  },
+  {
+    "id": "tas:kingborough",
+    "label": "Kingborough, TAS",
+    "lga": "Kingborough",
+    "state": "TAS",
+    "population": 41574
+  },
+  {
+    "id": "sa:kingston (sa)",
+    "label": "Kingston (SA), SA",
+    "lga": "Kingston (SA)",
+    "state": "SA",
+    "population": 2406
+  },
+  {
+    "id": "vic:kingston (vic.)",
+    "label": "Kingston (Vic.), VIC",
+    "lga": "Kingston (Vic.)",
+    "state": "VIC",
+    "population": 166521
+  },
+  {
+    "id": "vic:knox",
+    "label": "Knox, VIC",
+    "lga": "Knox",
+    "state": "VIC",
+    "population": 163302
+  },
+  {
+    "id": "wa:kojonup",
+    "label": "Kojonup, WA",
+    "lga": "Kojonup",
+    "state": "WA",
+    "population": 1965
+  },
+  {
+    "id": "wa:kondinin",
+    "label": "Kondinin, WA",
+    "lga": "Kondinin",
+    "state": "WA",
+    "population": 862
+  },
+  {
+    "id": "wa:koorda",
+    "label": "Koorda, WA",
+    "lga": "Koorda",
+    "state": "WA",
+    "population": 373
+  },
+  {
+    "id": "qld:kowanyama",
+    "label": "Kowanyama, QLD",
+    "lga": "Kowanyama",
+    "state": "QLD",
+    "population": 1151
+  },
+  {
+    "id": "nsw:ku-ring-gai",
+    "label": "Ku-ring-gai, NSW",
+    "lga": "Ku-ring-gai",
+    "state": "NSW",
+    "population": 128362
+  },
+  {
+    "id": "wa:kulin",
+    "label": "Kulin, WA",
+    "lga": "Kulin",
+    "state": "WA",
+    "population": 800
+  },
+  {
+    "id": "wa:kwinana",
+    "label": "Kwinana, WA",
+    "lga": "Kwinana",
+    "state": "WA",
+    "population": 54672
+  },
+  {
+    "id": "nsw:kyogle",
+    "label": "Kyogle, NSW",
+    "lga": "Kyogle",
+    "state": "NSW",
+    "population": 9582
+  },
+  {
+    "id": "nsw:lachlan",
+    "label": "Lachlan, NSW",
+    "lga": "Lachlan",
+    "state": "NSW",
+    "population": 6113
+  },
+  {
+    "id": "wa:lake grace",
+    "label": "Lake Grace, WA",
+    "lga": "Lake Grace",
+    "state": "WA",
+    "population": 1319
+  },
+  {
+    "id": "nsw:lake macquarie",
+    "label": "Lake Macquarie, NSW",
+    "lga": "Lake Macquarie",
+    "state": "NSW",
+    "population": 221859
+  },
+  {
+    "id": "nsw:lane cove",
+    "label": "Lane Cove, NSW",
+    "lga": "Lane Cove",
+    "state": "NSW",
+    "population": 42566
+  },
+  {
+    "id": "tas:latrobe (tas.)",
+    "label": "Latrobe (Tas.), TAS",
+    "lga": "Latrobe (Tas.)",
+    "state": "TAS",
+    "population": 13158
+  },
+  {
+    "id": "vic:latrobe (vic.)",
+    "label": "Latrobe (Vic.), VIC",
+    "lga": "Latrobe (Vic.)",
+    "state": "VIC",
+    "population": 78845
+  },
+  {
+    "id": "tas:launceston",
+    "label": "Launceston, TAS",
+    "lga": "Launceston",
+    "state": "TAS",
+    "population": 71616
+  },
+  {
+    "id": "wa:laverton",
+    "label": "Laverton, WA",
+    "lga": "Laverton",
+    "state": "WA",
+    "population": 1444
+  },
+  {
+    "id": "nsw:leeton",
+    "label": "Leeton, NSW",
+    "lga": "Leeton",
+    "state": "NSW",
+    "population": 11438
+  },
+  {
+    "id": "wa:leonora",
+    "label": "Leonora, WA",
+    "lga": "Leonora",
+    "state": "WA",
+    "population": 1737
+  },
+  {
+    "id": "sa:light",
+    "label": "Light, SA",
+    "lga": "Light",
+    "state": "SA",
+    "population": 17028
+  },
+  {
+    "id": "nsw:lismore",
+    "label": "Lismore, NSW",
+    "lga": "Lismore",
+    "state": "NSW",
+    "population": 43783
+  },
+  {
+    "id": "nt:litchfield",
+    "label": "Litchfield, NT",
+    "lga": "Litchfield",
+    "state": "NT",
+    "population": 23940
+  },
+  {
+    "id": "nsw:lithgow",
+    "label": "Lithgow, NSW",
+    "lga": "Lithgow",
+    "state": "NSW",
+    "population": 20740
+  },
+  {
+    "id": "nsw:liverpool plains",
+    "label": "Liverpool Plains, NSW",
+    "lga": "Liverpool Plains",
+    "state": "NSW",
+    "population": 7670
+  },
+  {
+    "id": "nsw:liverpool",
+    "label": "Liverpool, NSW",
+    "lga": "Liverpool",
+    "state": "NSW",
+    "population": 254905
+  },
+  {
+    "id": "qld:livingstone",
+    "label": "Livingstone, QLD",
+    "lga": "Livingstone",
+    "state": "QLD",
+    "population": 42849
+  },
+  {
+    "id": "qld:lockhart river",
+    "label": "Lockhart River, QLD",
+    "lga": "Lockhart River",
+    "state": "QLD",
+    "population": 688
+  },
+  {
+    "id": "nsw:lockhart",
+    "label": "Lockhart, NSW",
+    "lga": "Lockhart",
+    "state": "NSW",
+    "population": 3474
+  },
+  {
+    "id": "qld:lockyer valley",
+    "label": "Lockyer Valley, QLD",
+    "lga": "Lockyer Valley",
+    "state": "QLD",
+    "population": 45054
+  },
+  {
+    "id": "vic:loddon",
+    "label": "Loddon, VIC",
+    "lga": "Loddon",
+    "state": "VIC",
+    "population": 7755
+  },
+  {
+    "id": "qld:logan",
+    "label": "Logan, QLD",
+    "lga": "Logan",
+    "state": "QLD",
+    "population": 392339
+  },
+  {
+    "id": "qld:longreach",
+    "label": "Longreach, QLD",
+    "lga": "Longreach",
+    "state": "QLD",
+    "population": 3758
+  },
+  {
+    "id": "sa:lower eyre peninsula",
+    "label": "Lower Eyre Peninsula, SA",
+    "lga": "Lower Eyre Peninsula",
+    "state": "SA",
+    "population": 6237
+  },
+  {
+    "id": "sa:loxton waikerie",
+    "label": "Loxton Waikerie, SA",
+    "lga": "Loxton Waikerie",
+    "state": "SA",
+    "population": 11949
+  },
+  {
+    "id": "nt:macdonnell",
+    "label": "MacDonnell, NT",
+    "lga": "MacDonnell",
+    "state": "NT",
+    "population": 6769
+  },
+  {
+    "id": "vic:macedon ranges",
+    "label": "Macedon Ranges, VIC",
+    "lga": "Macedon Ranges",
+    "state": "VIC",
+    "population": 53738
+  },
+  {
+    "id": "qld:mackay",
+    "label": "Mackay, QLD",
+    "lga": "Mackay",
+    "state": "QLD",
+    "population": 128361
+  },
+  {
+    "id": "nsw:maitland",
+    "label": "Maitland, NSW",
+    "lga": "Maitland",
+    "state": "NSW",
+    "population": 98163
+  },
+  {
+    "id": "wa:mandurah",
+    "label": "Mandurah, WA",
+    "lga": "Mandurah",
+    "state": "WA",
+    "population": 102922
+  },
+  {
+    "id": "wa:manjimup",
+    "label": "Manjimup, WA",
+    "lga": "Manjimup",
+    "state": "WA",
+    "population": 9523
+  },
+  {
+    "id": "vic:manningham",
+    "label": "Manningham, VIC",
+    "lga": "Manningham",
+    "state": "VIC",
+    "population": 131761
+  },
+  {
+    "id": "vic:mansfield",
+    "label": "Mansfield, VIC",
+    "lga": "Mansfield",
+    "state": "VIC",
+    "population": 10782
+  },
+  {
+    "id": "qld:mapoon",
+    "label": "Mapoon, QLD",
+    "lga": "Mapoon",
+    "state": "QLD",
+    "population": 485
+  },
+  {
+    "id": "sa:maralinga tjarutja",
+    "label": "Maralinga Tjarutja, SA",
+    "lga": "Maralinga Tjarutja",
+    "state": "SA",
+    "population": 102
+  },
+  {
+    "id": "qld:maranoa",
+    "label": "Maranoa, QLD",
+    "lga": "Maranoa",
+    "state": "QLD",
+    "population": 13371
+  },
+  {
+    "id": "qld:mareeba",
+    "label": "Mareeba, QLD",
+    "lga": "Mareeba",
+    "state": "QLD",
+    "population": 24003
+  },
+  {
+    "id": "vic:maribyrnong",
+    "label": "Maribyrnong, VIC",
+    "lga": "Maribyrnong",
+    "state": "VIC",
+    "population": 94251
+  },
+  {
+    "id": "sa:marion",
+    "label": "Marion, SA",
+    "lga": "Marion",
+    "state": "SA",
+    "population": 99821
+  },
+  {
+    "id": "vic:maroondah",
+    "label": "Maroondah, VIC",
+    "lga": "Maroondah",
+    "state": "VIC",
+    "population": 119354
+  },
+  {
+    "id": "qld:mckinlay",
+    "label": "McKinlay, QLD",
+    "lga": "McKinlay",
+    "state": "QLD",
+    "population": 852
+  },
+  {
+    "id": "tas:meander valley",
+    "label": "Meander Valley, TAS",
+    "lga": "Meander Valley",
+    "state": "TAS",
+    "population": 21579
+  },
+  {
+    "id": "wa:meekatharra",
+    "label": "Meekatharra, WA",
+    "lga": "Meekatharra",
+    "state": "WA",
+    "population": 1286
+  },
+  {
+    "id": "vic:melbourne",
+    "label": "Melbourne, VIC",
+    "lga": "Melbourne",
+    "state": "VIC",
+    "population": 189381
+  },
+  {
+    "id": "vic:melton",
+    "label": "Melton, VIC",
+    "lga": "Melton",
+    "state": "VIC",
+    "population": 219697
+  },
+  {
+    "id": "wa:melville",
+    "label": "Melville, WA",
+    "lga": "Melville",
+    "state": "WA",
+    "population": 113404
+  },
+  {
+    "id": "wa:menzies",
+    "label": "Menzies, WA",
+    "lga": "Menzies",
+    "state": "WA",
+    "population": 577
+  },
+  {
+    "id": "wa:merredin",
+    "label": "Merredin, WA",
+    "lga": "Merredin",
+    "state": "WA",
+    "population": 3335
+  },
+  {
+    "id": "vic:merri-bek",
+    "label": "Merri-bek, VIC",
+    "lga": "Merri-bek",
+    "state": "VIC",
+    "population": 186534
+  },
+  {
+    "id": "sa:mid murray",
+    "label": "Mid Murray, SA",
+    "lga": "Mid Murray",
+    "state": "SA",
+    "population": 9593
+  },
+  {
+    "id": "nsw:mid-coast",
+    "label": "Mid-Coast, NSW",
+    "lga": "Mid-Coast",
+    "state": "NSW",
+    "population": 98582
+  },
+  {
+    "id": "nsw:mid-western",
+    "label": "Mid-Western, NSW",
+    "lga": "Mid-Western",
+    "state": "NSW",
+    "population": 26214
+  },
+  {
+    "id": "vic:mildura",
+    "label": "Mildura, VIC",
+    "lga": "Mildura",
+    "state": "VIC",
+    "population": 57626
+  },
+  {
+    "id": "wa:mingenew",
+    "label": "Mingenew, WA",
+    "lga": "Mingenew",
+    "state": "WA",
+    "population": 421
+  },
+  {
+    "id": "sa:mitcham",
+    "label": "Mitcham, SA",
+    "lga": "Mitcham",
+    "state": "SA",
+    "population": 70484
+  },
+  {
+    "id": "vic:mitchell",
+    "label": "Mitchell, VIC",
+    "lga": "Mitchell",
+    "state": "VIC",
+    "population": 56384
+  },
+  {
+    "id": "vic:moira",
+    "label": "Moira, VIC",
+    "lga": "Moira",
+    "state": "VIC",
+    "population": 30836
+  },
+  {
+    "id": "vic:monash",
+    "label": "Monash, VIC",
+    "lga": "Monash",
+    "state": "VIC",
+    "population": 209268
+  },
+  {
+    "id": "vic:moonee valley",
+    "label": "Moonee Valley, VIC",
+    "lga": "Moonee Valley",
+    "state": "VIC",
+    "population": 129732
+  },
+  {
+    "id": "wa:moora",
+    "label": "Moora, WA",
+    "lga": "Moora",
+    "state": "WA",
+    "population": 2432
+  },
+  {
+    "id": "vic:moorabool",
+    "label": "Moorabool, VIC",
+    "lga": "Moorabool",
+    "state": "VIC",
+    "population": 39814
+  },
+  {
+    "id": "wa:morawa",
+    "label": "Morawa, WA",
+    "lga": "Morawa",
+    "state": "WA",
+    "population": 686
+  },
+  {
+    "id": "nsw:moree plains",
+    "label": "Moree Plains, NSW",
+    "lga": "Moree Plains",
+    "state": "NSW",
+    "population": 12816
+  },
+  {
+    "id": "qld:moreton bay",
+    "label": "Moreton Bay, QLD",
+    "lga": "Moreton Bay",
+    "state": "QLD",
+    "population": 522494
+  },
+  {
+    "id": "vic:mornington peninsula",
+    "label": "Mornington Peninsula, VIC",
+    "lga": "Mornington Peninsula",
+    "state": "VIC",
+    "population": 171450
+  },
+  {
+    "id": "qld:mornington",
+    "label": "Mornington, QLD",
+    "lga": "Mornington",
+    "state": "QLD",
+    "population": 1087
+  },
+  {
+    "id": "wa:mosman park",
+    "label": "Mosman Park, WA",
+    "lga": "Mosman Park",
+    "state": "WA",
+    "population": 10281
+  },
+  {
+    "id": "nsw:mosman",
+    "label": "Mosman, NSW",
+    "lga": "Mosman",
+    "state": "NSW",
+    "population": 29253
+  },
+  {
+    "id": "vic:mount alexander",
+    "label": "Mount Alexander, VIC",
+    "lga": "Mount Alexander",
+    "state": "VIC",
+    "population": 20799
+  },
+  {
+    "id": "sa:mount barker",
+    "label": "Mount Barker, SA",
+    "lga": "Mount Barker",
+    "state": "SA",
+    "population": 43619
+  },
+  {
+    "id": "sa:mount gambier",
+    "label": "Mount Gambier, SA",
+    "lga": "Mount Gambier",
+    "state": "SA",
+    "population": 27888
+  },
+  {
+    "id": "qld:mount isa",
+    "label": "Mount Isa, QLD",
+    "lga": "Mount Isa",
+    "state": "QLD",
+    "population": 18788
+  },
+  {
+    "id": "wa:mount magnet",
+    "label": "Mount Magnet, WA",
+    "lga": "Mount Magnet",
+    "state": "WA",
+    "population": 696
+  },
+  {
+    "id": "wa:mount marshall",
+    "label": "Mount Marshall, WA",
+    "lga": "Mount Marshall",
+    "state": "WA",
+    "population": 466
+  },
+  {
+    "id": "sa:mount remarkable",
+    "label": "Mount Remarkable, SA",
+    "lga": "Mount Remarkable",
+    "state": "SA",
+    "population": 2873
+  },
+  {
+    "id": "vic:moyne",
+    "label": "Moyne, VIC",
+    "lga": "Moyne",
+    "state": "VIC",
+    "population": 17717
+  },
+  {
+    "id": "wa:mukinbudin",
+    "label": "Mukinbudin, WA",
+    "lga": "Mukinbudin",
+    "state": "WA",
+    "population": 603
+  },
+  {
+    "id": "wa:mundaring",
+    "label": "Mundaring, WA",
+    "lga": "Mundaring",
+    "state": "WA",
+    "population": 42327
+  },
+  {
+    "id": "wa:murchison",
+    "label": "Murchison, WA",
+    "lga": "Murchison",
+    "state": "WA",
+    "population": 105
+  },
+  {
+    "id": "sa:murray bridge",
+    "label": "Murray Bridge, SA",
+    "lga": "Murray Bridge",
+    "state": "SA",
+    "population": 23257
+  },
+  {
+    "id": "nsw:murray river",
+    "label": "Murray River, NSW",
+    "lga": "Murray River",
+    "state": "NSW",
+    "population": 13562
+  },
+  {
+    "id": "wa:murray",
+    "label": "Murray, WA",
+    "lga": "Murray",
+    "state": "WA",
+    "population": 20563
+  },
+  {
+    "id": "vic:murrindindi",
+    "label": "Murrindindi, VIC",
+    "lga": "Murrindindi",
+    "state": "VIC",
+    "population": 15603
+  },
+  {
+    "id": "nsw:murrumbidgee",
+    "label": "Murrumbidgee, NSW",
+    "lga": "Murrumbidgee",
+    "state": "NSW",
+    "population": 3658
+  },
+  {
+    "id": "qld:murweh",
+    "label": "Murweh, QLD",
+    "lga": "Murweh",
+    "state": "QLD",
+    "population": 3992
+  },
+  {
+    "id": "nsw:muswellbrook",
+    "label": "Muswellbrook, NSW",
+    "lga": "Muswellbrook",
+    "state": "NSW",
+    "population": 16817
+  },
+  {
+    "id": "nsw:nambucca valley",
+    "label": "Nambucca Valley, NSW",
+    "lga": "Nambucca Valley",
+    "state": "NSW",
+    "population": 20986
+  },
+  {
+    "id": "wa:nannup",
+    "label": "Nannup, WA",
+    "lga": "Nannup",
+    "state": "WA",
+    "population": 1675
+  },
+  {
+    "id": "qld:napranum",
+    "label": "Napranum, QLD",
+    "lga": "Napranum",
+    "state": "QLD",
+    "population": 943
+  },
+  {
+    "id": "sa:naracoorte lucindale",
+    "label": "Naracoorte Lucindale, SA",
+    "lga": "Naracoorte Lucindale",
+    "state": "SA",
+    "population": 8901
+  },
+  {
+    "id": "wa:narembeen",
+    "label": "Narembeen, WA",
+    "lga": "Narembeen",
+    "state": "WA",
+    "population": 848
+  },
+  {
+    "id": "nsw:narrabri",
+    "label": "Narrabri, NSW",
+    "lga": "Narrabri",
+    "state": "NSW",
+    "population": 12796
+  },
+  {
+    "id": "nsw:narrandera",
+    "label": "Narrandera, NSW",
+    "lga": "Narrandera",
+    "state": "NSW",
+    "population": 5687
+  },
+  {
+    "id": "wa:narrogin",
+    "label": "Narrogin, WA",
+    "lga": "Narrogin",
+    "state": "WA",
+    "population": 5029
+  },
+  {
+    "id": "nsw:narromine",
+    "label": "Narromine, NSW",
+    "lga": "Narromine",
+    "state": "NSW",
+    "population": 6432
+  },
+  {
+    "id": "wa:nedlands",
+    "label": "Nedlands, WA",
+    "lga": "Nedlands",
+    "state": "WA",
+    "population": 25104
+  },
+  {
+    "id": "nsw:newcastle",
+    "label": "Newcastle, NSW",
+    "lga": "Newcastle",
+    "state": "NSW",
+    "population": 176860
+  },
+  {
+    "id": "wa:ngaanyatjarraku",
+    "label": "Ngaanyatjarraku, WA",
+    "lga": "Ngaanyatjarraku",
+    "state": "WA",
+    "population": 1482
+  },
+  {
+    "id": "vic:nillumbik",
+    "label": "Nillumbik, VIC",
+    "lga": "Nillumbik",
+    "state": "VIC",
+    "population": 63693
+  },
+  {
+    "id": "qld:noosa",
+    "label": "Noosa, QLD",
+    "lga": "Noosa",
+    "state": "QLD",
+    "population": 59274
+  },
+  {
+    "id": "qld:north burnett",
+    "label": "North Burnett, QLD",
+    "lga": "North Burnett",
+    "state": "QLD",
+    "population": 10482
+  },
+  {
+    "id": "nsw:north sydney",
+    "label": "North Sydney, NSW",
+    "lga": "North Sydney",
+    "state": "NSW",
+    "population": 72909
+  },
+  {
+    "id": "wa:northam",
+    "label": "Northam, WA",
+    "lga": "Northam",
+    "state": "WA",
+    "population": 12416
+  },
+  {
+    "id": "wa:northampton",
+    "label": "Northampton, WA",
+    "lga": "Northampton",
+    "state": "WA",
+    "population": 3382
+  },
+  {
+    "id": "sa:northern areas",
+    "label": "Northern Areas, SA",
+    "lga": "Northern Areas",
+    "state": "SA",
+    "population": 4667
+  },
+  {
+    "id": "nsw:northern beaches",
+    "label": "Northern Beaches, NSW",
+    "lga": "Northern Beaches",
+    "state": "NSW",
+    "population": 270772
+  },
+  {
+    "id": "vic:northern grampians",
+    "label": "Northern Grampians, VIC",
+    "lga": "Northern Grampians",
+    "state": "VIC",
+    "population": 11808
+  },
+  {
+    "id": "tas:northern midlands",
+    "label": "Northern Midlands, TAS",
+    "lga": "Northern Midlands",
+    "state": "TAS",
+    "population": 14428
+  },
+  {
+    "id": "qld:northern peninsula area",
+    "label": "Northern Peninsula Area, QLD",
+    "lga": "Northern Peninsula Area",
+    "state": "QLD",
+    "population": 2928
+  },
+  {
+    "id": "sa:norwood payneham and st peters",
+    "label": "Norwood Payneham and St Peters, SA",
+    "lga": "Norwood Payneham and St Peters",
+    "state": "SA",
+    "population": 40062
+  },
+  {
+    "id": "state:nsw",
+    "label": "NSW",
+    "lga": "NSW",
+    "state": "NSW",
+    "population": 8479314
+  },
+  {
+    "id": "state:nt",
+    "label": "NT",
+    "lga": "NT",
+    "state": "NT",
+    "population": 255069
+  },
+  {
+    "id": "wa:nungarin",
+    "label": "Nungarin, WA",
+    "lga": "Nungarin",
+    "state": "WA",
+    "population": 258
+  },
+  {
+    "id": "nsw:oberon",
+    "label": "Oberon, NSW",
+    "lga": "Oberon",
+    "state": "NSW",
+    "population": 5604
+  },
+  {
+    "id": "sa:onkaparinga",
+    "label": "Onkaparinga, SA",
+    "lga": "Onkaparinga",
+    "state": "SA",
+    "population": 182821
+  },
+  {
+    "id": "nsw:orange",
+    "label": "Orange, NSW",
+    "lga": "Orange",
+    "state": "NSW",
+    "population": 44610
+  },
+  {
+    "id": "sa:orroroo carrieton",
+    "label": "Orroroo Carrieton, SA",
+    "lga": "Orroroo Carrieton",
+    "state": "SA",
+    "population": 890
+  },
+  {
+    "id": "qld:palm island",
+    "label": "Palm Island, QLD",
+    "lga": "Palm Island",
+    "state": "QLD",
+    "population": 2287
+  },
+  {
+    "id": "nt:palmerston",
+    "label": "Palmerston, NT",
+    "lga": "Palmerston",
+    "state": "NT",
+    "population": 41598
+  },
+  {
+    "id": "nsw:parkes",
+    "label": "Parkes, NSW",
+    "lga": "Parkes",
+    "state": "NSW",
+    "population": 14236
+  },
+  {
+    "id": "qld:paroo",
+    "label": "Paroo, QLD",
+    "lga": "Paroo",
+    "state": "QLD",
+    "population": 1729
+  },
+  {
+    "id": "nsw:parramatta",
+    "label": "Parramatta, NSW",
+    "lga": "Parramatta",
+    "state": "NSW",
+    "population": 274956
+  },
+  {
+    "id": "nsw:penrith",
+    "label": "Penrith, NSW",
+    "lga": "Penrith",
+    "state": "NSW",
+    "population": 228661
+  },
+  {
+    "id": "wa:peppermint grove",
+    "label": "Peppermint Grove, WA",
+    "lga": "Peppermint Grove",
+    "state": "WA",
+    "population": 1782
+  },
+  {
+    "id": "wa:perenjori",
+    "label": "Perenjori, WA",
+    "lga": "Perenjori",
+    "state": "WA",
+    "population": 659
+  },
+  {
+    "id": "wa:perth",
+    "label": "Perth, WA",
+    "lga": "Perth",
+    "state": "WA",
+    "population": 34624
+  },
+  {
+    "id": "sa:peterborough",
+    "label": "Peterborough, SA",
+    "lga": "Peterborough",
+    "state": "SA",
+    "population": 1682
+  },
+  {
+    "id": "wa:pingelly",
+    "label": "Pingelly, WA",
+    "lga": "Pingelly",
+    "state": "WA",
+    "population": 1091
+  },
+  {
+    "id": "wa:plantagenet",
+    "label": "Plantagenet, WA",
+    "lga": "Plantagenet",
+    "state": "WA",
+    "population": 5734
+  },
+  {
+    "id": "sa:playford",
+    "label": "Playford, SA",
+    "lga": "Playford",
+    "state": "SA",
+    "population": 111135
+  },
+  {
+    "id": "qld:pormpuraaw",
+    "label": "Pormpuraaw, QLD",
+    "lga": "Pormpuraaw",
+    "state": "QLD",
+    "population": 647
+  },
+  {
+    "id": "sa:port adelaide enfield",
+    "label": "Port Adelaide Enfield, SA",
+    "lga": "Port Adelaide Enfield",
+    "state": "SA",
+    "population": 141042
+  },
+  {
+    "id": "sa:port augusta",
+    "label": "Port Augusta, SA",
+    "lga": "Port Augusta",
+    "state": "SA",
+    "population": 14453
+  },
+  {
+    "id": "wa:port hedland",
+    "label": "Port Hedland, WA",
+    "lga": "Port Hedland",
+    "state": "WA",
+    "population": 17448
+  },
+  {
+    "id": "sa:port lincoln",
+    "label": "Port Lincoln, SA",
+    "lga": "Port Lincoln",
+    "state": "SA",
+    "population": 15037
+  },
+  {
+    "id": "nsw:port macquarie-hastings",
+    "label": "Port Macquarie-Hastings, NSW",
+    "lga": "Port Macquarie-Hastings",
+    "state": "NSW",
+    "population": 90835
+  },
+  {
+    "id": "vic:port phillip",
+    "label": "Port Phillip, VIC",
+    "lga": "Port Phillip",
+    "state": "VIC",
+    "population": 112669
+  },
+  {
+    "id": "sa:port pirie",
+    "label": "Port Pirie, SA",
+    "lga": "Port Pirie",
+    "state": "SA",
+    "population": 17637
+  },
+  {
+    "id": "nsw:port stephens",
+    "label": "Port Stephens, NSW",
+    "lga": "Port Stephens",
+    "state": "NSW",
+    "population": 78906
+  },
+  {
+    "id": "sa:prospect",
+    "label": "Prospect, SA",
+    "lga": "Prospect",
+    "state": "SA",
+    "population": 23309
+  },
+  {
+    "id": "vic:pyrenees",
+    "label": "Pyrenees, VIC",
+    "lga": "Pyrenees",
+    "state": "VIC",
+    "population": 7958
+  },
+  {
+    "id": "state:qld",
+    "label": "QLD",
+    "lga": "QLD",
+    "state": "QLD",
+    "population": 5583833
+  },
+  {
+    "id": "wa:quairading",
+    "label": "Quairading, WA",
+    "lga": "Quairading",
+    "state": "WA",
+    "population": 967
+  },
+  {
+    "id": "nsw:queanbeyan-palerang",
+    "label": "Queanbeyan-Palerang, NSW",
+    "lga": "Queanbeyan-Palerang",
+    "state": "NSW",
+    "population": 66855
+  },
+  {
+    "id": "vic:queenscliffe",
+    "label": "Queenscliffe, VIC",
+    "lga": "Queenscliffe",
+    "state": "VIC",
+    "population": 3302
+  },
+  {
+    "id": "qld:quilpie",
+    "label": "Quilpie, QLD",
+    "lga": "Quilpie",
+    "state": "QLD",
+    "population": 709
+  },
+  {
+    "id": "nsw:randwick",
+    "label": "Randwick, NSW",
+    "lga": "Randwick",
+    "state": "NSW",
+    "population": 144598
+  },
+  {
+    "id": "wa:ravensthorpe",
+    "label": "Ravensthorpe, WA",
+    "lga": "Ravensthorpe",
+    "state": "WA",
+    "population": 2280
+  },
+  {
+    "id": "qld:redland",
+    "label": "Redland, QLD",
+    "lga": "Redland",
+    "state": "QLD",
+    "population": 170225
+  },
+  {
+    "id": "sa:renmark paringa",
+    "label": "Renmark Paringa, SA",
+    "lga": "Renmark Paringa",
+    "state": "SA",
+    "population": 10173
+  },
+  {
+    "id": "nsw:richmond valley",
+    "label": "Richmond Valley, NSW",
+    "lga": "Richmond Valley",
+    "state": "NSW",
+    "population": 23892
+  },
+  {
+    "id": "qld:richmond",
+    "label": "Richmond, QLD",
+    "lga": "Richmond",
+    "state": "QLD",
+    "population": 788
+  },
+  {
+    "id": "sa:robe",
+    "label": "Robe, SA",
+    "lga": "Robe",
+    "state": "SA",
+    "population": 1611
+  },
+  {
+    "id": "qld:rockhampton",
+    "label": "Rockhampton, QLD",
+    "lga": "Rockhampton",
+    "state": "QLD",
+    "population": 85334
+  },
+  {
+    "id": "wa:rockingham",
+    "label": "Rockingham, WA",
+    "lga": "Rockingham",
+    "state": "WA",
+    "population": 154132
+  },
+  {
+    "id": "nt:roper gulf",
+    "label": "Roper Gulf, NT",
+    "lga": "Roper Gulf",
+    "state": "NT",
+    "population": 7516
+  },
+  {
+    "id": "sa:roxby downs",
+    "label": "Roxby Downs, SA",
+    "lga": "Roxby Downs",
+    "state": "SA",
+    "population": 4089
+  },
+  {
+    "id": "nsw:ryde",
+    "label": "Ryde, NSW",
+    "lga": "Ryde",
+    "state": "NSW",
+    "population": 139047
+  },
+  {
+    "id": "state:sa",
+    "label": "SA",
+    "lga": "SA",
+    "state": "SA",
+    "population": 1878011
+  },
+  {
+    "id": "sa:salisbury",
+    "label": "Salisbury, SA",
+    "lga": "Salisbury",
+    "state": "SA",
+    "population": 150272
+  },
+  {
+    "id": "wa:sandstone",
+    "label": "Sandstone, WA",
+    "lga": "Sandstone",
+    "state": "WA",
+    "population": 115
+  },
+  {
+    "id": "qld:scenic rim",
+    "label": "Scenic Rim, QLD",
+    "lga": "Scenic Rim",
+    "state": "QLD",
+    "population": 46036
+  },
+  {
+    "id": "wa:serpentine-jarrahdale",
+    "label": "Serpentine-Jarrahdale, WA",
+    "lga": "Serpentine-Jarrahdale",
+    "state": "WA",
+    "population": 38631
+  },
+  {
+    "id": "wa:shark bay",
+    "label": "Shark Bay, WA",
+    "lga": "Shark Bay",
+    "state": "WA",
+    "population": 1164
+  },
+  {
+    "id": "nsw:shellharbour",
+    "label": "Shellharbour, NSW",
+    "lga": "Shellharbour",
+    "state": "NSW",
+    "population": 81566
+  },
+  {
+    "id": "nsw:shoalhaven",
+    "label": "Shoalhaven, NSW",
+    "lga": "Shoalhaven",
+    "state": "NSW",
+    "population": 110803
+  },
+  {
+    "id": "nsw:singleton",
+    "label": "Singleton, NSW",
+    "lga": "Singleton",
+    "state": "NSW",
+    "population": 25639
+  },
+  {
+    "id": "nsw:snowy monaro",
+    "label": "Snowy Monaro, NSW",
+    "lga": "Snowy Monaro",
+    "state": "NSW",
+    "population": 22292
+  },
+  {
+    "id": "nsw:snowy valleys",
+    "label": "Snowy Valleys, NSW",
+    "lga": "Snowy Valleys",
+    "state": "NSW",
+    "population": 14955
+  },
+  {
+    "id": "qld:somerset",
+    "label": "Somerset, QLD",
+    "lga": "Somerset",
+    "state": "QLD",
+    "population": 26579
+  },
+  {
+    "id": "tas:sorell",
+    "label": "Sorell, TAS",
+    "lga": "Sorell",
+    "state": "TAS",
+    "population": 17919
+  },
+  {
+    "id": "qld:south burnett",
+    "label": "South Burnett, QLD",
+    "lga": "South Burnett",
+    "state": "QLD",
+    "population": 34745
+  },
+  {
+    "id": "vic:south gippsland",
+    "label": "South Gippsland, VIC",
+    "lga": "South Gippsland",
+    "state": "VIC",
+    "population": 31022
+  },
+  {
+    "id": "wa:south perth",
+    "label": "South Perth, WA",
+    "lga": "South Perth",
+    "state": "WA",
+    "population": 47909
+  },
+  {
+    "id": "qld:southern downs",
+    "label": "Southern Downs, QLD",
+    "lga": "Southern Downs",
+    "state": "QLD",
+    "population": 37820
+  },
+  {
+    "id": "vic:southern grampians",
+    "label": "Southern Grampians, VIC",
+    "lga": "Southern Grampians",
+    "state": "VIC",
+    "population": 16525
+  },
+  {
+    "id": "sa:southern mallee",
+    "label": "Southern Mallee, SA",
+    "lga": "Southern Mallee",
+    "state": "SA",
+    "population": 2012
+  },
+  {
+    "id": "tas:southern midlands",
+    "label": "Southern Midlands, TAS",
+    "lga": "Southern Midlands",
+    "state": "TAS",
+    "population": 6973
+  },
+  {
+    "id": "wa:stirling",
+    "label": "Stirling, WA",
+    "lga": "Stirling",
+    "state": "WA",
+    "population": 249872
+  },
+  {
+    "id": "vic:stonnington",
+    "label": "Stonnington, VIC",
+    "lga": "Stonnington",
+    "state": "VIC",
+    "population": 114038
+  },
+  {
+    "id": "vic:strathbogie",
+    "label": "Strathbogie, VIC",
+    "lga": "Strathbogie",
+    "state": "VIC",
+    "population": 11739
+  },
+  {
+    "id": "nsw:strathfield",
+    "label": "Strathfield, NSW",
+    "lga": "Strathfield",
+    "state": "NSW",
+    "population": 48495
+  },
+  {
+    "id": "sa:streaky bay",
+    "label": "Streaky Bay, SA",
+    "lga": "Streaky Bay",
+    "state": "SA",
+    "population": 2278
+  },
+  {
+    "id": "wa:subiaco",
+    "label": "Subiaco, WA",
+    "lga": "Subiaco",
+    "state": "WA",
+    "population": 19452
+  },
+  {
+    "id": "qld:sunshine coast",
+    "label": "Sunshine Coast, QLD",
+    "lga": "Sunshine Coast",
+    "state": "QLD",
+    "population": 375328
+  },
+  {
+    "id": "vic:surf coast",
+    "label": "Surf Coast, VIC",
+    "lga": "Surf Coast",
+    "state": "VIC",
+    "population": 39928
+  },
+  {
+    "id": "nsw:sutherland",
+    "label": "Sutherland, NSW",
+    "lga": "Sutherland",
+    "state": "NSW",
+    "population": 238614
+  },
+  {
+    "id": "vic:swan hill",
+    "label": "Swan Hill, VIC",
+    "lga": "Swan Hill",
+    "state": "VIC",
+    "population": 21094
+  },
+  {
+    "id": "wa:swan",
+    "label": "Swan, WA",
+    "lga": "Swan",
+    "state": "WA",
+    "population": 179207
+  },
+  {
+    "id": "nsw:sydney",
+    "label": "Sydney, NSW",
+    "lga": "Sydney",
+    "state": "NSW",
+    "population": 237278
+  },
+  {
+    "id": "qld:tablelands",
+    "label": "Tablelands, QLD",
+    "lga": "Tablelands",
+    "state": "QLD",
+    "population": 27630
+  },
+  {
+    "id": "wa:tammin",
+    "label": "Tammin, WA",
+    "lga": "Tammin",
+    "state": "WA",
+    "population": 401
+  },
+  {
+    "id": "nsw:tamworth",
+    "label": "Tamworth, NSW",
+    "lga": "Tamworth",
+    "state": "NSW",
+    "population": 65908
+  },
+  {
+    "id": "state:tas",
+    "label": "TAS",
+    "lga": "TAS",
+    "state": "TAS",
+    "population": 575496
+  },
+  {
+    "id": "tas:tasman",
+    "label": "Tasman, TAS",
+    "lga": "Tasman",
+    "state": "TAS",
+    "population": 2722
+  },
+  {
+    "id": "sa:tatiara",
+    "label": "Tatiara, SA",
+    "lga": "Tatiara",
+    "state": "SA",
+    "population": 7071
+  },
+  {
+    "id": "sa:tea tree gully",
+    "label": "Tea Tree Gully, SA",
+    "lga": "Tea Tree Gully",
+    "state": "SA",
+    "population": 104437
+  },
+  {
+    "id": "nsw:temora",
+    "label": "Temora, NSW",
+    "lga": "Temora",
+    "state": "NSW",
+    "population": 6023
+  },
+  {
+    "id": "nsw:tenterfield",
+    "label": "Tenterfield, NSW",
+    "lga": "Tenterfield",
+    "state": "NSW",
+    "population": 7081
+  },
+  {
+    "id": "nsw:the hills",
+    "label": "The Hills, NSW",
+    "lga": "The Hills",
+    "state": "NSW",
+    "population": 215612
+  },
+  {
+    "id": "wa:three springs",
+    "label": "Three Springs, WA",
+    "lga": "Three Springs",
+    "state": "WA",
+    "population": 600
+  },
+  {
+    "id": "nt:tiwi islands",
+    "label": "Tiwi Islands, NT",
+    "lga": "Tiwi Islands",
+    "state": "NT",
+    "population": 2744
+  },
+  {
+    "id": "wa:toodyay",
+    "label": "Toodyay, WA",
+    "lga": "Toodyay",
+    "state": "WA",
+    "population": 5081
+  },
+  {
+    "id": "qld:toowoomba",
+    "label": "Toowoomba, QLD",
+    "lga": "Toowoomba",
+    "state": "QLD",
+    "population": 184377
+  },
+  {
+    "id": "qld:torres strait island",
+    "label": "Torres Strait Island, QLD",
+    "lga": "Torres Strait Island",
+    "state": "QLD",
+    "population": 4289
+  },
+  {
+    "id": "qld:torres",
+    "label": "Torres, QLD",
+    "lga": "Torres",
+    "state": "QLD",
+    "population": 3495
+  },
+  {
+    "id": "wa:total western australia (b)",
+    "label": "Total Western Australia (b), WA",
+    "lga": "Total Western Australia (b)",
+    "state": "WA",
+    "population": 2965078
+  },
+  {
+    "id": "qld:townsville",
+    "label": "Townsville, QLD",
+    "lga": "Townsville",
+    "state": "QLD",
+    "population": 204541
+  },
+  {
+    "id": "vic:towong",
+    "label": "Towong, VIC",
+    "lga": "Towong",
+    "state": "VIC",
+    "population": 6237
+  },
+  {
+    "id": "wa:trayning",
+    "label": "Trayning, WA",
+    "lga": "Trayning",
+    "state": "WA",
+    "population": 306
+  },
+  {
+    "id": "sa:tumby bay",
+    "label": "Tumby Bay, SA",
+    "lga": "Tumby Bay",
+    "state": "SA",
+    "population": 2948
+  },
+  {
+    "id": "nsw:tweed",
+    "label": "Tweed, NSW",
+    "lga": "Tweed",
+    "state": "NSW",
+    "population": 99793
+  },
+  {
+    "id": "nsw:unincorporated nsw",
+    "label": "Unincorporated NSW, NSW",
+    "lga": "Unincorporated NSW",
+    "state": "NSW",
+    "population": 984
+  },
+  {
+    "id": "nt:unincorporated nt",
+    "label": "Unincorporated NT, NT",
+    "lga": "Unincorporated NT",
+    "state": "NT",
+    "population": 7837
+  },
+  {
+    "id": "sa:unincorporated sa",
+    "label": "Unincorporated SA, SA",
+    "lga": "Unincorporated SA",
+    "state": "SA",
+    "population": 3010
+  },
+  {
+    "id": "vic:unincorporated vic",
+    "label": "Unincorporated Vic, VIC",
+    "lga": "Unincorporated Vic",
+    "state": "VIC",
+    "population": 964
+  },
+  {
+    "id": "sa:unley",
+    "label": "Unley, SA",
+    "lga": "Unley",
+    "state": "SA",
+    "population": 40327
+  },
+  {
+    "id": "wa:upper gascoyne",
+    "label": "Upper Gascoyne, WA",
+    "lga": "Upper Gascoyne",
+    "state": "WA",
+    "population": 201
+  },
+  {
+    "id": "nsw:upper hunter",
+    "label": "Upper Hunter, NSW",
+    "lga": "Upper Hunter",
+    "state": "NSW",
+    "population": 14408
+  },
+  {
+    "id": "nsw:upper lachlan",
+    "label": "Upper Lachlan, NSW",
+    "lga": "Upper Lachlan",
+    "state": "NSW",
+    "population": 8875
+  },
+  {
+    "id": "nsw:uralla",
+    "label": "Uralla, NSW",
+    "lga": "Uralla",
+    "state": "NSW",
+    "population": 6096
+  },
+  {
+    "id": "state:vic",
+    "label": "VIC",
+    "lga": "VIC",
+    "state": "VIC",
+    "population": 6978719
+  },
+  {
+    "id": "sa:victor harbor",
+    "label": "Victor Harbor, SA",
+    "lga": "Victor Harbor",
+    "state": "SA",
+    "population": 17124
+  },
+  {
+    "id": "nt:victoria daly",
+    "label": "Victoria Daly, NT",
+    "lga": "Victoria Daly",
+    "state": "NT",
+    "population": 3307
+  },
+  {
+    "id": "wa:victoria park",
+    "label": "Victoria Park, WA",
+    "lga": "Victoria Park",
+    "state": "WA",
+    "population": 42352
+  },
+  {
+    "id": "wa:victoria plains",
+    "label": "Victoria Plains, WA",
+    "lga": "Victoria Plains",
+    "state": "WA",
+    "population": 834
+  },
+  {
+    "id": "wa:vincent",
+    "label": "Vincent, WA",
+    "lga": "Vincent",
+    "state": "WA",
+    "population": 41479
+  },
+  {
+    "id": "state:wa",
+    "label": "WA",
+    "lga": "WA",
+    "state": "WA",
+    "population": 2965078
+  },
+  {
+    "id": "nt:wagait",
+    "label": "Wagait, NT",
+    "lga": "Wagait",
+    "state": "NT",
+    "population": 481
+  },
+  {
+    "id": "nsw:wagga wagga",
+    "label": "Wagga Wagga, NSW",
+    "lga": "Wagga Wagga",
+    "state": "NSW",
+    "population": 68951
+  },
+  {
+    "id": "wa:wagin",
+    "label": "Wagin, WA",
+    "lga": "Wagin",
+    "state": "WA",
+    "population": 1825
+  },
+  {
+    "id": "sa:wakefield",
+    "label": "Wakefield, SA",
+    "lga": "Wakefield",
+    "state": "SA",
+    "population": 6985
+  },
+  {
+    "id": "nsw:walcha",
+    "label": "Walcha, NSW",
+    "lga": "Walcha",
+    "state": "NSW",
+    "population": 2990
+  },
+  {
+    "id": "nsw:walgett",
+    "label": "Walgett, NSW",
+    "lga": "Walgett",
+    "state": "NSW",
+    "population": 5497
+  },
+  {
+    "id": "sa:walkerville",
+    "label": "Walkerville, SA",
+    "lga": "Walkerville",
+    "state": "SA",
+    "population": 8562
+  },
+  {
+    "id": "wa:wandering",
+    "label": "Wandering, WA",
+    "lga": "Wandering",
+    "state": "WA",
+    "population": 547
+  },
+  {
+    "id": "vic:wangaratta",
+    "label": "Wangaratta, VIC",
+    "lga": "Wangaratta",
+    "state": "VIC",
+    "population": 30169
+  },
+  {
+    "id": "wa:wanneroo",
+    "label": "Wanneroo, WA",
+    "lga": "Wanneroo",
+    "state": "WA",
+    "population": 237628
+  },
+  {
+    "id": "tas:waratah-wynyard",
+    "label": "Waratah-Wynyard, TAS",
+    "lga": "Waratah-Wynyard",
+    "state": "TAS",
+    "population": 14905
+  },
+  {
+    "id": "wa:waroona",
+    "label": "Waroona, WA",
+    "lga": "Waroona",
+    "state": "WA",
+    "population": 4537
+  },
+  {
+    "id": "nsw:warren",
+    "label": "Warren, NSW",
+    "lga": "Warren",
+    "state": "NSW",
+    "population": 2593
+  },
+  {
+    "id": "vic:warrnambool",
+    "label": "Warrnambool, VIC",
+    "lga": "Warrnambool",
+    "state": "VIC",
+    "population": 36150
+  },
+  {
+    "id": "nsw:warrumbungle",
+    "label": "Warrumbungle, NSW",
+    "lga": "Warrumbungle",
+    "state": "NSW",
+    "population": 9239
+  },
+  {
+    "id": "sa:wattle range",
+    "label": "Wattle Range, SA",
+    "lga": "Wattle Range",
+    "state": "SA",
+    "population": 12319
+  },
+  {
+    "id": "nsw:waverley",
+    "label": "Waverley, NSW",
+    "lga": "Waverley",
+    "state": "NSW",
+    "population": 72857
+  },
+  {
+    "id": "nsw:weddin",
+    "label": "Weddin, NSW",
+    "lga": "Weddin",
+    "state": "NSW",
+    "population": 3608
+  },
+  {
+    "id": "qld:weipa",
+    "label": "Weipa, QLD",
+    "lga": "Weipa",
+    "state": "QLD",
+    "population": 4281
+  },
+  {
+    "id": "vic:wellington",
+    "label": "Wellington, VIC",
+    "lga": "Wellington",
+    "state": "VIC",
+    "population": 46533
+  },
+  {
+    "id": "nsw:wentworth",
+    "label": "Wentworth, NSW",
+    "lga": "Wentworth",
+    "state": "NSW",
+    "population": 7804
+  },
+  {
+    "id": "nt:west arnhem",
+    "label": "West Arnhem, NT",
+    "lga": "West Arnhem",
+    "state": "NT",
+    "population": 7467
+  },
+  {
+    "id": "wa:west arthur",
+    "label": "West Arthur, WA",
+    "lga": "West Arthur",
+    "state": "WA",
+    "population": 789
+  },
+  {
+    "id": "tas:west coast",
+    "label": "West Coast, TAS",
+    "lga": "West Coast",
+    "state": "TAS",
+    "population": 4339
+  },
+  {
+    "id": "nt:west daly",
+    "label": "West Daly, NT",
+    "lga": "West Daly",
+    "state": "NT",
+    "population": 3448
+  },
+  {
+    "id": "tas:west tamar",
+    "label": "West Tamar, TAS",
+    "lga": "West Tamar",
+    "state": "TAS",
+    "population": 26131
+  },
+  {
+    "id": "sa:west torrens",
+    "label": "West Torrens, SA",
+    "lga": "West Torrens",
+    "state": "SA",
+    "population": 65738
+  },
+  {
+    "id": "vic:west wimmera",
+    "label": "West Wimmera, VIC",
+    "lga": "West Wimmera",
+    "state": "VIC",
+    "population": 3913
+  },
+  {
+    "id": "qld:western downs",
+    "label": "Western Downs, QLD",
+    "lga": "Western Downs",
+    "state": "QLD",
+    "population": 35285
+  },
+  {
+    "id": "wa:westonia",
+    "label": "Westonia, WA",
+    "lga": "Westonia",
+    "state": "WA",
+    "population": 246
+  },
+  {
+    "id": "vic:whitehorse",
+    "label": "Whitehorse, VIC",
+    "lga": "Whitehorse",
+    "state": "VIC",
+    "population": 183462
+  },
+  {
+    "id": "qld:whitsunday",
+    "label": "Whitsunday, QLD",
+    "lga": "Whitsunday",
+    "state": "QLD",
+    "population": 40744
+  },
+  {
+    "id": "vic:whittlesea",
+    "label": "Whittlesea, VIC",
+    "lga": "Whittlesea",
+    "state": "VIC",
+    "population": 253204
+  },
+  {
+    "id": "sa:whyalla",
+    "label": "Whyalla, SA",
+    "lga": "Whyalla",
+    "state": "SA",
+    "population": 21864
+  },
+  {
+    "id": "wa:wickepin",
+    "label": "Wickepin, WA",
+    "lga": "Wickepin",
+    "state": "WA",
+    "population": 710
+  },
+  {
+    "id": "wa:williams",
+    "label": "Williams, WA",
+    "lga": "Williams",
+    "state": "WA",
+    "population": 1063
+  },
+  {
+    "id": "nsw:willoughby",
+    "label": "Willoughby, NSW",
+    "lga": "Willoughby",
+    "state": "NSW",
+    "population": 79634
+  },
+  {
+    "id": "wa:wiluna",
+    "label": "Wiluna, WA",
+    "lga": "Wiluna",
+    "state": "WA",
+    "population": 563
+  },
+  {
+    "id": "nsw:wingecarribee",
+    "label": "Wingecarribee, NSW",
+    "lga": "Wingecarribee",
+    "state": "NSW",
+    "population": 53552
+  },
+  {
+    "id": "qld:winton",
+    "label": "Winton, QLD",
+    "lga": "Winton",
+    "state": "QLD",
+    "population": 1141
+  },
+  {
+    "id": "vic:wodonga",
+    "label": "Wodonga, VIC",
+    "lga": "Wodonga",
+    "state": "VIC",
+    "population": 44824
+  },
+  {
+    "id": "nsw:wollondilly",
+    "label": "Wollondilly, NSW",
+    "lga": "Wollondilly",
+    "state": "NSW",
+    "population": 59782
+  },
+  {
+    "id": "nsw:wollongong",
+    "label": "Wollongong, NSW",
+    "lga": "Wollongong",
+    "state": "NSW",
+    "population": 221894
+  },
+  {
+    "id": "wa:wongan-ballidu",
+    "label": "Wongan-Ballidu, WA",
+    "lga": "Wongan-Ballidu",
+    "state": "WA",
+    "population": 1343
+  },
+  {
+    "id": "wa:woodanilling",
+    "label": "Woodanilling, WA",
+    "lga": "Woodanilling",
+    "state": "WA",
+    "population": 490
+  },
+  {
+    "id": "nsw:woollahra",
+    "label": "Woollahra, NSW",
+    "lga": "Woollahra",
+    "state": "NSW",
+    "population": 55175
+  },
+  {
+    "id": "qld:woorabinda",
+    "label": "Woorabinda, QLD",
+    "lga": "Woorabinda",
+    "state": "QLD",
+    "population": 1098
+  },
+  {
+    "id": "sa:wudinna",
+    "label": "Wudinna, SA",
+    "lga": "Wudinna",
+    "state": "SA",
+    "population": 1168
+  },
+  {
+    "id": "qld:wujal wujal",
+    "label": "Wujal Wujal, QLD",
+    "lga": "Wujal Wujal",
+    "state": "QLD",
+    "population": 301
+  },
+  {
+    "id": "wa:wyalkatchem",
+    "label": "Wyalkatchem, WA",
+    "lga": "Wyalkatchem",
+    "state": "WA",
+    "population": 492
+  },
+  {
+    "id": "wa:wyndham-east kimberley",
+    "label": "Wyndham-East Kimberley, WA",
+    "lga": "Wyndham-East Kimberley",
+    "state": "WA",
+    "population": 8315
+  },
+  {
+    "id": "vic:wyndham",
+    "label": "Wyndham, VIC",
+    "lga": "Wyndham",
+    "state": "VIC",
+    "population": 337009
+  },
+  {
+    "id": "wa:yalgoo",
+    "label": "Yalgoo, WA",
+    "lga": "Yalgoo",
+    "state": "WA",
+    "population": 353
+  },
+  {
+    "id": "sa:yankalilla",
+    "label": "Yankalilla, SA",
+    "lga": "Yankalilla",
+    "state": "SA",
+    "population": 6186
+  },
+  {
+    "id": "vic:yarra ranges",
+    "label": "Yarra Ranges, VIC",
+    "lga": "Yarra Ranges",
+    "state": "VIC",
+    "population": 160137
+  },
+  {
+    "id": "vic:yarra",
+    "label": "Yarra, VIC",
+    "lga": "Yarra",
+    "state": "VIC",
+    "population": 100706
+  },
+  {
+    "id": "qld:yarrabah",
+    "label": "Yarrabah, QLD",
+    "lga": "Yarrabah",
+    "state": "QLD",
+    "population": 2659
+  },
+  {
+    "id": "vic:yarriambiack",
+    "label": "Yarriambiack, VIC",
+    "lga": "Yarriambiack",
+    "state": "VIC",
+    "population": 6346
+  },
+  {
+    "id": "nsw:yass valley",
+    "label": "Yass Valley, NSW",
+    "lga": "Yass Valley",
+    "state": "NSW",
+    "population": 17647
+  },
+  {
+    "id": "wa:yilgarn",
+    "label": "Yilgarn, WA",
+    "lga": "Yilgarn",
+    "state": "WA",
+    "population": 1212
+  },
+  {
+    "id": "wa:york",
+    "label": "York, WA",
+    "lga": "York",
+    "state": "WA",
+    "population": 3649
+  },
+  {
+    "id": "sa:yorke peninsula",
+    "label": "Yorke Peninsula, SA",
+    "lga": "Yorke Peninsula",
+    "state": "SA",
+    "population": 12150
+  }
+]

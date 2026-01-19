@@ -14,6 +14,7 @@ import Header from "../components/Header";
 import { useAuth } from "../auth";
 import { buildSaleDetailsPrefix, encodeSaleDetailsIntoDescription, encodeWantedDetailsIntoDescription, type PriceType } from "../utils/listingDetailsBlock";
 import ShippingInfoButton from "../components/ShippingInfoButton";
+import { LocationTypeaheadAU } from "../components/LocationTypeaheadAU";
 import PhotoUploader, { type PhotoUploaderHandle } from "../components/PhotoUploader";
 import { MAX_MONEY_INPUT_LEN, sanitizeMoneyInput } from "../utils/money";
 import { listingDetailPath, listingPostPath, parseListingKind, type ListingKind } from "../utils/listingRoutes";
@@ -585,20 +586,21 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
               <div className={["mb-1 text-xs font-semibold", fieldErrors.location ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Location <span className="text-red-600">*</span>
               </div>
-              <input
-                value={location}
-                onChange={(e) => {
-                  setLocation(e.target.value);
-                  clearFieldError("location");
-                }}
+              <div
                 className={[
-                  "w-full rounded-xl border px-3 py-2 text-sm outline-none",
-                  fieldErrors.location ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  // Mirror input styling/error affordances while using the typeahead component.
+                  fieldErrors.location ? "rounded-xl ring-1 ring-red-300" : "",
                 ].join(" ")}
-                required
-                minLength={2}
-                maxLength={80}
-              />
+              >
+                <LocationTypeaheadAU
+                  value={location}
+                  onChange={(v) => {
+                    setLocation(v);
+                    clearFieldError("location");
+                  }}
+                  debounceMs={220}
+                />
+              </div>
               {fieldErrors.location && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.location}</div>}
             </label>
 
@@ -1191,17 +1193,16 @@ function WantedPostForm() {
               <div className={["mb-1 text-xs font-semibold", fieldErrors.location ? "text-red-700" : "text-slate-700"].join(" ")}>
                 Location <span className="text-red-600">*</span>
               </div>
-              <input
-                value={location}
-                onChange={(e) => {
-                  setLocation(e.target.value);
-                  clearFieldError("location");
-                }}
-                className={[
-                  "w-full rounded-xl border px-3 py-3 text-sm outline-none",
-                  fieldErrors.location ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
-                ].join(" ")}
-              />
+              <div className={[fieldErrors.location ? "rounded-xl ring-1 ring-red-300" : ""].join(" ")}>
+                <LocationTypeaheadAU
+                  value={location}
+                  onChange={(v) => {
+                    setLocation(v);
+                    clearFieldError("location");
+                  }}
+                  debounceMs={220}
+                />
+              </div>
               {fieldErrors.location && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.location}</div>}
             </label>
 

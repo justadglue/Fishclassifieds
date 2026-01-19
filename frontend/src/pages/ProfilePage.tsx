@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
+import { LocationTypeaheadAU } from "../components/LocationTypeaheadAU";
 import {
   deleteAccount,
   deleteProfileAvatar,
@@ -479,14 +480,7 @@ export default function ProfilePage() {
 
                 <label className="block">
                   <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
-                  <input
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder="e.g. Brisbane"
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                    maxLength={120}
-                    disabled={loading}
-                  />
+                  <LocationTypeaheadAU value={location} onChange={setLocation} disabled={loading} debounceMs={220} />
                 </label>
 
                 <label className="block">

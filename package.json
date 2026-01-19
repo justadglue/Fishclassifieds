@@ -6,13 +6,15 @@
     "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
     "dev:backend": "npm run dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend",
-    "build": "npm --prefix backend run build && npm --prefix frontend run build"
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "gen:locations:au": "node scripts/locations/generate_locations_au.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
     "openai": "^6.15.0"
   }
 }

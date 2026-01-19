@@ -35,6 +35,21 @@ function norm(s: string) {
     return s.trim().toLowerCase();
 }
 
+function fullStateFromAbbrev(abbrev: string): string | null {
+    const a = norm(abbrev);
+    const map: Record<string, string> = {
+        act: "Australian Capital Territory",
+        nsw: "New South Wales",
+        nt: "Northern Territory",
+        qld: "Queensland",
+        sa: "South Australia",
+        tas: "Tasmania",
+        vic: "Victoria",
+        wa: "Western Australia",
+    };
+    return map[a] ?? null;
+}
+
 export function LocationTypeaheadAU(props: {
     value: string; // canonical selected label
     onChange: (value: string) => void;
@@ -91,8 +106,23 @@ export function LocationTypeaheadAU(props: {
         for (const it of all) {
             const loc = norm(it.lga);
             const label = norm(it.label);
-            if (!(loc.includes(q) || label.includes(q))) continue;
-            const prefix = loc.startsWith(q) || label.startsWith(q);
+            const fullState = fullStateFromAbbrev(it.state) ?? "";
+            const state = norm(it.state);
+            const fullStateNorm = norm(fullState);
+
+            const matches =
+                loc.includes(q) ||
+                label.includes(q) ||
+                state.includes(q) ||
+                (fullStateNorm ? fullStateNorm.includes(q) : false);
+
+            if (!matches) continue;
+
+            const prefix =
+                loc.startsWith(q) ||
+                label.startsWith(q) ||
+                state.startsWith(q) ||
+                (fullStateNorm ? fullStateNorm.startsWith(q) : false);
             const pop = typeof it.population === "number" && Number.isFinite(it.population) ? it.population : -1;
             scored.push({ item: it, prefix, pop });
         }

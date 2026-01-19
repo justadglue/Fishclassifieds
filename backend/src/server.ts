@@ -382,7 +382,6 @@ const CreateWantedSchema = z.object({
   waterType: OptionalWaterTypeSchema.optional().nullable(),
   // Size requirements are enforced conditionally by category (bio-enabled and not Other).
   size: z.string().max(40).optional().default(""),
-  shippingOffered: z.boolean().optional().default(false),
   quantity: z.number().int().min(1).max(10_000).optional(),
   budgetCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
   location: z.string().min(2).max(80),
@@ -398,7 +397,6 @@ const UpdateWantedSchema = z.object({
   sex: WantedSexSchema.nullable().optional(),
   waterType: OptionalWaterTypeSchema.optional().nullable(),
   size: z.string().max(40).optional(),
-  shippingOffered: z.boolean().optional(),
   quantity: z.number().int().min(1).max(10_000).optional(),
   budgetCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
   location: z.string().min(2).max(80).optional(),
@@ -1196,7 +1194,6 @@ function mapWantedRow(req: express.Request, row: any) {
     waterType: row.water_type && String(row.water_type).trim() ? String(row.water_type) : null,
     sex: String(row.sex ?? "Unknown"),
     size: row.size && String(row.size).trim() ? String(row.size) : "",
-    shippingOffered: Boolean(Number((row as any).shipping_offered ?? 0)),
     quantity: Number.isFinite(Number(row.quantity)) ? Math.max(1, Math.floor(Number(row.quantity))) : 1,
     budgetCents: row.budget_cents != null ? Number(row.budget_cents) : null,
     location: String(row.location),
@@ -1226,7 +1223,6 @@ app.get("/api/wanted", (req, res) => {
   const location = String(req.query.location ?? "").trim().toLowerCase();
   const waterType = String(req.query.waterType ?? "").trim().toLowerCase();
   const sex = String(req.query.sex ?? "").trim();
-  const ship = String(req.query.ship ?? "").trim() === "1";
   const size = String(req.query.size ?? "").trim().toLowerCase();
   const statusRaw = String(req.query.status ?? "").trim();
   const statusFilter = statusRaw === "open" || statusRaw === "closed" ? statusRaw : null;
@@ -1278,10 +1274,6 @@ app.get("/api/wanted", (req, res) => {
   if (sex) {
     where.push("l.sex = ?");
     params.push(sex);
-  }
-
-  if (ship) {
-    where.push("l.shipping_offered = 1");
   }
 
   if (size) {
@@ -1382,10 +1374,9 @@ app.post("/api/wanted", requireAuth, (req, res) => {
   const parsed = CreateWantedSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
 
-  const { title, category, location, description, waterType, sex, size, shippingOffered, quantity, phone, images } = parsed.data;
+  const { title, category, location, description, waterType, sex, size, quantity, phone, images } = parsed.data;
   const species = parsed.data.species ? String(parsed.data.species).trim() : "";
   const budgetCents = parsed.data.budgetCents ?? null;
-  const shippingFinal = Boolean(shippingOffered);
 
   const bioRequired = isBioFieldsRequiredCategory(category);
   const isOther = isOtherCategory(category);
@@ -1429,7 +1420,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     sexFinal,
     waterTypeFinal,
     sizeFinal,
-    shippingFinal ? 1 : 0,
+    0,
     qtyFinal,
     0,
     budgetCents,
@@ -1504,7 +1495,6 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
     sex: p.sex === undefined ? undefined : (p.sex ?? "Unknown"),
     phone: p.phone,
     size: p.size === undefined ? undefined : String(p.size ?? "").trim(),
-    shipping_offered: p.shippingOffered === undefined ? undefined : (p.shippingOffered ? 1 : 0),
     quantity: p.quantity,
     budget_cents: p.budgetCents,
   };

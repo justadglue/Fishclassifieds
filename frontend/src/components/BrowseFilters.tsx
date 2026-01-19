@@ -114,15 +114,17 @@ export default function BrowseFilters(props: {
                     <LocationTypeaheadAU value={location} onChange={setLocation} placeholder="Start typing your area…" />
                 </label>
 
-                <label className="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        checked={shippingOnly}
-                        onChange={(e) => setShippingOnly(e.target.checked)}
-                        className="h-4 w-4 rounded border-slate-300 text-slate-900"
-                    />
-                    <span className="text-xs font-semibold text-slate-700">Shipping offered</span>
-                </label>
+                {browseType === "sale" && (
+                    <label className="flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            checked={shippingOnly}
+                            onChange={(e) => setShippingOnly(e.target.checked)}
+                            className="h-4 w-4 rounded border-slate-300 text-slate-900"
+                        />
+                        <span className="text-xs font-semibold text-slate-700">Shipping offered</span>
+                    </label>
+                )}
 
                 <label className="block">
                     <div className="mb-1 text-xs font-semibold text-slate-700">Category</div>

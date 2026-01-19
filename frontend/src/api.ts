@@ -58,7 +58,6 @@ export type WantedPost = {
   waterType?: WaterType | null;
   sex: ListingSex;
   size: string;
-  shippingOffered: boolean;
   quantity: number;
   budgetCents: number | null;
   location: string;
@@ -266,7 +265,6 @@ export async function fetchWanted(params?: {
   sex?: ListingSex;
   size?: string;
   status?: WantedStatus;
-  shippingOffered?: boolean;
   minBudgetCents?: number;
   maxBudgetCents?: number;
   limit?: number;
@@ -281,7 +279,6 @@ export async function fetchWanted(params?: {
   if (params?.sex) qs.set("sex", params.sex);
   if (params?.size) qs.set("size", params.size);
   if (params?.status) qs.set("status", params.status);
-  if (params?.shippingOffered) qs.set("ship", "1");
   if (params?.minBudgetCents !== undefined) qs.set("min", String(params.minBudgetCents));
   if (params?.maxBudgetCents !== undefined) qs.set("max", String(params.maxBudgetCents));
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
@@ -301,7 +298,6 @@ export async function createWantedPost(input: {
   waterType?: WaterType | null;
   sex?: ListingSex | null;
   size: string;
-  shippingOffered?: boolean;
   quantity?: number;
   budgetCents?: number | null;
   location: string;
@@ -325,7 +321,6 @@ export async function updateWantedPost(
     waterType?: WaterType | null;
     sex?: ListingSex | null;
     size?: string;
-    shippingOffered?: boolean;
     quantity?: number;
     budgetCents?: number | null;
     location?: string;

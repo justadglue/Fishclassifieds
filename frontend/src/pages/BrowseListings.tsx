@@ -224,7 +224,6 @@ export default function BrowseListings() {
               location: location || undefined,
               waterType: waterType || undefined,
               sex: sex || undefined,
-              shippingOffered: shippingOnly || undefined,
               minBudgetCents: budgetCents,
               limit: per,
               offset,
@@ -578,7 +577,7 @@ export default function BrowseListings() {
                             <span className="inline-flex items-center gap-1">
                               <MapPin aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                               <span className="min-w-0 truncate">
-                                {w.location} • {w.shippingOffered ? "Shipping offered" : "Local only"}
+                                {w.location}
                               </span>
                             </span>
                           </div>

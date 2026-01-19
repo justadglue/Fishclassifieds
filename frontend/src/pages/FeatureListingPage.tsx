@@ -118,7 +118,8 @@ export default function FeatureListingPage() {
                 <span className="inline-flex items-center gap-1">
                   <MapPin aria-hidden="true" className="h-4 w-4 shrink-0" />
                   <span className="min-w-0 truncate">
-                    {item.item.location} • {item.item.shippingOffered ? "Shipping offered" : "Local only"}
+                    {item.item.location}
+                    {item.kind === "sale" ? ` • ${item.item.shippingOffered ? "Shipping offered" : "Local only"}` : ""}
                   </span>
                 </span>
               </div>

@@ -923,7 +923,7 @@ function WantedPostForm() {
                 minLength={3}
                 maxLength={80}
                 className={[
-                  "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                  "w-full rounded-xl border px-3 py-2 text-sm outline-none",
                   fieldErrors.title ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                 ].join(" ")}
               />
@@ -941,7 +941,7 @@ function WantedPostForm() {
                   clearFieldError("category");
                 }}
                 className={[
-                  "w-full rounded-xl border bg-white px-3 py-3 text-sm outline-none",
+                  "w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none",
                   fieldErrors.category ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                 ].join(" ")}
                 required
@@ -981,7 +981,7 @@ function WantedPostForm() {
                 }}
                 disabled={!bioFieldsEnabled}
                 className={[
-                  "w-full rounded-xl border px-3 py-3 text-sm outline-none disabled:bg-slate-50",
+                  "w-full rounded-xl border px-3 py-2 text-sm outline-none disabled:bg-slate-50",
                   fieldErrors.species ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                 ].join(" ")}
               />
@@ -1000,7 +1000,7 @@ function WantedPostForm() {
                 }}
                 disabled={!bioFieldsEnabled}
                 className={[
-                  "w-full rounded-xl border bg-white px-3 py-3 text-sm outline-none disabled:bg-slate-50",
+                  "w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none disabled:bg-slate-50",
                   fieldErrors.waterType ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                 ].join(" ")}
               >
@@ -1026,7 +1026,7 @@ function WantedPostForm() {
                 }}
                 disabled={!bioFieldsEnabled}
                 className={[
-                  "w-full rounded-xl border bg-white px-3 py-3 text-sm outline-none disabled:bg-slate-50",
+                  "w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none disabled:bg-slate-50",
                   fieldErrors.sex ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                 ].join(" ")}
               >
@@ -1052,7 +1052,7 @@ function WantedPostForm() {
                 }}
                 disabled={!bioFieldsEnabled}
                 className={[
-                  "w-full rounded-xl border px-3 py-3 text-sm outline-none disabled:bg-slate-50",
+                  "w-full rounded-xl border px-3 py-2 text-sm outline-none disabled:bg-slate-50",
                   fieldErrors.size ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                 ].join(" ")}
               />
@@ -1068,7 +1068,7 @@ function WantedPostForm() {
                 inputMode="decimal"
                 value={budget}
                 onChange={(e) => setBudget(sanitizeMoneyInput(e.target.value, MAX_MONEY_INPUT_LEN))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
               />
             </label>
 
@@ -1091,7 +1091,7 @@ function WantedPostForm() {
                 step={1}
                 inputMode="numeric"
                 className={[
-                  "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                  "w-full rounded-xl border px-3 py-2 text-sm outline-none",
                   fieldErrors.quantity ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                 ].join(" ")}
               />
@@ -1120,7 +1120,7 @@ function WantedPostForm() {
                         clearFieldError("priceType");
                       }}
                       className={[
-                        "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                        "w-full rounded-xl border px-3 py-2 text-sm outline-none",
                         fieldErrors.customPriceText ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                       ].join(" ")}
                       placeholder="e.g. breeding pair"
@@ -1152,7 +1152,7 @@ function WantedPostForm() {
                     clearFieldError("priceType");
                   }}
                   className={[
-                    "w-full rounded-xl border bg-white px-3 py-3 text-sm outline-none",
+                    "w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none",
                     fieldErrors.priceType ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                   ].join(" ")}
                   required
@@ -1180,7 +1180,7 @@ function WantedPostForm() {
                   clearFieldError("phone");
                 }}
                 className={[
-                  "w-full rounded-xl border px-3 py-3 text-sm outline-none",
+                  "w-full rounded-xl border px-3 py-2 text-sm outline-none",
                   fieldErrors.phone ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                 ].join(" ")}
               />

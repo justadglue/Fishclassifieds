@@ -12,7 +12,7 @@ import {
 } from "../api";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
-import { buildSaleDetailsPrefix, encodeSaleDetailsIntoDescription, encodeWantedDetailsIntoDescription, type PriceType } from "../utils/listingDetailsBlock";
+import { encodeSaleDetailsIntoDescription, encodeWantedDetailsIntoDescription, type PriceType } from "../utils/listingDetailsBlock";
 import ShippingInfoButton from "../components/ShippingInfoButton";
 import { LocationTypeaheadAU } from "../components/LocationTypeaheadAU";
 import PhotoUploader, { type PhotoUploaderHandle } from "../components/PhotoUploader";
@@ -197,13 +197,10 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
 
     const body = String(description ?? "").trim();
 
-    // Length check (only if we have enough info to construct the details block).
-    if (!nextErrors.description && !nextErrors.customPriceText && priceCents !== null) {
-      const detailsPrefix = buildSaleDetailsPrefix({ quantity: qty, priceType, customPriceText: custom, willingToShip });
-      const maxBodyLen = Math.max(1, 1000 - detailsPrefix.length);
-      if (body.trim().length > maxBodyLen) {
-        nextErrors.description = `Description is too long. Max ${maxBodyLen} characters when sale details are included.`;
-      }
+    // Keep user-entered description limit consistent with wanted listings.
+    const MAX_DESC_BODY_LEN = 1000;
+    if (body.length > MAX_DESC_BODY_LEN) {
+      nextErrors.description = `Description is too long. Max ${MAX_DESC_BODY_LEN} characters.`;
     }
 
     if (Object.values(nextErrors).some(Boolean)) {
@@ -256,11 +253,7 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
     }
   }
 
-  const detailsPrefix = useMemo(
-    () => buildSaleDetailsPrefix({ quantity, priceType, customPriceText, willingToShip }),
-    [quantity, priceType, customPriceText, willingToShip]
-  );
-  const maxDescLen = Math.max(1, 1000 - detailsPrefix.length);
+  const maxDescLen = 1000;
 
   return (
     <div className="min-h-full">
@@ -511,7 +504,7 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
                         clearFieldError("priceType");
                       }}
                       className={[
-                        "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                        "h-10 w-full rounded-xl border px-3 py-2 text-sm outline-none",
                         fieldErrors.customPriceText ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                       ].join(" ")}
                       placeholder="e.g. breeding pair"
@@ -543,7 +536,7 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
                     clearFieldError("priceType");
                   }}
                   className={[
-                    "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                    "h-10 w-full rounded-xl border px-3 py-2 text-sm outline-none",
                     fieldErrors.priceType ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                   ].join(" ")}
                   required
@@ -899,13 +892,13 @@ function WantedPostForm() {
   return (
     <div className="min-h-full">
       <Header maxWidth="6xl" />
-      <main className="mx-auto max-w-3xl px-4 py-8">
+      <main className="mx-auto max-w-3xl px-4 py-6">
         <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Create a wanted listing</h1>
         <p className="mt-1 text-sm text-slate-600">Add details, photos, and pricing to publish your listing.</p>
 
         {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
-        <form onSubmit={onSubmit} noValidate className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6">
+        <form onSubmit={onSubmit} noValidate className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
           <PhotoUploader ref={photoUploaderRef} disabled={submitting} />
 
           <div className="grid gap-3 sm:grid-cols-3">
@@ -1120,7 +1113,7 @@ function WantedPostForm() {
                         clearFieldError("priceType");
                       }}
                       className={[
-                        "w-full rounded-xl border px-3 py-2 text-sm outline-none",
+                        "h-10 w-full rounded-xl border px-3 py-2 text-sm outline-none",
                         fieldErrors.customPriceText ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                       ].join(" ")}
                       placeholder="e.g. breeding pair"
@@ -1129,7 +1122,7 @@ function WantedPostForm() {
                     <button
                       type="button"
                       onClick={() => setPriceType("each")}
-                      className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      className="shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                       title="Return to dropdown options"
                       aria-label="Return to dropdown options"
                     >
@@ -1152,7 +1145,7 @@ function WantedPostForm() {
                     clearFieldError("priceType");
                   }}
                   className={[
-                    "w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none",
+                    "h-10 w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none",
                     fieldErrors.priceType ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                   ].join(" ")}
                   required
@@ -1167,11 +1160,11 @@ function WantedPostForm() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-4">
 
             <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.phone ? "text-red-700" : "text-slate-700"].join(" ")}>
-                Phone number<span className="text-red-600">*</span>
+                Phone number <span className="text-red-600">*</span>
               </div>
               <input
                 value={phone}

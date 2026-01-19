@@ -148,6 +148,8 @@ CREATE TABLE IF NOT EXISTS listings(
   sex TEXT NOT NULL DEFAULT 'Unknown',
   water_type TEXT,
   size TEXT NOT NULL DEFAULT '',
+  -- True when shipping is offered/possible (sale) or shipping is acceptable (wanted).
+  shipping_offered INTEGER NOT NULL DEFAULT 0,
   quantity INTEGER NOT NULL DEFAULT 1,
   -- Sell price. Wanted posts store 0 here and use budget_cents instead.
   price_cents INTEGER NOT NULL,

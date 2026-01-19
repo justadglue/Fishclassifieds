@@ -295,6 +295,27 @@ WHERE age IS NOT NULL;
     migrations.push("listings.water_type already exists");
   }
 
+  // Shipping flag: persisted so we can filter without parsing descriptions.
+  if (!hasColumn(db, "listings", "shipping_offered")) {
+    db.exec(`ALTER TABLE listings ADD COLUMN shipping_offered INTEGER NOT NULL DEFAULT 0;`);
+    migrations.push("Added listings.shipping_offered");
+
+    // Best-effort backfill for sale listings using the encoded details block.
+    // This makes the filter immediately useful for existing data.
+    if (hasColumn(db, "listings", "description")) {
+      db.exec(`
+UPDATE listings
+SET shipping_offered = 1
+WHERE listing_type = 0
+AND shipping_offered = 0
+AND lower(description) LIKE '%willingtoship=1%';
+`);
+      migrations.push("Backfilled listings.shipping_offered for sale listings using description details block");
+    }
+  } else {
+    migrations.push("listings.shipping_offered already exists");
+  }
+
   // Backfill water_type from legacy "Water type: ..." line embedded in description.
   if (hasColumn(db, "listings", "water_type") && hasColumn(db, "listings", "description")) {
     const rows = db
@@ -454,6 +475,7 @@ CREATE TABLE IF NOT EXISTS listings_new(
   sex TEXT NOT NULL DEFAULT 'Unknown',
   water_type TEXT,
   size TEXT NOT NULL DEFAULT '',
+  shipping_offered INTEGER NOT NULL DEFAULT 0,
   quantity INTEGER NOT NULL DEFAULT 1,
   price_cents INTEGER NOT NULL,
   budget_cents INTEGER,
@@ -477,7 +499,7 @@ CREATE TABLE IF NOT EXISTS listings_new(
 INSERT INTO listings_new(
   id,user_id,listing_type,
   featured,featured_until,views,
-  title,category,species,sex,water_type,size,quantity,price_cents,
+  title,category,species,sex,water_type,size,shipping_offered,quantity,price_cents,
   budget_cents,wanted_status,
   location,description,phone,
   status,expires_at,resolution,resolved_at,
@@ -496,6 +518,7 @@ SELECT
   COALESCE(sex, 'Unknown'),
   water_type,
   ${sizeExpr},
+  COALESCE(shipping_offered, 0),
   COALESCE(quantity, 1),
   COALESCE(price_cents, 0),
   CASE WHEN COALESCE(listing_type, 0) = 1 THEN ${budgetExpr} ELSE NULL END,

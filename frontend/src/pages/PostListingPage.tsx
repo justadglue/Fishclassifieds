@@ -239,6 +239,7 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
         sex: sexToSubmit,
         waterType: bioFieldsEnabled && waterType ? waterType : null,
         size: size.trim(),
+        shippingOffered: willingToShip,
         priceCents,
         location: location.trim(),
         description: finalDescription,
@@ -730,6 +731,7 @@ function WantedPostForm() {
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
   const [budget, setBudget] = useState("");
+  const [shippingOffered, setShippingOffered] = useState(false);
   const [priceType, setPriceType] = useState<PriceType>("each");
   const [customPriceText, setCustomPriceText] = useState("");
   const [description, setDescription] = useState("");
@@ -878,6 +880,7 @@ function WantedPostForm() {
         waterType: bioFieldsEnabled && waterType ? waterType : null,
         sex: bioFieldsEnabled && sex ? sex : null,
         size: size.trim(),
+        shippingOffered,
         quantity: qty,
         budgetCents,
         location: location.trim(),
@@ -1203,6 +1206,15 @@ function WantedPostForm() {
             </label>
 
           </div>
+
+          <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 select-none">
+            <input
+              type="checkbox"
+              checked={shippingOffered}
+              onChange={(e) => setShippingOffered(e.target.checked)}
+            />
+            Shipping ok
+          </label>
 
           <label className="block">
             <div className={["mb-1 text-xs font-semibold", fieldErrors.description ? "text-red-700" : "text-slate-700"].join(" ")}>

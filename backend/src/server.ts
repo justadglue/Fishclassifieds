@@ -344,6 +344,7 @@ const CreateListingSchema = z.object({
   waterType: OptionalWaterTypeSchema.optional(),
   // Size requirements are enforced conditionally by category (bio-enabled and not Other).
   size: z.string().max(40).optional().default(""),
+  shippingOffered: z.boolean().optional().default(false),
   priceCents: z.number().int().min(0).max(5_000_000),
   location: z.string().min(2).max(80),
   description: z.string().min(1).max(1000),
@@ -359,6 +360,7 @@ const UpdateListingSchema = z.object({
   sex: ListingSexSchema.optional(),
   waterType: OptionalWaterTypeSchema.optional().nullable(),
   size: z.string().max(40).optional(),
+  shippingOffered: z.boolean().optional(),
   priceCents: z.number().int().min(0).max(5_000_000).optional(),
   location: z.string().min(2).max(80).optional(),
   description: z.string().min(1).max(1000).optional(),
@@ -380,6 +382,7 @@ const CreateWantedSchema = z.object({
   waterType: OptionalWaterTypeSchema.optional().nullable(),
   // Size requirements are enforced conditionally by category (bio-enabled and not Other).
   size: z.string().max(40).optional().default(""),
+  shippingOffered: z.boolean().optional().default(false),
   quantity: z.number().int().min(1).max(10_000).optional(),
   budgetCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
   location: z.string().min(2).max(80),
@@ -395,6 +398,7 @@ const UpdateWantedSchema = z.object({
   sex: WantedSexSchema.nullable().optional(),
   waterType: OptionalWaterTypeSchema.optional().nullable(),
   size: z.string().max(40).optional(),
+  shippingOffered: z.boolean().optional(),
   quantity: z.number().int().min(1).max(10_000).optional(),
   budgetCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
   location: z.string().min(2).max(80).optional(),
@@ -710,7 +714,7 @@ app.post("/api/listings", requireAuth, (req, res) => {
   const requireApproval = String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
   const user = req.user!;
 
-  const { title, category, species, sex, waterType, size, priceCents, location, description, phone, images } = parsed.data;
+  const { title, category, species, sex, waterType, size, shippingOffered, priceCents, location, description, phone, images } = parsed.data;
   const requestedStatus = parsed.data.status;
   const status: ListingStatus = requestedStatus === "draft" ? "draft" : requireApproval ? "pending" : "active";
 
@@ -722,6 +726,7 @@ app.post("/api/listings", requireAuth, (req, res) => {
   const sexFinal = bioDisabled ? "Unknown" : String(sex ?? "Unknown");
   const waterTypeFinal = bioDisabled ? null : (waterType ?? null);
   const sizeFinal = bioDisabled ? "" : String(size ?? "").trim();
+  const shippingFinal = Boolean(shippingOffered);
 
   if (bioRequired) {
     if (!speciesFinal || speciesFinal.trim().length < 2) return res.status(400).json({ error: "Species is required" });
@@ -759,7 +764,7 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
   );
 
   // water_type is optional; stored separately from description. Size is required (free-form string).
-  db.prepare(`UPDATE listings SET water_type = ?, size = ? WHERE id = ?`).run(waterTypeFinal, sizeFinal, id);
+  db.prepare(`UPDATE listings SET water_type = ?, size = ?, shipping_offered = ? WHERE id = ?`).run(waterTypeFinal, sizeFinal, shippingFinal ? 1 : 0, id);
 
   const insertImg = db.prepare(
     `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
@@ -917,6 +922,7 @@ app.get("/api/listings", (req, res) => {
   const location = String(req.query.location ?? "").trim().toLowerCase();
   const waterType = String(req.query.waterType ?? "").trim().toLowerCase();
   const sex = String(req.query.sex ?? "").trim();
+  const ship = String(req.query.ship ?? "").trim() === "1";
   const size = String(req.query.size ?? "").trim().toLowerCase();
   const featured = String(req.query.featured ?? "").trim();
   const min = req.query.minPriceCents ? Number(req.query.minPriceCents) : undefined;
@@ -964,6 +970,9 @@ app.get("/api/listings", (req, res) => {
   if (sex) {
     where.push("sex = ?");
     params.push(sex);
+  }
+  if (ship) {
+    where.push("shipping_offered = 1");
   }
   if (size) {
     where.push("lower(size)LIKE ?");
@@ -1053,6 +1062,7 @@ app.patch("/api/listings/:id", requireAuth, (req, res) => {
     sex: p.sex,
     water_type: p.waterType,
     size: p.size === undefined ? undefined : String(p.size ?? "").trim(),
+    shipping_offered: p.shippingOffered === undefined ? undefined : (p.shippingOffered ? 1 : 0),
     price_cents: p.priceCents,
     location: p.location,
     description: p.description,
@@ -1186,6 +1196,7 @@ function mapWantedRow(req: express.Request, row: any) {
     waterType: row.water_type && String(row.water_type).trim() ? String(row.water_type) : null,
     sex: String(row.sex ?? "Unknown"),
     size: row.size && String(row.size).trim() ? String(row.size) : "",
+    shippingOffered: Boolean(Number((row as any).shipping_offered ?? 0)),
     quantity: Number.isFinite(Number(row.quantity)) ? Math.max(1, Math.floor(Number(row.quantity))) : 1,
     budgetCents: row.budget_cents != null ? Number(row.budget_cents) : null,
     location: String(row.location),
@@ -1215,6 +1226,7 @@ app.get("/api/wanted", (req, res) => {
   const location = String(req.query.location ?? "").trim().toLowerCase();
   const waterType = String(req.query.waterType ?? "").trim().toLowerCase();
   const sex = String(req.query.sex ?? "").trim();
+  const ship = String(req.query.ship ?? "").trim() === "1";
   const size = String(req.query.size ?? "").trim().toLowerCase();
   const statusRaw = String(req.query.status ?? "").trim();
   const statusFilter = statusRaw === "open" || statusRaw === "closed" ? statusRaw : null;
@@ -1266,6 +1278,10 @@ app.get("/api/wanted", (req, res) => {
   if (sex) {
     where.push("l.sex = ?");
     params.push(sex);
+  }
+
+  if (ship) {
+    where.push("l.shipping_offered = 1");
   }
 
   if (size) {
@@ -1366,9 +1382,10 @@ app.post("/api/wanted", requireAuth, (req, res) => {
   const parsed = CreateWantedSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
 
-  const { title, category, location, description, waterType, sex, size, quantity, phone, images } = parsed.data;
+  const { title, category, location, description, waterType, sex, size, shippingOffered, quantity, phone, images } = parsed.data;
   const species = parsed.data.species ? String(parsed.data.species).trim() : "";
   const budgetCents = parsed.data.budgetCents ?? null;
+  const shippingFinal = Boolean(shippingOffered);
 
   const bioRequired = isBioFieldsRequiredCategory(category);
   const isOther = isOtherCategory(category);
@@ -1394,12 +1411,12 @@ app.post("/api/wanted", requireAuth, (req, res) => {
     `
 INSERT INTO listings(
   id,user_id,listing_type,
-  title,description,category,species,sex,water_type,size,quantity,price_cents,
+  title,description,category,species,sex,water_type,size,shipping_offered,quantity,price_cents,
   budget_cents,wanted_status,
   location,phone,
   status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
 )
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 `
   ).run(
     id,
@@ -1412,6 +1429,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     sexFinal,
     waterTypeFinal,
     sizeFinal,
+    shippingFinal ? 1 : 0,
     qtyFinal,
     0,
     budgetCents,
@@ -1486,6 +1504,7 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
     sex: p.sex === undefined ? undefined : (p.sex ?? "Unknown"),
     phone: p.phone,
     size: p.size === undefined ? undefined : String(p.size ?? "").trim(),
+    shipping_offered: p.shippingOffered === undefined ? undefined : (p.shippingOffered ? 1 : 0),
     quantity: p.quantity,
     budget_cents: p.budgetCents,
   };
@@ -1871,7 +1890,12 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
     );
 
     // Copy optional fields stored outside the description.
-    db.prepare(`UPDATE listings SET water_type = ?, size = ? WHERE id = ?`).run((row as any).water_type ?? null, String((row as any).size ?? ""), newId);
+    db.prepare(`UPDATE listings SET water_type = ?, size = ?, shipping_offered = ? WHERE id = ?`).run(
+      (row as any).water_type ?? null,
+      String((row as any).size ?? ""),
+      Number((row as any).shipping_offered ?? 0) ? 1 : 0,
+      newId
+    );
 
     const insImg = db.prepare(
       `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
@@ -1966,6 +1990,7 @@ function mapListing(req: express.Request, row: ListingRow & any) {
     sex: String((row as any).sex ?? "Unknown"),
     waterType: (row as any).water_type ?? null,
     size: String((row as any).size ?? ""),
+    shippingOffered: Boolean(Number((row as any).shipping_offered ?? 0)),
     priceCents: row.price_cents,
     location: row.location,
     description: row.description,

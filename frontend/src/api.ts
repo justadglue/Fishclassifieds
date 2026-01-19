@@ -26,6 +26,7 @@ export type Listing = {
   sex: ListingSex;
   waterType?: WaterType | null;
   size: string;
+  shippingOffered: boolean;
   priceCents: number;
   location: string;
   description: string;
@@ -57,6 +58,7 @@ export type WantedPost = {
   waterType?: WaterType | null;
   sex: ListingSex;
   size: string;
+  shippingOffered: boolean;
   quantity: number;
   budgetCents: number | null;
   location: string;
@@ -228,6 +230,7 @@ export async function fetchListings(params?: {
   waterType?: WaterType;
   sex?: ListingSex;
   size?: string;
+  shippingOffered?: boolean;
   minPriceCents?: number;
   maxPriceCents?: number;
   featured?: boolean;
@@ -243,6 +246,7 @@ export async function fetchListings(params?: {
   if (params?.waterType) qs.set("waterType", params.waterType);
   if (params?.sex) qs.set("sex", params.sex);
   if (params?.size) qs.set("size", params.size);
+  if (params?.shippingOffered) qs.set("ship", "1");
   if (params?.minPriceCents !== undefined) qs.set("minPriceCents", String(params.minPriceCents));
   if (params?.maxPriceCents !== undefined) qs.set("maxPriceCents", String(params.maxPriceCents));
   if (params?.featured) qs.set("featured", "1");
@@ -262,6 +266,7 @@ export async function fetchWanted(params?: {
   sex?: ListingSex;
   size?: string;
   status?: WantedStatus;
+  shippingOffered?: boolean;
   minBudgetCents?: number;
   maxBudgetCents?: number;
   limit?: number;
@@ -276,6 +281,7 @@ export async function fetchWanted(params?: {
   if (params?.sex) qs.set("sex", params.sex);
   if (params?.size) qs.set("size", params.size);
   if (params?.status) qs.set("status", params.status);
+  if (params?.shippingOffered) qs.set("ship", "1");
   if (params?.minBudgetCents !== undefined) qs.set("min", String(params.minBudgetCents));
   if (params?.maxBudgetCents !== undefined) qs.set("max", String(params.maxBudgetCents));
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
@@ -295,6 +301,7 @@ export async function createWantedPost(input: {
   waterType?: WaterType | null;
   sex?: ListingSex | null;
   size: string;
+  shippingOffered?: boolean;
   quantity?: number;
   budgetCents?: number | null;
   location: string;
@@ -318,6 +325,7 @@ export async function updateWantedPost(
     waterType?: WaterType | null;
     sex?: ListingSex | null;
     size?: string;
+    shippingOffered?: boolean;
     quantity?: number;
     budgetCents?: number | null;
     location?: string;
@@ -391,6 +399,7 @@ export async function createListing(input: {
   sex: ListingSex;
   waterType?: WaterType | null;
   size: string;
+  shippingOffered?: boolean;
   priceCents: number;
   location: string;
   description: string;
@@ -416,6 +425,7 @@ export async function updateListing(
     sex?: ListingSex;
     waterType?: WaterType | null;
     size?: string;
+    shippingOffered?: boolean;
     priceCents?: number;
     location?: string;
     description?: string;

@@ -163,6 +163,7 @@ export default function BrowseListings() {
     location,
     waterType,
     sex,
+    shippingOnly,
     minDollars,
     maxDollars,
     budgetDollars,
@@ -208,6 +209,7 @@ export default function BrowseListings() {
               location: location || undefined,
               waterType: waterType || undefined,
               sex: sex || undefined,
+              shippingOffered: shippingOnly || undefined,
               minPriceCents: minCents,
               maxPriceCents: maxCents,
               sort,
@@ -221,6 +223,7 @@ export default function BrowseListings() {
               location: location || undefined,
               waterType: waterType || undefined,
               sex: sex || undefined,
+              shippingOffered: shippingOnly || undefined,
               minBudgetCents: budgetCents,
               limit: per,
               offset,
@@ -261,6 +264,7 @@ export default function BrowseListings() {
     location,
     waterType,
     sex,
+    shippingOnly,
     minCents,
     maxCents,
     sort,
@@ -364,6 +368,8 @@ export default function BrowseListings() {
             clearFilters={clearFilters}
             location={location}
             setLocation={(v) => setParam("location", v)}
+            shippingOnly={shippingOnly}
+            setShippingOnly={(v) => setParam("ship", v ? "1" : "")}
             waterType={waterType}
             setWaterType={(v) => setParam("waterType", v)}
             waterTypes={waterTypes}

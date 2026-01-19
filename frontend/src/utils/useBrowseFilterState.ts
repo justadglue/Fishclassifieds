@@ -40,6 +40,7 @@ export function useBrowseFilterState() {
     const location = sp.get("location") ?? "";
     const waterType = sp.get("waterType") ?? "";
     const sex = sp.get("sex") ?? "";
+    const shippingOnly = sp.get("ship") === "1";
     const minDollars = sp.get("min") ?? "";
     const maxDollars = sp.get("max") ?? "";
     const budgetDollars = sp.get("budget") ?? "";
@@ -168,6 +169,7 @@ export function useBrowseFilterState() {
         location,
         waterType,
         sex,
+        shippingOnly,
         minDollars,
         maxDollars,
         budgetDollars,

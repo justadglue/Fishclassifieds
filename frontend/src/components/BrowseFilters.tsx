@@ -10,6 +10,9 @@ export default function BrowseFilters(props: {
     location: string;
     setLocation: (v: string) => void;
 
+    shippingOnly: boolean;
+    setShippingOnly: (v: boolean) => void;
+
     waterType: string;
     setWaterType: (v: string) => void;
     waterTypes: WaterType[];
@@ -43,6 +46,8 @@ export default function BrowseFilters(props: {
         clearFilters,
         location,
         setLocation,
+        shippingOnly,
+        setShippingOnly,
         waterType,
         setWaterType,
         waterTypes,
@@ -111,6 +116,16 @@ export default function BrowseFilters(props: {
                         placeholder="e.g. Brisbane"
                         className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
                     />
+                </label>
+
+                <label className="flex items-center gap-2">
+                    <input
+                        type="checkbox"
+                        checked={shippingOnly}
+                        onChange={(e) => setShippingOnly(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-slate-900"
+                    />
+                    <span className="text-xs font-semibold text-slate-700">Shipping offered</span>
                 </label>
 
                 <label className="block">

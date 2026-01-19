@@ -363,6 +363,7 @@ function SaleEditForm() {
           sex: sexToSubmit,
           waterType: waterTypeToSubmit,
           size: sizeToSubmit,
+          shippingOffered: willingToShip,
           priceCents,
           location: location.trim(),
           description: finalDescription,
@@ -384,6 +385,7 @@ function SaleEditForm() {
         sex: sexToSubmit,
         waterType: waterTypeToSubmit,
         size: sizeToSubmit,
+        shippingOffered: willingToShip,
         priceCents,
         location: location.trim(),
         description: finalDescription,
@@ -1049,6 +1051,7 @@ function WantedEditForm() {
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
   const [budget, setBudget] = useState("");
+  const [shippingOffered, setShippingOffered] = useState(false);
   const [priceType, setPriceType] = useState<PriceType>("each");
   const [customPriceText, setCustomPriceText] = useState("");
   const [description, setDescription] = useState("");
@@ -1105,6 +1108,7 @@ function WantedEditForm() {
         setQuantity(Number.isFinite(Number((w as any).quantity)) ? Math.max(1, Math.floor(Number((w as any).quantity))) : 1);
         setLocation(w.location);
         setPhone((w as any).phone ?? "");
+        setShippingOffered(Boolean((w as any).shippingOffered ?? false));
         setBudget(centsToDollarsMaybe(w.budgetCents));
         const decoded = decodeWantedDetailsFromDescription(w.description);
         setPriceType(decoded.details.priceType);
@@ -1201,6 +1205,7 @@ function WantedEditForm() {
           waterType: bioFieldsEnabled && waterType ? waterType : null,
           sex: bioFieldsEnabled && sex ? sex : null,
           size: size.trim(),
+          shippingOffered,
           quantity: qty,
           budgetCents: dollarsToCentsMaybe(budget),
           location: location.trim(),
@@ -1221,6 +1226,7 @@ function WantedEditForm() {
         waterType: bioFieldsEnabled && waterType ? waterType : null,
         sex: bioFieldsEnabled && sex ? sex : null,
         size: size.trim(),
+        shippingOffered,
         quantity: qty,
         budgetCents: dollarsToCentsMaybe(budget),
         location: location.trim(),
@@ -1465,6 +1471,16 @@ function WantedEditForm() {
                 />
               </label>
             </div>
+
+            <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 select-none">
+              <input
+                type="checkbox"
+                checked={shippingOffered}
+                onChange={(e) => setShippingOffered(e.target.checked)}
+                disabled={saving || !isOwner}
+              />
+              Shipping ok
+            </label>
 
             <label className="block">
               <div className="mb-1 text-xs font-semibold text-slate-700">Description</div>

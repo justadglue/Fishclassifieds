@@ -163,16 +163,15 @@ export default function BrowseListings() {
     location,
     waterType,
     sex,
-    size,
     minDollars,
     maxDollars,
+    budgetDollars,
     sort,
-    featuredOnly,
-    wantedStatus,
     page,
     per,
     minCents,
     maxCents,
+    budgetCents,
     bioFieldsDisabled,
     categoryOptions,
     waterTypes,
@@ -209,10 +208,8 @@ export default function BrowseListings() {
               location: location || undefined,
               waterType: waterType || undefined,
               sex: sex || undefined,
-              size: size || undefined,
               minPriceCents: minCents,
               maxPriceCents: maxCents,
-              featured: featuredOnly || undefined,
               sort,
               limit: per,
               offset,
@@ -224,10 +221,7 @@ export default function BrowseListings() {
               location: location || undefined,
               waterType: waterType || undefined,
               sex: sex || undefined,
-              size: size || undefined,
-              status: wantedStatus || undefined,
-              minBudgetCents: minCents,
-              maxBudgetCents: maxCents,
+              minBudgetCents: budgetCents,
               limit: per,
               offset,
             });
@@ -267,12 +261,9 @@ export default function BrowseListings() {
     location,
     waterType,
     sex,
-    size,
     minCents,
     maxCents,
     sort,
-    featuredOnly,
-    wantedStatus,
     per,
     page,
     offset,
@@ -371,31 +362,27 @@ export default function BrowseListings() {
             browseType={browseType}
             setBrowseType={setBrowseType}
             clearFilters={clearFilters}
+            location={location}
+            setLocation={(v) => setParam("location", v)}
+            waterType={waterType}
+            setWaterType={(v) => setParam("waterType", v)}
+            waterTypes={waterTypes}
             category={category}
             setCategory={(v) => setParam("category", v)}
             categoryOptions={categoryOptions}
             species={species}
             setSpecies={(v) => setParam("species", v)}
             speciesPresets={[...SPECIES_PRESETS]}
-            waterType={waterType}
-            setWaterType={(v) => setParam("waterType", v)}
-            waterTypes={waterTypes}
-            sex={sex}
-            setSex={(v) => setParam("sex", v)}
-            listingSexes={listingSexes}
-            wantedSexOptions={wantedSexOptions}
-            size={size}
-            setSize={(v) => setParam("size", v)}
-            location={location}
-            setLocation={(v) => setParam("location", v)}
             minDollars={minDollars}
             setMinDollars={(v) => setParam("min", v)}
             maxDollars={maxDollars}
             setMaxDollars={(v) => setParam("max", v)}
-            wantedStatus={wantedStatus}
-            setWantedStatus={(v) => setParam("status", v)}
-            featuredOnly={featuredOnly}
-            setFeaturedOnly={(v) => setParam("featured", v ? "1" : "")}
+            budgetDollars={budgetDollars}
+            setBudgetDollars={(v) => setParam("budget", v)}
+            sex={sex}
+            setSex={(v) => setParam("sex", v)}
+            listingSexes={listingSexes}
+            wantedSexOptions={wantedSexOptions}
             bioFieldsDisabled={bioFieldsDisabled}
           />
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { getListingOptionsCached, type Category, type ListingSex, type WantedStatus, type WaterType } from "../api";
+import { getListingOptionsCached, type Category, type ListingSex, type WaterType } from "../api";
 
 export type BrowseType = "sale" | "wanted";
 export type SortMode = "newest" | "price_asc" | "price_desc";
@@ -40,12 +40,10 @@ export function useBrowseFilterState() {
     const location = sp.get("location") ?? "";
     const waterType = sp.get("waterType") ?? "";
     const sex = sp.get("sex") ?? "";
-    const size = sp.get("size") ?? "";
     const minDollars = sp.get("min") ?? "";
     const maxDollars = sp.get("max") ?? "";
+    const budgetDollars = sp.get("budget") ?? "";
     const sort = (sp.get("sort") ?? "newest") as SortMode;
-    const featuredOnly = sp.get("featured") === "1";
-    const wantedStatus = (sp.get("status") ?? "") as "" | WantedStatus;
 
     const page = clampInt(sp.get("page"), 1, 1, 999999);
     const per = clampInt(sp.get("per"), 24, 12, 200) as PageSize;
@@ -65,10 +63,13 @@ export function useBrowseFilterState() {
         next.set("page", "1");
         if (nextType === "wanted") {
             next.delete("sort");
-            next.delete("featured");
+            // Wanted uses a single budget filter, not min/max.
+            next.delete("min");
+            next.delete("max");
         } else {
             if (!next.get("sort")) next.set("sort", "newest");
-            next.delete("status");
+            // Sale uses min/max price, not a single budget.
+            next.delete("budget");
         }
         setSp(next, { replace: true });
     }
@@ -124,12 +125,11 @@ export function useBrowseFilterState() {
         if (!category) return;
         if (!bioFieldsDisabled) return;
         const next = new URLSearchParams(sp);
-        const had = next.has("species") || next.has("waterType") || next.has("sex") || next.has("size");
+        const had = next.has("species") || next.has("waterType") || next.has("sex");
         if (!had) return;
         next.delete("species");
         next.delete("waterType");
         next.delete("sex");
-        next.delete("size");
         next.set("page", "1");
         setSp(next, { replace: true });
     }, [bioFieldsDisabled, category, setSp, sp]);
@@ -148,6 +148,13 @@ export function useBrowseFilterState() {
         return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : undefined;
     }, [maxDollars]);
 
+    const budgetCents = useMemo(() => {
+        const s = String(budgetDollars ?? "").trim();
+        if (!s) return undefined;
+        const n = Number(s);
+        return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : undefined;
+    }, [budgetDollars]);
+
     return {
         sp,
         setSp,
@@ -161,18 +168,17 @@ export function useBrowseFilterState() {
         location,
         waterType,
         sex,
-        size,
         minDollars,
         maxDollars,
+        budgetDollars,
         sort,
-        featuredOnly,
-        wantedStatus,
         page,
         per,
 
         // derived
         minCents,
         maxCents,
+        budgetCents,
         bioFieldsDisabled,
         categoryOptions,
         waterTypes,

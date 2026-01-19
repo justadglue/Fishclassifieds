@@ -1,4 +1,4 @@
-import type { Category, ListingSex, WantedStatus, WaterType } from "../api";
+import type { Category, ListingSex, WaterType } from "../api";
 
 export type BrowseType = "sale" | "wanted";
 
@@ -6,6 +6,13 @@ export default function BrowseFilters(props: {
     browseType: BrowseType;
     setBrowseType: (t: BrowseType) => void;
     clearFilters: () => void;
+
+    location: string;
+    setLocation: (v: string) => void;
+
+    waterType: string;
+    setWaterType: (v: string) => void;
+    waterTypes: WaterType[];
 
     category: "" | Category;
     setCategory: (v: string) => void;
@@ -15,31 +22,18 @@ export default function BrowseFilters(props: {
     setSpecies: (v: string) => void;
     speciesPresets: string[];
 
-    waterType: string;
-    setWaterType: (v: string) => void;
-    waterTypes: WaterType[];
-
-    sex: string;
-    setSex: (v: string) => void;
-    listingSexes: ListingSex[];
-    wantedSexOptions: ListingSex[];
-
-    size: string;
-    setSize: (v: string) => void;
-
-    location: string;
-    setLocation: (v: string) => void;
-
     minDollars: string;
     setMinDollars: (v: string) => void;
     maxDollars: string;
     setMaxDollars: (v: string) => void;
 
-    wantedStatus: "" | WantedStatus;
-    setWantedStatus: (v: string) => void;
+    budgetDollars: string;
+    setBudgetDollars: (v: string) => void;
 
-    featuredOnly: boolean;
-    setFeaturedOnly: (v: boolean) => void;
+    sex: string;
+    setSex: (v: string) => void;
+    listingSexes: ListingSex[];
+    wantedSexOptions: ListingSex[];
 
     bioFieldsDisabled: boolean;
 }) {
@@ -47,31 +41,27 @@ export default function BrowseFilters(props: {
         browseType,
         setBrowseType,
         clearFilters,
+        location,
+        setLocation,
+        waterType,
+        setWaterType,
+        waterTypes,
         category,
         setCategory,
         categoryOptions,
         species,
         setSpecies,
         speciesPresets,
-        waterType,
-        setWaterType,
-        waterTypes,
-        sex,
-        setSex,
-        listingSexes,
-        wantedSexOptions,
-        size,
-        setSize,
-        location,
-        setLocation,
         minDollars,
         setMinDollars,
         maxDollars,
         setMaxDollars,
-        wantedStatus,
-        setWantedStatus,
-        featuredOnly,
-        setFeaturedOnly,
+        budgetDollars,
+        setBudgetDollars,
+        sex,
+        setSex,
+        listingSexes,
+        wantedSexOptions,
         bioFieldsDisabled,
     } = props;
 
@@ -114,6 +104,16 @@ export default function BrowseFilters(props: {
                 </label>
 
                 <label className="block">
+                    <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
+                    <input
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        placeholder="e.g. Brisbane"
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                    />
+                </label>
+
+                <label className="block">
                     <div className="mb-1 text-xs font-semibold text-slate-700">Category</div>
                     <select
                         value={category}
@@ -123,22 +123,6 @@ export default function BrowseFilters(props: {
                         {categoryOptions.map((c) => (
                             <option key={c || "Any"} value={c}>
                                 {c ? c : "Any"}
-                            </option>
-                        ))}
-                    </select>
-                </label>
-
-                <label className="block">
-                    <div className="mb-1 text-xs font-semibold text-slate-700">Species</div>
-                    <select
-                        value={species}
-                        onChange={(e) => setSpecies(e.target.value)}
-                        disabled={bioFieldsDisabled}
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
-                    >
-                        {speciesPresets.map((s) => (
-                            <option key={s} value={s}>
-                                {s ? s : "Any"}
                             </option>
                         ))}
                     </select>
@@ -162,6 +146,58 @@ export default function BrowseFilters(props: {
                 </label>
 
                 <label className="block">
+                    <div className="mb-1 text-xs font-semibold text-slate-700">Species</div>
+                    <select
+                        value={species}
+                        onChange={(e) => setSpecies(e.target.value)}
+                        disabled={bioFieldsDisabled}
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
+                    >
+                        {speciesPresets.map((s) => (
+                            <option key={s} value={s}>
+                                {s ? s : "Any"}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+
+                {browseType === "sale" ? (
+                    <div className="grid grid-cols-2 gap-3">
+                        <label className="block">
+                            <div className="mb-1 text-xs font-semibold text-slate-700">Min price ($)</div>
+                            <input
+                                value={minDollars}
+                                onChange={(e) => setMinDollars(e.target.value)}
+                                inputMode="decimal"
+                                placeholder="0"
+                                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                            />
+                        </label>
+                        <label className="block">
+                            <div className="mb-1 text-xs font-semibold text-slate-700">Max price ($)</div>
+                            <input
+                                value={maxDollars}
+                                onChange={(e) => setMaxDollars(e.target.value)}
+                                inputMode="decimal"
+                                placeholder="200"
+                                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                            />
+                        </label>
+                    </div>
+                ) : (
+                    <label className="block">
+                        <div className="mb-1 text-xs font-semibold text-slate-700">Min budget ($)</div>
+                        <input
+                            value={budgetDollars}
+                            onChange={(e) => setBudgetDollars(e.target.value)}
+                            inputMode="decimal"
+                            placeholder="200"
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                        />
+                    </label>
+                )}
+
+                <label className="block">
                     <div className="mb-1 text-xs font-semibold text-slate-700">Sex</div>
                     <select
                         value={sex}
@@ -177,81 +213,6 @@ export default function BrowseFilters(props: {
                         ))}
                     </select>
                 </label>
-
-                <label className="block">
-                    <div className="mb-1 text-xs font-semibold text-slate-700">Size</div>
-                    <input
-                        value={size}
-                        onChange={(e) => setSize(e.target.value)}
-                        disabled={bioFieldsDisabled}
-                        placeholder="e.g. 5cm / juvenile"
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
-                    />
-                </label>
-
-                <label className="block">
-                    <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
-                    <input
-                        value={location}
-                        onChange={(e) => setLocation(e.target.value)}
-                        placeholder="e.g. Brisbane"
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                    />
-                </label>
-
-                <div className="grid grid-cols-2 gap-3">
-                    <label className="block">
-                        <div className="mb-1 text-xs font-semibold text-slate-700">{browseType === "sale" ? "Min price ($)" : "Min budget ($)"}</div>
-                        <input
-                            value={minDollars}
-                            onChange={(e) => setMinDollars(e.target.value)}
-                            inputMode="decimal"
-                            placeholder="0"
-                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                        />
-                    </label>
-                    <label className="block">
-                        <div className="mb-1 text-xs font-semibold text-slate-700">{browseType === "sale" ? "Max price ($)" : "Max budget ($)"}</div>
-                        <input
-                            value={maxDollars}
-                            onChange={(e) => setMaxDollars(e.target.value)}
-                            inputMode="decimal"
-                            placeholder="200"
-                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                        />
-                    </label>
-                </div>
-
-                {browseType === "wanted" ? (
-                    <label className="block">
-                        <div className="mb-1 text-xs font-semibold text-slate-700">Status</div>
-                        <select
-                            value={wantedStatus}
-                            onChange={(e) => setWantedStatus(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-                        >
-                            <option value="">Any</option>
-                            <option value="open">Active</option>
-                            <option value="closed">Closed</option>
-                        </select>
-                    </label>
-                ) : (
-                    <label className="flex items-center gap-2">
-                        <input
-                            type="checkbox"
-                            checked={featuredOnly}
-                            onChange={(e) => setFeaturedOnly(e.target.checked)}
-                            className="h-4 w-4 rounded border-slate-300 text-slate-900"
-                        />
-                        <span className="text-xs font-semibold text-slate-700">Featured only</span>
-                    </label>
-                )}
-
-                <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-700">
-                    {browseType === "sale"
-                        ? "Tip: category narrows broad items; search finds details like “cherry”, “pair”, “breeder”."
-                        : "Tip: use search for details like “pair”, “juvenile”, or “pickup”. Include location for local-only requests."}
-                </div>
             </div>
         </aside>
     );

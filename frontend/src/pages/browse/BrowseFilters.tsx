@@ -24,8 +24,8 @@ export default function BrowseFilters(props: {
     listingSexes: ListingSex[];
     wantedSexOptions: ListingSex[];
 
-    age: string;
-    setAge: (v: string) => void;
+    size: string;
+    setSize: (v: string) => void;
 
     location: string;
     setLocation: (v: string) => void;
@@ -60,8 +60,8 @@ export default function BrowseFilters(props: {
         setSex,
         listingSexes,
         wantedSexOptions,
-        age,
-        setAge,
+        size,
+        setSize,
         location,
         setLocation,
         minDollars,
@@ -179,12 +179,12 @@ export default function BrowseFilters(props: {
                 </label>
 
                 <label className="block">
-                    <div className="mb-1 text-xs font-semibold text-slate-700">Age</div>
+                    <div className="mb-1 text-xs font-semibold text-slate-700">Size</div>
                     <input
-                        value={age}
-                        onChange={(e) => setAge(e.target.value)}
+                        value={size}
+                        onChange={(e) => setSize(e.target.value)}
                         disabled={bioFieldsDisabled}
-                        placeholder="e.g. juvenile"
+                        placeholder="e.g. 5cm / juvenile"
                         className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
                     />
                 </label>

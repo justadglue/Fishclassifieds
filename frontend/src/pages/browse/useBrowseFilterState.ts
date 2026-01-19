@@ -40,7 +40,7 @@ export function useBrowseFilterState() {
     const location = sp.get("location") ?? "";
     const waterType = sp.get("waterType") ?? "";
     const sex = sp.get("sex") ?? "";
-    const age = sp.get("age") ?? "";
+    const size = sp.get("size") ?? "";
     const minDollars = sp.get("min") ?? "";
     const maxDollars = sp.get("max") ?? "";
     const sort = (sp.get("sort") ?? "newest") as SortMode;
@@ -124,12 +124,12 @@ export function useBrowseFilterState() {
         if (!category) return;
         if (!bioFieldsDisabled) return;
         const next = new URLSearchParams(sp);
-        const had = next.has("species") || next.has("waterType") || next.has("sex") || next.has("age");
+        const had = next.has("species") || next.has("waterType") || next.has("sex") || next.has("size");
         if (!had) return;
         next.delete("species");
         next.delete("waterType");
         next.delete("sex");
-        next.delete("age");
+        next.delete("size");
         next.set("page", "1");
         setSp(next, { replace: true });
     }, [bioFieldsDisabled, category, setSp, sp]);
@@ -161,7 +161,7 @@ export function useBrowseFilterState() {
         location,
         waterType,
         sex,
-        age,
+        size,
         minDollars,
         maxDollars,
         sort,

@@ -163,7 +163,7 @@ export default function BrowseListings() {
     location,
     waterType,
     sex,
-    age,
+    size,
     minDollars,
     maxDollars,
     sort,
@@ -209,7 +209,7 @@ export default function BrowseListings() {
               location: location || undefined,
               waterType: waterType || undefined,
               sex: sex || undefined,
-              age: age || undefined,
+              size: size || undefined,
               minPriceCents: minCents,
               maxPriceCents: maxCents,
               featured: featuredOnly || undefined,
@@ -224,7 +224,7 @@ export default function BrowseListings() {
               location: location || undefined,
               waterType: waterType || undefined,
               sex: sex || undefined,
-              age: age || undefined,
+              size: size || undefined,
               status: wantedStatus || undefined,
               minBudgetCents: minCents,
               maxBudgetCents: maxCents,
@@ -267,7 +267,7 @@ export default function BrowseListings() {
     location,
     waterType,
     sex,
-    age,
+    size,
     minCents,
     maxCents,
     sort,
@@ -384,8 +384,8 @@ export default function BrowseListings() {
             setSex={(v) => setParam("sex", v)}
             listingSexes={listingSexes}
             wantedSexOptions={wantedSexOptions}
-            age={age}
-            setAge={(v) => setParam("age", v)}
+            size={size}
+            setSize={(v) => setParam("size", v)}
             location={location}
             setLocation={(v) => setParam("location", v)}
             minDollars={minDollars}

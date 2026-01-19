@@ -25,7 +25,7 @@ export type Listing = {
   species: string;
   sex: ListingSex;
   waterType?: WaterType | null;
-  age: string;
+  size: string;
   priceCents: number;
   location: string;
   description: string;
@@ -56,7 +56,7 @@ export type WantedPost = {
   species: string | null;
   waterType?: WaterType | null;
   sex: ListingSex;
-  age: string;
+  size: string;
   quantity: number;
   budgetCents: number | null;
   location: string;
@@ -227,7 +227,7 @@ export async function fetchListings(params?: {
   location?: string;
   waterType?: WaterType;
   sex?: ListingSex;
-  age?: string;
+  size?: string;
   minPriceCents?: number;
   maxPriceCents?: number;
   featured?: boolean;
@@ -242,7 +242,7 @@ export async function fetchListings(params?: {
   if (params?.location) qs.set("location", params.location);
   if (params?.waterType) qs.set("waterType", params.waterType);
   if (params?.sex) qs.set("sex", params.sex);
-  if (params?.age) qs.set("age", params.age);
+  if (params?.size) qs.set("size", params.size);
   if (params?.minPriceCents !== undefined) qs.set("minPriceCents", String(params.minPriceCents));
   if (params?.maxPriceCents !== undefined) qs.set("maxPriceCents", String(params.maxPriceCents));
   if (params?.featured) qs.set("featured", "1");
@@ -260,7 +260,7 @@ export async function fetchWanted(params?: {
   location?: string;
   waterType?: WaterType;
   sex?: ListingSex;
-  age?: string;
+  size?: string;
   status?: WantedStatus;
   minBudgetCents?: number;
   maxBudgetCents?: number;
@@ -274,7 +274,7 @@ export async function fetchWanted(params?: {
   if (params?.location) qs.set("location", params.location);
   if (params?.waterType) qs.set("waterType", params.waterType);
   if (params?.sex) qs.set("sex", params.sex);
-  if (params?.age) qs.set("age", params.age);
+  if (params?.size) qs.set("size", params.size);
   if (params?.status) qs.set("status", params.status);
   if (params?.minBudgetCents !== undefined) qs.set("min", String(params.minBudgetCents));
   if (params?.maxBudgetCents !== undefined) qs.set("max", String(params.maxBudgetCents));
@@ -294,7 +294,7 @@ export async function createWantedPost(input: {
   species?: string | null;
   waterType?: WaterType | null;
   sex?: ListingSex | null;
-  age: string;
+  size: string;
   quantity?: number;
   budgetCents?: number | null;
   location: string;
@@ -317,7 +317,7 @@ export async function updateWantedPost(
     species?: string | null;
     waterType?: WaterType | null;
     sex?: ListingSex | null;
-    age?: string;
+    size?: string;
     quantity?: number;
     budgetCents?: number | null;
     location?: string;
@@ -390,7 +390,7 @@ export async function createListing(input: {
   species: string;
   sex: ListingSex;
   waterType?: WaterType | null;
-  age: string;
+  size: string;
   priceCents: number;
   location: string;
   description: string;
@@ -415,7 +415,7 @@ export async function updateListing(
     species?: string;
     sex?: ListingSex;
     waterType?: WaterType | null;
-    age?: string;
+    size?: string;
     priceCents?: number;
     location?: string;
     description?: string;

@@ -239,12 +239,33 @@ FROM deleted_accounts;
     migrations.push("listings.quantity already exists");
   }
 
-  if (!hasColumn(db, "listings", "age")) {
-    // Free-form age string (e.g. "6 months", "Adult", "2y"). Keep default for existing rows.
-    db.exec(`ALTER TABLE listings ADD COLUMN age TEXT NOT NULL DEFAULT '';`);
-    migrations.push("Added listings.age");
+  // Hard switch from legacy `age` -> `size` (no backwards compatibility in app code).
+  // - If only `age` exists, rename it to `size` to preserve data.
+  // - If neither exists, add `size`.
+  // - If both exist (partial migration), we’ll later rebuild the table to drop `age`.
+  const hasAge = hasColumn(db, "listings", "age");
+  const hasSize = hasColumn(db, "listings", "size");
+  if (!hasSize) {
+    if (hasAge) {
+      try {
+        db.exec(`ALTER TABLE listings RENAME COLUMN age TO size;`);
+        migrations.push("Renamed listings.age -> listings.size");
+      } catch {
+        // Older SQLite: fall back to adding size and copying data.
+        db.exec(`ALTER TABLE listings ADD COLUMN size TEXT NOT NULL DEFAULT '';`);
+        db.exec(`
+UPDATE listings
+SET size = COALESCE(NULLIF(trim(size), ''), COALESCE(age, ''))
+WHERE age IS NOT NULL;
+`);
+        migrations.push("Added listings.size and backfilled from listings.age (rename unsupported)");
+      }
+    } else {
+      db.exec(`ALTER TABLE listings ADD COLUMN size TEXT NOT NULL DEFAULT '';`);
+      migrations.push("Added listings.size");
+    }
   } else {
-    migrations.push("listings.age already exists");
+    migrations.push("listings.size already exists");
   }
 
   // Link sale listings to user accounts
@@ -373,7 +394,10 @@ AND contact IS NOT NULL;
   const hasBudgetMin = hasColumn(db, "listings", "budget_min_cents");
   const hasBudgetMax = hasColumn(db, "listings", "budget_max_cents");
 
-  const needsListingsRebuild = hasOwnerToken || hasImageUrl || hasBudgetMin || hasBudgetMax;
+  const hasAgeStill = hasColumn(db, "listings", "age");
+  const hasSizeNow = hasColumn(db, "listings", "size");
+  const needsListingsRebuild =
+    hasOwnerToken || hasImageUrl || hasBudgetMin || hasBudgetMax || (hasAgeStill && hasSizeNow);
 
   if (needsListingsRebuild) {
     const budgetExpr = hasBudgetMax && hasBudgetMin
@@ -415,6 +439,7 @@ VALUES(?,?,?,?,?,?)`
 
     db.exec(`PRAGMA foreign_keys = OFF;`);
     const tx = db.transaction(() => {
+      const sizeExpr = hasAgeStill ? "COALESCE(NULLIF(trim(size), ''), COALESCE(age, ''))" : "COALESCE(size, '')";
       db.exec(`
 CREATE TABLE IF NOT EXISTS listings_new(
   id TEXT PRIMARY KEY,
@@ -428,7 +453,7 @@ CREATE TABLE IF NOT EXISTS listings_new(
   species TEXT NOT NULL,
   sex TEXT NOT NULL DEFAULT 'Unknown',
   water_type TEXT,
-  age TEXT NOT NULL DEFAULT '',
+  size TEXT NOT NULL DEFAULT '',
   quantity INTEGER NOT NULL DEFAULT 1,
   price_cents INTEGER NOT NULL,
   budget_cents INTEGER,
@@ -452,7 +477,7 @@ CREATE TABLE IF NOT EXISTS listings_new(
 INSERT INTO listings_new(
   id,user_id,listing_type,
   featured,featured_until,views,
-  title,category,species,sex,water_type,age,quantity,price_cents,
+  title,category,species,sex,water_type,size,quantity,price_cents,
   budget_cents,wanted_status,
   location,description,phone,
   status,expires_at,resolution,resolved_at,
@@ -470,7 +495,7 @@ SELECT
   COALESCE(species, ''),
   COALESCE(sex, 'Unknown'),
   water_type,
-  COALESCE(age, ''),
+  ${sizeExpr},
   COALESCE(quantity, 1),
   COALESCE(price_cents, 0),
   CASE WHEN COALESCE(listing_type, 0) = 1 THEN ${budgetExpr} ELSE NULL END,

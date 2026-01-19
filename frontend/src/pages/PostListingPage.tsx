@@ -46,7 +46,7 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
   const [species, setSpecies] = useState("");
   const [sex, setSex] = useState<ListingSex | "">("");
   const [waterType, setWaterType] = useState<WaterType | "">("");
-  const [age, setAge] = useState("");
+  const [size, setSize] = useState("");
   const [priceDollars, setPriceDollars] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [priceType, setPriceType] = useState<PriceType>("each");
@@ -71,7 +71,7 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
     | "species"
     | "waterType"
     | "sex"
-    | "age"
+    | "size"
     | "price"
     | "quantity"
     | "priceType"
@@ -88,7 +88,7 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
   // Show bio-field asterisks by default (before a category is selected). If a non-bio (disabled) or "Other"
   // category is chosen, requirements drop as they do today.
   const bioFieldsRequiredForUser = !category ? true : bioFieldsRequired && !isOtherCategory;
-  const ageRequired = bioFieldsEnabled && !isOtherCategory;
+  const sizeRequired = bioFieldsEnabled && !isOtherCategory;
 
   useEffect(() => {
     // If category is non-living (equipment/accessories/services), clear + disable bio fields.
@@ -97,11 +97,11 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
     setSpecies("");
     setSex("");
     setWaterType("");
-    setAge("");
+    setSize("");
     clearFieldError("species");
     clearFieldError("sex");
     clearFieldError("waterType");
-    clearFieldError("age");
+    clearFieldError("size");
   }, [category, bioFieldsDisabled]);
 
   useEffect(() => {
@@ -171,7 +171,7 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
     if (bioFieldsRequiredForUser && !species.trim()) nextErrors.species = "Required field";
     if (bioFieldsRequiredForUser && !waterType) nextErrors.waterType = "Required field";
     if (bioFieldsRequiredForUser && !sex) nextErrors.sex = "Required field";
-    if (ageRequired && !age.trim()) nextErrors.age = "Required field";
+    if (sizeRequired && !size.trim()) nextErrors.size = "Required field";
     if (!location.trim()) nextErrors.location = "Required field";
 
     const phoneTrim = phone.trim();
@@ -238,7 +238,7 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
         species: speciesToSubmit,
         sex: sexToSubmit,
         waterType: bioFieldsEnabled && waterType ? waterType : null,
-        age: age.trim(),
+        size: size.trim(),
         priceCents,
         location: location.trim(),
         description: finalDescription,
@@ -421,25 +421,25 @@ function SalePostForm({ kind }: { kind: ListingKind }) {
               {fieldErrors.sex && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.sex}</div>}
             </label>
             <label className="block">
-              <div className={["mb-1 text-xs font-semibold", fieldErrors.age ? "text-red-700" : "text-slate-700"].join(" ")}>
-                Age {ageRequired && <span className="text-red-600">*</span>}
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.size ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Size {sizeRequired && <span className="text-red-600">*</span>}
               </div>
               <input
-                value={age}
+                value={size}
                 onChange={(e) => {
-                  setAge(e.target.value);
-                  clearFieldError("age");
+                  setSize(e.target.value);
+                  clearFieldError("size");
                 }}
                 className={[
                   "w-full rounded-xl border px-3 py-2 text-sm outline-none",
-                  fieldErrors.age ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  fieldErrors.size ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                   "disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed",
                 ].join(" ")}
-                required={ageRequired}
+                required={sizeRequired}
                 maxLength={40}
                 disabled={loading || bioFieldsDisabled}
               />
-              {fieldErrors.age && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.age}</div>}
+              {fieldErrors.size && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.size}</div>}
             </label>
           </div>
 
@@ -706,7 +706,7 @@ function WantedPostForm() {
     | "species"
     | "waterType"
     | "sex"
-    | "age"
+    | "size"
     | "quantity"
     | "priceType"
     | "customPriceText"
@@ -725,7 +725,7 @@ function WantedPostForm() {
   const [species, setSpecies] = useState("");
   const [waterType, setWaterType] = useState<WaterType | "">("");
   const [sex, setSex] = useState<ListingSex | "">("");
-  const [age, setAge] = useState("");
+  const [size, setSize] = useState("");
   const [quantity, setQuantity] = useState<number>(1);
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
@@ -781,7 +781,7 @@ function WantedPostForm() {
   // Default to required (bio is the common case). If a non-bio category is chosen,
   // these inputs become disabled and requirements/asterisks effectively drop.
   const bioFieldsRequiredForUser = bioFieldsEnabled && !isOtherCategory;
-  const ageRequired = bioFieldsEnabled && !isOtherCategory;
+  const sizeRequired = bioFieldsEnabled && !isOtherCategory;
 
   const wantedSexOptions = useMemo(() => {
     const base = (listingSexes ?? []).map(String);
@@ -796,14 +796,14 @@ function WantedPostForm() {
     setSpecies("");
     setWaterType("");
     setSex("");
-    setAge("");
+    setSize("");
     setFieldErrors((prev) => {
-      if (!prev.species && !prev.waterType && !prev.sex && !prev.age) return prev;
+      if (!prev.species && !prev.waterType && !prev.sex && !prev.size) return prev;
       const next = { ...prev };
       delete next.species;
       delete next.waterType;
       delete next.sex;
-      delete next.age;
+      delete next.size;
       return next;
     });
   }, [category, bioFieldsDisabled]);
@@ -827,7 +827,7 @@ function WantedPostForm() {
     if (bioFieldsRequiredForUser && !species.trim()) nextErrors.species = "Required field";
     if (bioFieldsRequiredForUser && !waterType) nextErrors.waterType = "Required field";
     if (bioFieldsRequiredForUser && !sex) nextErrors.sex = "Required field";
-    if (ageRequired && !age.trim()) nextErrors.age = "Required field";
+    if (sizeRequired && !size.trim()) nextErrors.size = "Required field";
 
     const qty = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
     if (qty < 1) nextErrors.quantity = "Quantity must be at least 1.";
@@ -877,7 +877,7 @@ function WantedPostForm() {
         species: bioFieldsEnabled ? (species.trim() ? species.trim() : null) : null,
         waterType: bioFieldsEnabled && waterType ? waterType : null,
         sex: bioFieldsEnabled && sex ? sex : null,
-        age: age.trim(),
+        size: size.trim(),
         quantity: qty,
         budgetCents,
         location: location.trim(),
@@ -964,7 +964,7 @@ function WantedPostForm() {
             </label>
           </div>
 
-          {/* Row: Species + Water type + Sex + Age (match sale form layout) */}
+          {/* Row: Species + Water type + Sex + Size (match sale form layout) */}
           <div className="grid gap-3 sm:grid-cols-4">
             <label className="block">
               <div className={["mb-1 text-xs font-semibold", fieldErrors.species ? "text-red-700" : "text-slate-700"].join(" ")}>
@@ -1038,22 +1038,22 @@ function WantedPostForm() {
             </label>
 
             <label className="block">
-              <div className={["mb-1 text-xs font-semibold", fieldErrors.age ? "text-red-700" : "text-slate-700"].join(" ")}>
-                Age {ageRequired ? <span className="text-red-600">*</span> : null}
+              <div className={["mb-1 text-xs font-semibold", fieldErrors.size ? "text-red-700" : "text-slate-700"].join(" ")}>
+                Size {sizeRequired ? <span className="text-red-600">*</span> : null}
               </div>
               <input
-                value={age}
+                value={size}
                 onChange={(e) => {
-                  setAge(e.target.value);
-                  clearFieldError("age");
+                  setSize(e.target.value);
+                  clearFieldError("size");
                 }}
                 disabled={!bioFieldsEnabled}
                 className={[
                   "w-full rounded-xl border px-3 py-3 text-sm outline-none disabled:bg-slate-50",
-                  fieldErrors.age ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                  fieldErrors.size ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                 ].join(" ")}
               />
-              {fieldErrors.age && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.age}</div>}
+              {fieldErrors.size && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.size}</div>}
             </label>
           </div>
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { getListingOptionsCached, type Category, type ListingSex, type WantedStatus, type WaterType } from "../../api";
+import { getListingOptionsCached, type Category, type ListingSex, type WantedStatus, type WaterType } from "../api";
 
 export type BrowseType = "sale" | "wanted";
 export type SortMode = "newest" | "price_asc" | "price_desc";

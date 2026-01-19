@@ -10,8 +10,8 @@ import {
 import Header from "../components/Header";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 import { decodeSaleDetailsFromDescription, decodeWantedDetailsFromDescription } from "../utils/listingDetailsBlock";
-import BrowseFilters from "./browse/BrowseFilters";
-import { SPECIES_PRESETS, useBrowseFilterState } from "./browse/useBrowseFilterState";
+import BrowseFilters from "../components/BrowseFilters";
+import { SPECIES_PRESETS, useBrowseFilterState } from "../utils/useBrowseFilterState";
 
 type PageSize = 12 | 24 | 48 | 96;
 

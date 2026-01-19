@@ -1,4 +1,4 @@
-import type { Category, ListingSex, WantedStatus, WaterType } from "../../api";
+import type { Category, ListingSex, WantedStatus, WaterType } from "../api";
 
 export type BrowseType = "sale" | "wanted";
 

@@ -16,7 +16,7 @@ import { buildSaleDetailsPrefix, encodeSaleDetailsIntoDescription, encodeWantedD
 import ShippingInfoButton from "../components/ShippingInfoButton";
 import PhotoUploader, { type PhotoUploaderHandle } from "../components/PhotoUploader";
 import { MAX_MONEY_INPUT_LEN, sanitizeMoneyInput } from "../utils/money";
-import { listingDetailPath, listingPostPath, parseListingKind, type ListingKind } from "../listings/routes";
+import { listingDetailPath, listingPostPath, parseListingKind, type ListingKind } from "../utils/listingRoutes";
 
 function dollarsToCents(v: string) {
   const n = Number(v);

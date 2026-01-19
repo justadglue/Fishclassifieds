@@ -7,7 +7,7 @@ import Header from "../components/Header";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 import { decodeSaleDetailsFromDescription, decodeWantedDetailsFromDescription } from "../utils/listingDetailsBlock";
 import ShippingInfoButton from "../components/ShippingInfoButton";
-import { browsePath, parseListingKind, type ListingKind } from "../listings/routes";
+import { browsePath, parseListingKind, type ListingKind } from "../utils/listingRoutes";
 
 function centsToDollars(cents: number) {
   const s = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });

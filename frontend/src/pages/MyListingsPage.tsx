@@ -738,18 +738,18 @@ export default function MyListingsPage() {
 
         {(viewType === "sale" && items.length > 0) || (viewType === "wanted" && wantedItems.length > 0) || (viewType === "all" && (items.length > 0 || wantedItems.length > 0)) ? (
           <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <div className="overflow-x-auto lg:overflow-x-visible">
-              <table className="w-full min-w-[1080px] lg:min-w-0">
+            <div className="overflow-x-auto ">
+              <table className="w-full min-w-[1080px] table-fixed lg:min-w-0">
                 <thead className="bg-slate-50">
                   <tr className="text-xs font-bold tracking-wider text-slate-600">
-                    <SortTh label="Listing" k="listing" className="px-4 py-3" align="left" />
-                    <SortTh label="Price" k="price" className="px-4 py-3" align="right" />
-                    <SortTh label="Views" k="views" className="px-4 py-3" align="right" />
-                    <SortTh label="Status" k="status" className="px-4 py-3" title="Default: Status then Updated" align="left" />
-                    <SortTh label="Created" k="created" className="px-4 py-3" align="left" />
-                    <SortTh label="Updated" k="updated" className="px-4 py-3" align="left" />
-                    <SortTh label="Expires in" k="expiresIn" className="px-4 py-3" align="right" />
-                    <th className="px-4 py-3 text-center">Actions</th>
+                    <SortTh label="Listing" k="listing" className="w-[25%] px-4 py-3" align="left" />
+                    <SortTh label="Price" k="price" className="w-[10%] px-4 py-3" align="right" />
+                    <SortTh label="Views" k="views" className="w-[8%] px-4 py-3" align="right" />
+                    <SortTh label="Status" k="status" className="w-[8%] px-4 py-3" title="Default: Status then Updated" align="left" />
+                    <SortTh label="Created" k="created" className="w-[8%] px-4 py-3" align="left" />
+                    <SortTh label="Updated" k="updated" className="w-[8%] px-4 py-3" align="left" />
+                    <SortTh label="Expiry" k="expiresIn" className="w-[8%] px-4 py-3" align="right" />
+                    <th className="w-[8%] px-4 py-3 text-center">Actions</th>
                   </tr>
                 </thead>
 

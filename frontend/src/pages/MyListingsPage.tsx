@@ -152,13 +152,15 @@ function WantedStatusText({ w }: { w: WantedPost }) {
       ? "text-slate-600"
       : s === "closed"
         ? "text-slate-700"
-        : life === "paused"
-          ? "text-violet-700"
-          : life === "pending"
-            ? "text-amber-700"
-            : s === "open"
-              ? "text-emerald-700"
-              : "text-slate-700";
+        : life === "draft"
+          ? "text-sky-700"
+          : life === "paused"
+            ? "text-violet-700"
+            : life === "pending"
+              ? "text-amber-700"
+              : s === "open"
+                ? "text-emerald-700"
+                : "text-slate-700";
   return (
     <div className={`text-sm font-semibold ${cls}`}>
       <div>
@@ -166,11 +168,13 @@ function WantedStatusText({ w }: { w: WantedPost }) {
           ? "Expired"
           : s === "closed"
             ? "Closed"
-            : life === "paused"
-              ? "Paused"
-              : life === "pending"
-                ? "Pending"
-                : "Active"}
+            : life === "draft"
+              ? "Draft"
+              : life === "paused"
+                ? "Paused"
+                : life === "pending"
+                  ? "Pending"
+                  : "Active"}
       </div>
     </div>
   );
@@ -352,7 +356,14 @@ export default function MyListingsPage() {
   const [sp, setSp] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
 
-  const viewType = sp.get("type") === "wanted" ? ("wanted" as const) : sp.get("type") === "sale" ? ("sale" as const) : ("all" as const);
+  const viewType =
+    sp.get("type") === "wanted"
+      ? ("wanted" as const)
+      : sp.get("type") === "sale"
+        ? ("sale" as const)
+        : sp.get("type") === "drafts"
+          ? ("drafts" as const)
+          : ("all" as const);
 
   const [items, setItems] = useState<Listing[]>([]);
   const [wantedItems, setWantedItems] = useState<WantedPost[]>([]);
@@ -378,7 +389,8 @@ export default function MyListingsPage() {
         if (viewType === "wanted") {
           const res = await fetchMyWanted({ limit: 200, offset: 0 });
           if (!cancelled) {
-            const nextWanted = res.items ?? [];
+            // Wanted tab excludes drafts (drafts appear only in All + Drafts tabs)
+            const nextWanted = (res.items ?? []).filter((w) => w.lifecycleStatus !== "draft");
             setWantedItems(nextWanted);
             // Compute initial ordering on load only; do NOT auto-reorder after local row updates.
             const rows = nextWanted.map((w, idx) => ({ kind: "wanted" as const, key: `wanted:${w.id}`, idx: 10_000 + idx, wanted: w }));
@@ -387,9 +399,26 @@ export default function MyListingsPage() {
         } else if (viewType === "sale") {
           const res = await fetchMyListings({ limit: 200, offset: 0 });
           if (!cancelled) {
-            const nextItems = res.items ?? [];
+            // For sale tab excludes drafts (drafts appear only in All + Drafts tabs)
+            const nextItems = (res.items ?? []).filter((l) => l.status !== "draft");
             setItems(nextItems);
             const rows = nextItems.map((l, idx) => ({ kind: "sale" as const, key: `sale:${l.id}`, idx, sale: l }));
+            setRowOrder(sortMixedRows(rows, sort.key, sort.dir, nowMs).map((r) => r.key));
+          }
+        } else if (viewType === "drafts") {
+          const [saleRes, wantedRes] = await Promise.all([
+            fetchMyListings({ limit: 200, offset: 0 }),
+            fetchMyWanted({ limit: 200, offset: 0 }),
+          ]);
+          if (!cancelled) {
+            const nextItems = (saleRes.items ?? []).filter((l) => l.status === "draft");
+            const nextWanted = (wantedRes.items ?? []).filter((w) => w.lifecycleStatus === "draft");
+            setItems(nextItems);
+            setWantedItems(nextWanted);
+            const rows: MixedRow[] = [
+              ...nextItems.map((l, idx) => ({ kind: "sale" as const, key: `sale:${l.id}`, idx, sale: l })),
+              ...nextWanted.map((w, idx) => ({ kind: "wanted" as const, key: `wanted:${w.id}`, idx: 10_000 + idx, wanted: w })),
+            ];
             setRowOrder(sortMixedRows(rows, sort.key, sort.dir, nowMs).map((r) => r.key));
           }
         } else {
@@ -421,10 +450,11 @@ export default function MyListingsPage() {
     };
   }, [user, viewType]); // intentionally does not depend on `sort` (keeps ordering stable until refresh or explicit sort click)
 
-  function setViewType(next: "all" | "sale" | "wanted") {
+  function setViewType(next: "all" | "sale" | "wanted" | "drafts") {
     const nextSp = new URLSearchParams(sp);
     if (next === "wanted") nextSp.set("type", "wanted");
     else if (next === "sale") nextSp.set("type", "sale");
+    else if (next === "drafts") nextSp.set("type", "drafts");
     else nextSp.delete("type");
     setSp(nextSp, { replace: true });
   }
@@ -596,10 +626,10 @@ export default function MyListingsPage() {
 
   const mixedRows = useMemo(() => {
     const out: MixedRow[] = [];
-    if (viewType === "sale" || viewType === "all") {
+    if (viewType === "sale" || viewType === "all" || viewType === "drafts") {
       items.forEach((l, idx) => out.push({ kind: "sale", key: `sale:${l.id}`, idx, sale: l }));
     }
-    if (viewType === "wanted" || viewType === "all") {
+    if (viewType === "wanted" || viewType === "all" || viewType === "drafts") {
       wantedItems.forEach((w, idx) => out.push({ kind: "wanted", key: `wanted:${w.id}`, idx: 10_000 + idx, wanted: w }));
     }
     return out;
@@ -652,8 +682,10 @@ export default function MyListingsPage() {
       <main className="mx-auto max-w-7xl px-4 py-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-xl font-extrabold text-slate-900">My listings</h1>
-            <div className="mt-1 text-sm text-slate-600">Listings linked to your account.</div>
+            <h1 className="text-xl font-extrabold text-slate-900">{viewType === "drafts" ? "My drafts" : "My listings"}</h1>
+            <div className="mt-1 text-sm text-slate-600">
+              {viewType === "drafts" ? "Draft listings saved to your account." : "Listings linked to your account."}
+            </div>
           </div>
           <div className="flex overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <button
@@ -688,6 +720,17 @@ export default function MyListingsPage() {
               aria-pressed={viewType === "wanted"}
             >
               Wanted
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewType("drafts")}
+              className={[
+                "px-4 py-2 text-sm font-bold",
+                viewType === "drafts" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+              ].join(" ")}
+              aria-pressed={viewType === "drafts"}
+            >
+              Drafts
             </button>
           </div>
         </div>
@@ -736,7 +779,20 @@ export default function MyListingsPage() {
           </div>
         )}
 
-        {(viewType === "sale" && items.length > 0) || (viewType === "wanted" && wantedItems.length > 0) || (viewType === "all" && (items.length > 0 || wantedItems.length > 0)) ? (
+        {!loading && viewType === "drafts" && items.length === 0 && wantedItems.length === 0 && (
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+            <div className="text-sm font-semibold text-slate-900">No drafts yet</div>
+            <div className="mt-1 text-sm text-slate-600">Start a listing and save it as a draft to finish later.</div>
+            <Link to="/post" className="mt-4 inline-block rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+              Post a listing
+            </Link>
+          </div>
+        )}
+
+        {(viewType === "sale" && items.length > 0) ||
+          (viewType === "wanted" && wantedItems.length > 0) ||
+          (viewType === "drafts" && (items.length > 0 || wantedItems.length > 0)) ||
+          (viewType === "all" && (items.length > 0 || wantedItems.length > 0)) ? (
           <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <div className="overflow-x-auto ">
               <table className="w-full min-w-[1080px] table-fixed lg:min-w-0">
@@ -761,6 +817,8 @@ export default function MyListingsPage() {
                     const l = row.sale!;
                     const assets = resolveAssets(l.images ?? []);
                     const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+                    const openHref = l.status === "draft" ? `/post/sale?draft=${encodeURIComponent(l.id)}` : `/listing/sale/${l.id}`;
+                    const isDraft = l.status === "draft";
 
                     const canToggle = l.status !== "expired" && l.status !== "deleted" && l.status !== "draft" && l.resolution === "none";
                     const canResolve = l.status !== "expired" && l.status !== "deleted" && l.resolution === "none";
@@ -775,7 +833,7 @@ export default function MyListingsPage() {
                           <td className="px-4 py-4 align-top text-left">
                             <div className="flex min-h-20 items-center gap-3">
                               <Link
-                                to={`/listing/sale/${l.id}`}
+                                to={openHref}
                                 state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
                                 onClick={(e) => e.stopPropagation()}
                                 className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
@@ -789,7 +847,7 @@ export default function MyListingsPage() {
 
                               <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
                                 <Link
-                                  to={`/listing/sale/${l.id}`}
+                                  to={openHref}
                                   state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
                                   onClick={(e) => e.stopPropagation()}
                                   className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
@@ -859,7 +917,9 @@ export default function MyListingsPage() {
                           <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(row.key)}>
                             <td colSpan={8} className="px-4 pb-4 pt-0">
                               <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                {!isSold ? (
+                                {isDraft ? (
+                                  <ActionLink to={openHref} label="Resume draft" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
+                                ) : !isSold ? (
                                   <>
                                     <ActionButton
                                       label={l.featured ? "Manage featuring" : "Feature this listing"}
@@ -923,6 +983,9 @@ export default function MyListingsPage() {
                   const w = row.wanted!;
                   const assets = resolveAssets(w.images ?? []);
                   const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+                  const openHref =
+                    w.lifecycleStatus === "draft" ? `/post/wanted?draft=${encodeURIComponent(w.id)}` : `/listing/wanted/${w.id}`;
+                  const isDraft = w.lifecycleStatus === "draft";
 
                   return (
                     <tbody key={row.key} className="group">
@@ -930,7 +993,7 @@ export default function MyListingsPage() {
                         <td className="px-4 py-4 align-top text-left">
                           <div className="flex min-h-20 items-center gap-3">
                             <Link
-                              to={`/listing/wanted/${w.id}`}
+                              to={openHref}
                               state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
                               onClick={(e) => e.stopPropagation()}
                               className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
@@ -944,7 +1007,7 @@ export default function MyListingsPage() {
 
                             <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
                               <Link
-                                to={`/listing/wanted/${w.id}`}
+                                to={openHref}
                                 state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
                                 onClick={(e) => e.stopPropagation()}
                                 className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
@@ -1007,47 +1070,53 @@ export default function MyListingsPage() {
                         <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(row.key)}>
                           <td colSpan={8} className="px-4 pb-4 pt-0">
                             <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
-                              {(() => {
-                                const canFeature = w.lifecycleStatus === "active" && w.status === "open";
-                                return (
-                                  <ActionButton
-                                    label={w.featured ? "Manage featuring" : "Feature this listing"}
-                                    title={!canFeature ? "Only active, open wanted posts can be featured." : w.featured ? "Manage featuring" : "Feature this listing"}
-                                    variant="feature"
-                                    disabled={!canFeature}
-                                    onClick={() => nav(`/feature/${encodeURIComponent(w.id)}`)}
-                                    icon={w.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
-                                  />
-                                );
-                              })()}
-                              <ActionLink to={`/edit/wanted/${w.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
-                              {w.status === "open" ? (
-                                <>
-                                  <ActionButton
-                                    label={w.lifecycleStatus === "paused" ? "Resume" : "Pause"}
-                                    title={w.lifecycleStatus === "paused" ? "Resume" : "Pause"}
-                                    disabled={w.lifecycleStatus !== "active" && w.lifecycleStatus !== "paused"}
-                                    onClick={() => onPauseResumeWanted(w)}
-                                    icon={w.lifecycleStatus === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
-                                  />
-                                  <ActionButton
-                                    label="Mark closed"
-                                    title="Mark closed"
-                                    variant="primary"
-                                    disabled={w.lifecycleStatus !== "active"}
-                                    onClick={() => onCloseWanted(w)}
-                                    icon={<Check aria-hidden="true" className="h-4 w-4" />}
-                                  />
-                                </>
+                              {isDraft ? (
+                                <ActionLink to={openHref} label="Resume draft" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
                               ) : (
-                                <ActionButton
-                                  label="Relist"
-                                  title="Relist"
-                                  variant="primary"
-                                  disabled={w.lifecycleStatus === "expired" || w.lifecycleStatus === "deleted"}
-                                  onClick={() => onRelistWanted(w)}
-                                  icon={<RotateCcw aria-hidden="true" className="h-4 w-4" />}
-                                />
+                                <>
+                                  {(() => {
+                                    const canFeature = w.lifecycleStatus === "active" && w.status === "open";
+                                    return (
+                                      <ActionButton
+                                        label={w.featured ? "Manage featuring" : "Feature this listing"}
+                                        title={!canFeature ? "Only active, open wanted posts can be featured." : w.featured ? "Manage featuring" : "Feature this listing"}
+                                        variant="feature"
+                                        disabled={!canFeature}
+                                        onClick={() => nav(`/feature/${encodeURIComponent(w.id)}`)}
+                                        icon={w.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
+                                      />
+                                    );
+                                  })()}
+                                  <ActionLink to={`/edit/wanted/${w.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
+                                  {w.status === "open" ? (
+                                    <>
+                                      <ActionButton
+                                        label={w.lifecycleStatus === "paused" ? "Resume" : "Pause"}
+                                        title={w.lifecycleStatus === "paused" ? "Resume" : "Pause"}
+                                        disabled={w.lifecycleStatus !== "active" && w.lifecycleStatus !== "paused"}
+                                        onClick={() => onPauseResumeWanted(w)}
+                                        icon={w.lifecycleStatus === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
+                                      />
+                                      <ActionButton
+                                        label="Mark closed"
+                                        title="Mark closed"
+                                        variant="primary"
+                                        disabled={w.lifecycleStatus !== "active"}
+                                        onClick={() => onCloseWanted(w)}
+                                        icon={<Check aria-hidden="true" className="h-4 w-4" />}
+                                      />
+                                    </>
+                                  ) : (
+                                    <ActionButton
+                                      label="Relist"
+                                      title="Relist"
+                                      variant="primary"
+                                      disabled={w.lifecycleStatus === "expired" || w.lifecycleStatus === "deleted"}
+                                      onClick={() => onRelistWanted(w)}
+                                      icon={<RotateCcw aria-hidden="true" className="h-4 w-4" />}
+                                    />
+                                  )}
+                                </>
                               )}
                               <ActionButton
                                 label="Delete"

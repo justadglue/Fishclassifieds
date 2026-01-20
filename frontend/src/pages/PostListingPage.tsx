@@ -1,29 +1,36 @@
 // frontend/src/pages/PostListingPage.tsx
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Undo2 } from "lucide-react";
 import {
     createListing,
     createWantedPost,
+    deleteListing,
+    deleteWantedPost,
+    fetchListing,
+    fetchWantedPost,
     getListingOptionsCached,
+    updateListing,
+    updateWantedPost,
     type Category,
     type ListingSex,
+    type ImageAsset,
     type WaterType,
 } from "../api";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
-import { encodeSaleDetailsIntoDescription, encodeWantedDetailsIntoDescription, type PriceType } from "../utils/listingDetailsBlock";
+import {
+    decodeSaleDetailsFromDescription,
+    decodeWantedDetailsFromDescription,
+    encodeSaleDetailsIntoDescription,
+    encodeWantedDetailsIntoDescription,
+    type PriceType,
+} from "../utils/listingDetailsBlock";
 import ShippingInfoButton from "../components/ShippingInfoButton";
 import { LocationTypeaheadAU } from "../components/LocationTypeaheadAU";
 import PhotoUploader, { type PhotoUploaderHandle } from "../components/PhotoUploader";
 import { MAX_MONEY_INPUT_LEN, sanitizeMoneyInput } from "../utils/money";
 import { listingDetailPath, listingPostPath, parseListingKind, type ListingKind } from "../utils/listingRoutes";
-
-function dollarsToCents(v: string) {
-    const n = Number(v);
-    if (!Number.isFinite(n) || n < 0) return null;
-    return Math.round(n * 100);
-}
 
 function dollarsToCentsMaybe(s: string) {
     const t = String(s ?? "").trim();
@@ -74,10 +81,56 @@ function Field({
     );
 }
 
-function PostForm({ kind }: { kind: ListingKind }) {
+function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | null }) {
     const isWanted = kind === "wanted";
     const nav = useNavigate();
     const { user, loading: authLoading } = useAuth();
+
+    type BaselineSnapshot = {
+        kind: ListingKind;
+        title: string;
+        category: string;
+        species: string;
+        waterType: string;
+        sex: string;
+        size: string;
+        quantity: number;
+        priceDollars: string;
+        budget: string;
+        willingToShip: boolean;
+        priceType: PriceType;
+        customPriceText: string;
+        location: string;
+        phone: string;
+        description: string;
+        photosKey: string;
+    };
+
+    function defaultSnapshot(k: ListingKind): BaselineSnapshot {
+        return {
+            kind: k,
+            title: "",
+            category: "",
+            species: "",
+            waterType: "",
+            sex: "",
+            size: "",
+            quantity: 1,
+            priceDollars: "",
+            budget: "",
+            willingToShip: false,
+            priceType: "each",
+            customPriceText: "",
+            location: "",
+            phone: "",
+            description: "",
+            photosKey: "",
+        };
+    }
+
+    const baselineRef = useRef<BaselineSnapshot>(defaultSnapshot(kind));
+    const [baselineKey, setBaselineKey] = useState(0);
+    const [baselineReady, setBaselineReady] = useState(!draftId);
 
     useEffect(() => {
         if (authLoading) return;
@@ -101,6 +154,8 @@ function PostForm({ kind }: { kind: ListingKind }) {
         | "description";
 
     const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
+    const [initialPhotoAssets, setInitialPhotoAssets] = useState<ImageAsset[]>([]);
+    const [photosKey, setPhotosKey] = useState("");
     const customPriceInputRef = useRef<HTMLInputElement | null>(null);
     const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -136,6 +191,16 @@ function PostForm({ kind }: { kind: ListingKind }) {
     const [submitting, setSubmitting] = useState(false);
     const [err, setErr] = useState<string | null>(null);
     const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
+
+    // Baseline snapshot: for new listings it's the default empty state; for drafts we replace baseline after the draft loads.
+    useEffect(() => {
+        baselineRef.current = defaultSnapshot(kind);
+        setBaselineKey((k) => k + 1);
+        setBaselineReady(!draftId);
+        setPhotosKey("");
+        setInitialPhotoAssets([]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [kind, draftId]);
 
     const isOtherCategory = String(category) === String(otherCategoryName);
     const bioFieldsRequired = bioRequiredCategories.has(String(category));
@@ -174,6 +239,106 @@ function PostForm({ kind }: { kind: ListingKind }) {
             cancelled = true;
         };
     }, []);
+
+    // Resume draft: prefill fields + photos.
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            if (!draftId) return;
+            if (!user) return;
+            try {
+                if (isWanted) {
+                    const w = await fetchWantedPost(draftId);
+                    if (cancelled) return;
+                    const decoded = decodeWantedDetailsFromDescription(String(w.description ?? ""));
+                    setTitle(w.title ?? "");
+                    setCategory(w.category as any);
+                    setSpecies(String(w.species ?? ""));
+                    setWaterType((w as any).waterType ?? "");
+                    setSex((w as any).sex ?? "");
+                    setSize(String((w as any).size ?? ""));
+                    setQuantity(Number((w as any).quantity ?? 1));
+                    setBudget(w.budgetCents != null ? String((w.budgetCents / 100).toFixed(2)) : "");
+                    setLocation(String(w.location ?? ""));
+                    setPhone(String(w.phone ?? ""));
+                    setPriceType(decoded.details.priceType);
+                    setCustomPriceText(decoded.details.customPriceText);
+                    // Show only the body in the textarea.
+                    setDescription(decoded.body);
+                    setInitialPhotoAssets((w.images ?? []).slice(0, 6));
+
+                    baselineRef.current = {
+                        kind,
+                        title: w.title ?? "",
+                        category: String(w.category ?? ""),
+                        species: String(w.species ?? ""),
+                        waterType: String((w as any).waterType ?? ""),
+                        sex: String((w as any).sex ?? ""),
+                        size: String((w as any).size ?? ""),
+                        quantity: Number((w as any).quantity ?? 1),
+                        priceDollars: "",
+                        budget: w.budgetCents != null ? String((w.budgetCents / 100).toFixed(2)) : "",
+                        willingToShip: false,
+                        priceType: decoded.details.priceType,
+                        customPriceText: decoded.details.customPriceText,
+                        location: String(w.location ?? ""),
+                        phone: String(w.phone ?? ""),
+                        description: decoded.body,
+                        photosKey: (w.images ?? []).slice(0, 6).map((a: any) => `existing:${String(a.fullUrl ?? "")}`).join("|"),
+                    };
+                    setBaselineReady(true);
+                    setBaselineKey((k) => k + 1);
+                } else {
+                    const l = await fetchListing(draftId);
+                    if (cancelled) return;
+                    const decoded = decodeSaleDetailsFromDescription(String(l.description ?? ""));
+                    setTitle(l.title ?? "");
+                    setCategory(l.category as any);
+                    setSpecies(String(l.species ?? ""));
+                    setWaterType((l as any).waterType ?? "");
+                    setSex((l as any).sex ?? "");
+                    setSize(String((l as any).size ?? ""));
+                    setQuantity(decoded.details.quantity ?? Number((l as any).quantity ?? 1));
+                    setPriceType(decoded.details.priceType);
+                    setCustomPriceText(decoded.details.customPriceText);
+                    setWillingToShip(decoded.details.willingToShip);
+                    setPriceDollars(String((l.priceCents / 100).toFixed(2)));
+                    setLocation(String(l.location ?? ""));
+                    setPhone(String(l.phone ?? ""));
+                    // Show only the body in the textarea.
+                    setDescription(decoded.body);
+                    setInitialPhotoAssets((l.images ?? []).slice(0, 6));
+
+                    baselineRef.current = {
+                        kind,
+                        title: l.title ?? "",
+                        category: String(l.category ?? ""),
+                        species: String(l.species ?? ""),
+                        waterType: String((l as any).waterType ?? ""),
+                        sex: String((l as any).sex ?? ""),
+                        size: String((l as any).size ?? ""),
+                        quantity: decoded.details.quantity ?? Number((l as any).quantity ?? 1),
+                        priceDollars: String((l.priceCents / 100).toFixed(2)),
+                        budget: "",
+                        willingToShip: decoded.details.willingToShip,
+                        priceType: decoded.details.priceType,
+                        customPriceText: decoded.details.customPriceText,
+                        location: String(l.location ?? ""),
+                        phone: String(l.phone ?? ""),
+                        description: decoded.body,
+                        photosKey: (l.images ?? []).slice(0, 6).map((a: any) => `existing:${String(a.fullUrl ?? "")}`).join("|"),
+                    };
+                    setBaselineReady(true);
+                    setBaselineKey((k) => k + 1);
+                }
+            } catch (e: any) {
+                if (!cancelled) setErr(e?.message ?? "Failed to load draft");
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [draftId, user, isWanted]);
 
     function clearFieldError(k: FieldKey) {
         setFieldErrors((prev) => {
@@ -223,56 +388,64 @@ function PostForm({ kind }: { kind: ListingKind }) {
         return () => window.clearTimeout(t);
     }, [willingToShip, isWanted]);
 
-    async function onSubmit(e: FormEvent) {
-        e.preventDefault();
+    async function submit(mode: "active" | "draft", e?: FormEvent) {
+        if (e) e.preventDefault();
         setErr(null);
         setFieldErrors({});
 
+        const strict = mode === "active";
         const nextErrors: Partial<Record<FieldKey, string>> = {};
-        if (!title.trim()) nextErrors.title = "Required field";
-        if (!category) nextErrors.category = "Required field";
+        if (strict) {
+            if (!title.trim()) nextErrors.title = "Required field";
+            if (!category) nextErrors.category = "Required field";
 
-        if (bioFieldsRequiredForUser && !species.trim()) nextErrors.species = "Required field";
-        if (bioFieldsRequiredForUser && !waterType) nextErrors.waterType = "Required field";
-        if (bioFieldsRequiredForUser && !sex) nextErrors.sex = "Required field";
-        if (sizeRequired && !size.trim()) nextErrors.size = "Required field";
+            if (bioFieldsRequiredForUser && !species.trim()) nextErrors.species = "Required field";
+            if (bioFieldsRequiredForUser && !waterType) nextErrors.waterType = "Required field";
+            if (bioFieldsRequiredForUser && !sex) nextErrors.sex = "Required field";
+            if (sizeRequired && !size.trim()) nextErrors.size = "Required field";
+        }
 
         const qty = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
-        if (qty < 1) nextErrors.quantity = "Quantity must be at least 1.";
+        if (strict && qty < 1) nextErrors.quantity = "Quantity must be at least 1.";
 
-        if (!location.trim()) nextErrors.location = "Required field";
+        if (strict && !location.trim()) nextErrors.location = "Required field";
 
         const phoneTrim = phone.trim();
-        if (!phoneTrim) nextErrors.phone = "Required field";
-        else if (phoneTrim.length < 6) nextErrors.phone = "Phone number looks too short.";
-        else if (phoneTrim.length > 30) nextErrors.phone = "Phone number is too long.";
+        if (strict) {
+            if (!phoneTrim) nextErrors.phone = "Required field";
+            else if (phoneTrim.length < 6) nextErrors.phone = "Phone number looks too short.";
+            else if (phoneTrim.length > 30) nextErrors.phone = "Phone number is too long.";
+        } else {
+            if (phoneTrim && phoneTrim.length < 6) nextErrors.phone = "Phone number looks too short.";
+            else if (phoneTrim.length > 30) nextErrors.phone = "Phone number is too long.";
+        }
 
-        if (!priceType) nextErrors.priceType = "Required field";
         const custom = customPriceText.trim();
-        if (priceType === "custom" && !custom) nextErrors.customPriceText = "Required field";
+        if (strict && !priceType) nextErrors.priceType = "Required field";
+        if (strict && priceType === "custom" && !custom) nextErrors.customPriceText = "Required field";
         else if (priceType === "custom" && custom.length > MAX_CUSTOM_PRICE_TYPE_LEN) {
             nextErrors.customPriceText = `Custom price type must be ${MAX_CUSTOM_PRICE_TYPE_LEN} characters or less.`;
         }
 
         const body = String(description ?? "").trim();
-        if (!body) nextErrors.description = "Required field";
+        if (strict && !body) nextErrors.description = "Required field";
         if (body.length > MAX_DESC_BODY_LEN) nextErrors.description = `Description is too long. Max ${MAX_DESC_BODY_LEN} characters.`;
 
-        const priceCents = isWanted ? null : dollarsToCents(priceDollars);
-        if (!isWanted && priceCents === null) nextErrors.price = "Please enter a valid non-negative price.";
+        const priceCents = isWanted ? null : strict ? dollarsToCentsMaybe(priceDollars) : (dollarsToCentsMaybe(priceDollars) ?? 0);
+        if (!isWanted && strict && priceCents === null) nextErrors.price = "Please enter a valid non-negative price.";
 
         if (Object.values(nextErrors).some(Boolean)) {
             setFieldErrors(nextErrors);
-            setErr("Please fill out the required fields.");
+            setErr(strict ? "Please fill out the required fields." : "Please fix the highlighted fields.");
             return;
         }
 
         // Narrow types for TS (should be unreachable due to validation above).
-        if (!isWanted && priceCents === null) return;
-        if (bioFieldsRequiredForUser && !sex) return;
+        if (!isWanted && strict && priceCents === null) return;
+        if (strict && bioFieldsRequiredForUser && !sex) return;
 
         const photoCounts = photoUploaderRef.current?.getCounts() ?? { total: 0, uploaded: 0 };
-        if (photoCounts.total === 0) {
+        if (strict && photoCounts.total === 0) {
             const ok = window.confirm(
                 isWanted
                     ? "You haven't added any photos. Post this wanted listing without photos?"
@@ -291,6 +464,45 @@ function PostForm({ kind }: { kind: ListingKind }) {
 
             if (isWanted) {
                 const finalDescription = encodeWantedDetailsIntoDescription({ priceType, customPriceText: custom }, body);
+                if (draftId) {
+                    await updateWantedPost(draftId, {
+                        title: title.trim(),
+                        category,
+                        species: bioFieldsEnabled ? (species.trim() ? species.trim() : null) : null,
+                        waterType: bioFieldsEnabled && waterType ? waterType : null,
+                        sex: bioFieldsEnabled && sex ? sex : null,
+                        size: size.trim(),
+                        quantity: qty,
+                        budgetCents,
+                        location: location.trim(),
+                        phone: phoneTrim,
+                        description: finalDescription,
+                        images: uploadedAssets,
+                    });
+                    if (mode === "draft") {
+                        nav("/drafts");
+                        return;
+                    }
+                    const w = await createWantedPost({
+                        title: title.trim(),
+                        category,
+                        species: bioFieldsEnabled ? (species.trim() ? species.trim() : null) : null,
+                        waterType: bioFieldsEnabled && waterType ? waterType : null,
+                        sex: bioFieldsEnabled && sex ? sex : null,
+                        size: size.trim(),
+                        quantity: qty,
+                        budgetCents,
+                        location: location.trim(),
+                        phone: phoneTrim,
+                        description: finalDescription,
+                        images: uploadedAssets,
+                        status: "active",
+                    });
+                    await deleteWantedPost(draftId);
+                    nav(listingDetailPath(kind, w.id));
+                    return;
+                }
+
                 const w = await createWantedPost({
                     title: title.trim(),
                     category,
@@ -304,8 +516,9 @@ function PostForm({ kind }: { kind: ListingKind }) {
                     phone: phoneTrim,
                     description: finalDescription,
                     images: uploadedAssets,
+                    status: mode,
                 });
-                nav(listingDetailPath(kind, w.id));
+                nav(mode === "draft" ? "/drafts" : listingDetailPath(kind, w.id));
             } else {
                 const sexToSubmit: ListingSex = ((bioFieldsEnabled && sex ? sex : "Unknown") as ListingSex) ?? "Unknown";
                 const speciesToSubmit = bioFieldsEnabled ? species.trim() : "";
@@ -313,6 +526,45 @@ function PostForm({ kind }: { kind: ListingKind }) {
                     { quantity: qty, priceType, customPriceText: custom, willingToShip },
                     body,
                 );
+
+                if (draftId) {
+                    await updateListing(draftId, {
+                        title: title.trim(),
+                        category,
+                        species: speciesToSubmit,
+                        sex: sexToSubmit,
+                        waterType: bioFieldsEnabled && waterType ? waterType : null,
+                        size: size.trim(),
+                        shippingOffered: willingToShip,
+                        priceCents: priceCents!,
+                        location: location.trim(),
+                        description: finalDescription,
+                        phone: phoneTrim,
+                        images: uploadedAssets,
+                    });
+                    if (mode === "draft") {
+                        nav("/drafts");
+                        return;
+                    }
+                    const created = await createListing({
+                        title: title.trim(),
+                        category,
+                        species: speciesToSubmit,
+                        sex: sexToSubmit,
+                        waterType: bioFieldsEnabled && waterType ? waterType : null,
+                        size: size.trim(),
+                        shippingOffered: willingToShip,
+                        priceCents: strict ? priceCents! : (priceCents ?? 0),
+                        location: location.trim(),
+                        description: finalDescription,
+                        phone: phoneTrim,
+                        images: uploadedAssets,
+                        status: "active",
+                    });
+                    await deleteListing(draftId);
+                    nav(listingDetailPath(kind, created.id));
+                    return;
+                }
 
                 const created = await createListing({
                     title: title.trim(),
@@ -322,14 +574,15 @@ function PostForm({ kind }: { kind: ListingKind }) {
                     waterType: bioFieldsEnabled && waterType ? waterType : null,
                     size: size.trim(),
                     shippingOffered: willingToShip,
-                    priceCents: priceCents!,
+                    priceCents: strict ? priceCents! : (priceCents ?? 0),
                     location: location.trim(),
                     description: finalDescription,
                     phone: phoneTrim,
                     images: uploadedAssets,
+                    status: mode,
                 });
 
-                nav(listingDetailPath(kind, created.id));
+                nav(mode === "draft" ? "/drafts" : listingDetailPath(kind, created.id));
             }
         } catch (e: any) {
             setErr(e?.message ?? (isWanted ? "Failed to create wanted post" : "Failed to post listing"));
@@ -338,7 +591,76 @@ function PostForm({ kind }: { kind: ListingKind }) {
         }
     }
 
+    async function onSubmit(e: FormEvent) {
+        return submit("active", e);
+    }
+
     const maxDescLen = MAX_DESC_BODY_LEN;
+
+    const isDirty = useMemo(() => {
+        if (!baselineReady) return false;
+        const b = baselineRef.current;
+        const curr: BaselineSnapshot = {
+            kind,
+            title,
+            category: String(category ?? ""),
+            species,
+            waterType: String(waterType ?? ""),
+            sex: String(sex ?? ""),
+            size,
+            quantity: Number(quantity ?? 1),
+            priceDollars,
+            budget,
+            willingToShip,
+            priceType,
+            customPriceText,
+            location,
+            phone,
+            description,
+            photosKey,
+        };
+
+        return (
+            curr.kind !== b.kind ||
+            curr.title !== b.title ||
+            curr.category !== b.category ||
+            curr.species !== b.species ||
+            curr.waterType !== b.waterType ||
+            curr.sex !== b.sex ||
+            curr.size !== b.size ||
+            curr.quantity !== b.quantity ||
+            curr.priceDollars !== b.priceDollars ||
+            curr.budget !== b.budget ||
+            curr.willingToShip !== b.willingToShip ||
+            curr.priceType !== b.priceType ||
+            curr.customPriceText !== b.customPriceText ||
+            curr.location !== b.location ||
+            curr.phone !== b.phone ||
+            curr.description !== b.description ||
+            curr.photosKey !== b.photosKey
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+        baselineReady,
+        baselineKey,
+        kind,
+        title,
+        category,
+        species,
+        waterType,
+        sex,
+        size,
+        quantity,
+        priceDollars,
+        budget,
+        willingToShip,
+        priceType,
+        customPriceText,
+        location,
+        phone,
+        description,
+        photosKey,
+    ]);
 
     return (
         <div className="min-h-full">
@@ -351,7 +673,12 @@ function PostForm({ kind }: { kind: ListingKind }) {
 
                 <form onSubmit={onSubmit} noValidate className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
                     {/* Images */}
-                    <PhotoUploader ref={photoUploaderRef} disabled={submitting} />
+                    <PhotoUploader
+                        ref={photoUploaderRef}
+                        initialAssets={initialPhotoAssets}
+                        disabled={submitting}
+                        onChange={(next) => setPhotosKey(next.itemsKey)}
+                    />
 
                     {/* Fields */}
                     <div className="grid gap-3 sm:grid-cols-3">
@@ -718,6 +1045,17 @@ function PostForm({ kind }: { kind: ListingKind }) {
                             {submitting ? "Posting..." : "Post listing"}
                         </button>
 
+                        {isDirty && (
+                            <button
+                                type="button"
+                                disabled={submitting}
+                                onClick={() => submit("draft")}
+                                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
+                            >
+                                Save draft
+                            </button>
+                        )}
+
                         <Link to="/" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-50">
                             Cancel
                         </Link>
@@ -730,7 +1068,9 @@ function PostForm({ kind }: { kind: ListingKind }) {
 
 export default function PostListingPage() {
     const { kind: kindParam } = useParams();
+    const [sp] = useSearchParams();
     const kind = parseListingKind(kindParam);
-    return <PostForm kind={kind} />;
+    const draftId = sp.get("draft");
+    return <PostForm kind={kind} draftId={draftId} />;
 }
 

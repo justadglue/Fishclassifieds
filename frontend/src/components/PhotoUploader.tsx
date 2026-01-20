@@ -32,7 +32,26 @@ export type PhotoUploaderHandle = {
   getCounts: () => { total: number; uploaded: number };
 };
 
-export default forwardRef<PhotoUploaderHandle, { initialAssets?: ImageAsset[]; disabled?: boolean; maxCount?: number }>(
+type PhotoUploaderChange = {
+  total: number;
+  uploaded: number;
+  assets: ImageAsset[];
+  /**
+   * A stable, order-sensitive key representing the current photo list.
+   * - Existing photos use their `fullUrl`
+   * - Pending (not-yet-uploaded) photos use a `pending:<id>` placeholder
+   */
+  itemsKey: string;
+};
+
+type PhotoUploaderProps = {
+  initialAssets?: ImageAsset[];
+  disabled?: boolean;
+  maxCount?: number;
+  onChange?: (next: PhotoUploaderChange) => void;
+};
+
+export default forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
   function PhotoUploader(props, ref) {
     const maxCount = props.maxCount ?? 6;
     const [items, setItems] = useState<Item[]>(() =>
@@ -193,6 +212,25 @@ export default forwardRef<PhotoUploaderHandle, { initialAssets?: ImageAsset[]; d
         .filter((x): x is ImageAsset => !!x)
         .slice(0, maxCount);
     }, [items, maxCount]);
+
+    const itemsKey = useMemo(() => {
+      return items
+        .map((p) => {
+          if (p.kind === "existing") return `existing:${p.asset.fullUrl}`;
+          if (p.status === "uploaded" && p.uploaded) return `uploaded:${p.uploaded.fullUrl}`;
+          return `pending:${p.id}`;
+        })
+        .join("|");
+    }, [items]);
+
+    useEffect(() => {
+      props.onChange?.({
+        total: items.length,
+        uploaded: uploadedAssets.length,
+        assets: uploadedAssets,
+        itemsKey,
+      });
+    }, [props, items.length, uploadedAssets, itemsKey]);
 
     useImperativeHandle(
       ref,

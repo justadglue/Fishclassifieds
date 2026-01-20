@@ -418,6 +418,7 @@ export async function createWantedPost(input: {
   description: string;
   phone: string;
   images?: Array<string | ImageAsset>;
+  status?: "draft" | "active";
 }) {
   return apiFetch<WantedPost>(`/api/wanted`, {
     method: "POST",

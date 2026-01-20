@@ -1,10 +1,15 @@
 import { Link, useLocation } from "react-router-dom";
 import Header from "../components/Header";
+import { useAuth } from "../auth";
+import { fetchMyListings, fetchMyWanted } from "../api";
+import { useEffect, useState } from "react";
 
 export default function PostChoosePage() {
   const loc = useLocation();
   const sp = new URLSearchParams(loc.search);
   const next = sp.get("next");
+  const { user, loading: authLoading } = useAuth();
+  const [hasDrafts, setHasDrafts] = useState(false);
 
   const saleHref = (() => {
     const qp = new URLSearchParams();
@@ -19,6 +24,29 @@ export default function PostChoosePage() {
     const qs = qp.toString();
     return qs ? `/post/wanted?${qs}` : "/post/wanted";
   })();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (authLoading) return;
+      if (!user) {
+        setHasDrafts(false);
+        return;
+      }
+      try {
+        const [saleRes, wantedRes] = await Promise.all([fetchMyListings({ limit: 200, offset: 0 }), fetchMyWanted({ limit: 200, offset: 0 })]);
+        if (cancelled) return;
+        const anySaleDraft = (saleRes.items ?? []).some((l) => l.status === "draft");
+        const anyWantedDraft = (wantedRes.items ?? []).some((w) => w.lifecycleStatus === "draft");
+        setHasDrafts(anySaleDraft || anyWantedDraft);
+      } catch {
+        if (!cancelled) setHasDrafts(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -51,6 +79,17 @@ export default function PostChoosePage() {
               Tell sellers what you’re looking to buy.
             </div>
           </Link>
+
+          {hasDrafts ? (
+            <Link
+              to="/drafts"
+              className="group flex flex-col items-center rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:col-span-2"
+            >
+              <div className="text-sm font-bold text-slate-500">Drafts</div>
+              <div className="mt-2 text-xl font-extrabold text-slate-900">Resume from drafts →</div>
+              <div className="mt-2 text-sm font-semibold text-slate-600">Continue working on saved drafts and post when ready.</div>
+            </Link>
+          ) : null}
         </div>
         <div />
       </main>

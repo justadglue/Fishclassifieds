@@ -394,6 +394,23 @@ const CreateListingSchema = z.object({
   status: z.enum(["draft", "active"]).optional(),
 });
 
+// Drafts can be saved incomplete; we only enforce max lengths + basic types.
+const DraftCreateListingSchema = z.object({
+  title: z.string().max(80).optional().default(""),
+  category: z.string().optional().default("Fish"),
+  species: z.string().max(60).optional().default(""),
+  sex: z.string().optional().default("Unknown"),
+  waterType: z.string().optional().nullable(),
+  size: z.string().max(40).optional().default(""),
+  shippingOffered: z.boolean().optional().default(false),
+  priceCents: z.number().int().min(0).max(5_000_000).optional().default(0),
+  location: z.string().max(80).optional().default(""),
+  description: z.string().max(2000).optional().default(""),
+  phone: z.string().max(30).optional().default(""),
+  images: ImagesInputSchema.optional().default([]),
+  status: z.literal("draft"),
+});
+
 const UpdateListingSchema = z.object({
   title: z.string().min(3).max(80).optional(),
   category: z.enum(LISTING_CATEGORIES).optional(),
@@ -409,6 +426,21 @@ const UpdateListingSchema = z.object({
   images: ImagesInputSchema.optional(),
   featured: z.boolean().optional(),
   featuredUntil: z.number().int().min(0).nullable().optional(),
+});
+
+const DraftUpdateListingSchema = z.object({
+  title: z.string().max(80).optional(),
+  category: z.string().optional(),
+  species: z.string().max(60).optional(),
+  sex: z.string().optional(),
+  waterType: z.string().optional().nullable(),
+  size: z.string().max(40).optional(),
+  shippingOffered: z.boolean().optional(),
+  priceCents: z.number().int().min(0).max(5_000_000).optional(),
+  location: z.string().max(80).optional(),
+  description: z.string().max(2000).optional(),
+  phone: z.string().max(30).optional(),
+  images: ImagesInputSchema.optional(),
 });
 
 const WantedStatusSchema = z.enum(["open", "closed"]);
@@ -429,6 +461,23 @@ const CreateWantedSchema = z.object({
   description: z.string().min(1).max(2000),
   phone: z.string().min(6).max(30),
   images: ImagesInputSchema.optional(),
+  status: z.enum(["draft", "active"]).optional(),
+});
+
+const DraftCreateWantedSchema = z.object({
+  title: z.string().max(80).optional().default(""),
+  category: z.string().optional().default("Fish"),
+  species: z.string().max(60).optional().nullable(),
+  sex: z.string().optional().nullable(),
+  waterType: z.string().optional().nullable(),
+  size: z.string().max(40).optional().default(""),
+  quantity: z.number().int().min(1).max(10_000).optional(),
+  budgetCents: z.number().int().min(0).max(5_000_000).optional().nullable(),
+  location: z.string().max(80).optional().default(""),
+  description: z.string().max(2000).optional().default(""),
+  phone: z.string().max(30).optional().default(""),
+  images: ImagesInputSchema.optional(),
+  status: z.literal("draft"),
 });
 
 const UpdateWantedSchema = z.object({
@@ -446,6 +495,21 @@ const UpdateWantedSchema = z.object({
   images: ImagesInputSchema.optional(),
   featured: z.boolean().optional(),
   featuredUntil: z.number().int().min(0).nullable().optional(),
+});
+
+const DraftUpdateWantedSchema = z.object({
+  title: z.string().max(80).optional(),
+  category: z.string().optional(),
+  species: z.string().max(60).nullable().optional(),
+  sex: z.string().nullable().optional(),
+  waterType: z.string().optional().nullable(),
+  size: z.string().max(40).optional(),
+  quantity: z.number().int().min(1).max(10_000).optional(),
+  budgetCents: z.number().int().min(0).max(5_000_000).nullable().optional(),
+  location: z.string().max(80).optional(),
+  description: z.string().max(2000).optional(),
+  phone: z.string().max(30).optional(),
+  images: ImagesInputSchema.optional(),
 });
 
 app.use("/api/auth", authRoutes);
@@ -785,7 +849,8 @@ VALUES(?,?,?,?,?)
 
 app.post("/api/listings", requireAuth, (req, res) => {
   runAutoExpirePass();
-  const parsed = CreateListingSchema.safeParse(req.body);
+  const draftParsed = DraftCreateListingSchema.safeParse(req.body);
+  const parsed = draftParsed.success ? draftParsed : CreateListingSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
@@ -798,14 +863,94 @@ app.post("/api/listings", requireAuth, (req, res) => {
   const forceApprovalForNonAdmins = !user.isAdmin && !user.isSuperadmin;
   const requireApproval = forceApprovalForNonAdmins || String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
 
+  const requestedStatus = (parsed.data as any).status as ListingStatus | undefined;
+
+  // Drafts can be saved incomplete. We still enforce basic length limits via Zod, and block control chars.
+  if (requestedStatus === "draft") {
+    const d = parsed.data as any;
+    const categoryFinal = (LISTING_CATEGORIES as readonly string[]).includes(String(d.category)) ? String(d.category) : "Fish";
+    const safeTitle = normalizeInlineText(d.title ?? "").slice(0, 80);
+    if (hasDisallowedControlChars(safeTitle)) return res.status(400).json({ error: "Title contains invalid characters" });
+    const descriptionFinal = String(d.description ?? "").slice(0, 2000);
+    if (hasDisallowedControlChars(descriptionFinal)) return res.status(400).json({ error: "Description contains invalid characters" });
+
+    const speciesFinal = normalizeInlineText(d.species ?? "").slice(0, 60);
+    if (hasDisallowedControlChars(speciesFinal)) return res.status(400).json({ error: "Species contains invalid characters" });
+
+    const sexRaw = String(d.sex ?? "Unknown");
+    const sexFinal = (LISTING_SEXES as readonly string[]).includes(sexRaw) ? sexRaw : "Unknown";
+
+    const waterTypeRaw = d.waterType ?? null;
+    const waterTypeFinal =
+      waterTypeRaw === null || waterTypeRaw === undefined || String(waterTypeRaw).trim() === ""
+        ? null
+        : (WATER_TYPES as readonly string[]).includes(String(waterTypeRaw))
+          ? String(waterTypeRaw)
+          : null;
+
+    const sizeFinal = String(d.size ?? "").trim().slice(0, 40);
+    const shippingFinal = Boolean(d.shippingOffered);
+    const priceCentsFinal = Number.isFinite(d.priceCents) ? Number(d.priceCents) : 0;
+    const locationFinal = normalizeInlineText(d.location ?? "").slice(0, 80);
+    if (hasDisallowedControlChars(locationFinal)) return res.status(400).json({ error: "Location contains invalid characters" });
+    const phoneFinal = normalizeInlineText(d.phone ?? "").slice(0, 30);
+    if (hasDisallowedControlChars(phoneFinal)) return res.status(400).json({ error: "Phone contains invalid characters" });
+
+    db.prepare(
+      `INSERT INTO listings(
+id,user_id,listing_type,featured,title,category,species,sex,price_cents,location,description,phone,
+status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
+)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    ).run(
+      id,
+      user.id,
+      0,
+      0,
+      safeTitle,
+      categoryFinal,
+      speciesFinal,
+      sexFinal,
+      priceCentsFinal,
+      locationFinal,
+      descriptionFinal,
+      phoneFinal,
+      "draft",
+      expiresAt,
+      "none",
+      null,
+      now,
+      now,
+      null
+    );
+
+    db.prepare(`UPDATE listings SET water_type = ?, size = ?, shipping_offered = ? WHERE id = ?`).run(
+      waterTypeFinal,
+      sizeFinal,
+      shippingFinal ? 1 : 0,
+      id
+    );
+
+    const insertImg = db.prepare(
+      `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
+VALUES(?,?,?,?,?,?)`
+    );
+
+    const normalized = normalizeImages((d.images ?? []) as any).slice(0, 6);
+    normalized.forEach((img, idx) => {
+      insertImg.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx);
+    });
+
+    const row = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
+    return res.status(201).json(mapListing(req, row!));
+  }
+
   const { title, category, species, sex, waterType, size, shippingOffered, priceCents, location, description, phone, images } = parsed.data;
   // Enforce safe inline text and effective body length (details prefix is excluded).
   const safeTitle = ensureTitleOk(title);
   const decodedBody = decodeSaleBodyFromDescription(description).body;
   ensureDecodedBodyOk(decodedBody);
-  const requestedStatus = parsed.data.status;
   // Drafts stay draft. Non-admins always go to pending for moderation.
-  const status: ListingStatus = requestedStatus === "draft" ? "draft" : requireApproval ? "pending" : "active";
+  const status: ListingStatus = requireApproval ? "pending" : "active";
 
   const bioRequired = isBioFieldsRequiredCategory(category);
   const isOther = isOtherCategory(category);
@@ -1134,15 +1279,96 @@ app.patch("/api/listings/:id", requireAuth, (req, res) => {
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!assertListingOwner(req, res, row)) return;
 
-  const parsed = UpdateListingSchema.safeParse(req.body);
+  const currentStatus = String(row.status ?? "active") as ListingStatus;
+  const parsed = (currentStatus === "draft" ? DraftUpdateListingSchema : UpdateListingSchema).safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
 
-  const p = parsed.data;
-  const currentStatus = String(row.status ?? "active") as ListingStatus;
+  const pRaw = parsed.data;
   if (currentStatus === "deleted") return res.status(400).json({ error: "Listing is deleted" });
   if (currentStatus === "expired") return res.status(400).json({ error: "Listing is expired" });
+
+  // Draft updates can be incomplete; skip publish-time constraints and body decoding.
+  if (currentStatus === "draft") {
+    const sets: string[] = [];
+    const params: any[] = [];
+
+    const nextCategory =
+      pRaw.category === undefined
+        ? undefined
+        : (LISTING_CATEGORIES as readonly string[]).includes(String(pRaw.category)) && String(pRaw.category).trim()
+          ? String(pRaw.category)
+          : "Fish";
+
+    const nextSex =
+      pRaw.sex === undefined ? undefined : (LISTING_SEXES as readonly string[]).includes(String(pRaw.sex)) ? String(pRaw.sex) : "Unknown";
+
+    const nextWater =
+      pRaw.waterType === undefined
+        ? undefined
+        : pRaw.waterType === null || String(pRaw.waterType).trim() === ""
+          ? null
+          : (WATER_TYPES as readonly string[]).includes(String(pRaw.waterType))
+            ? String(pRaw.waterType)
+            : null;
+
+    const map: Record<string, any> = {
+      title: pRaw.title === undefined ? undefined : normalizeInlineText(pRaw.title).slice(0, 80),
+      category: nextCategory,
+      species: pRaw.species === undefined ? undefined : normalizeInlineText(pRaw.species).slice(0, 60),
+      sex: nextSex,
+      water_type: nextWater,
+      size: pRaw.size === undefined ? undefined : String(pRaw.size ?? "").trim().slice(0, 40),
+      shipping_offered: pRaw.shippingOffered === undefined ? undefined : pRaw.shippingOffered ? 1 : 0,
+      price_cents: pRaw.priceCents,
+      location: pRaw.location === undefined ? undefined : normalizeInlineText(pRaw.location).slice(0, 80),
+      description: pRaw.description === undefined ? undefined : String(pRaw.description ?? "").slice(0, 2000),
+      phone: pRaw.phone === undefined ? undefined : normalizeInlineText(pRaw.phone).slice(0, 30),
+    };
+
+    for (const k of ["title", "species", "location", "phone"] as const) {
+      const v = map[k];
+      if (v !== undefined && hasDisallowedControlChars(String(v))) {
+        return res.status(400).json({ error: `${k} contains invalid characters` });
+      }
+    }
+    if (map.description !== undefined && hasDisallowedControlChars(String(map.description))) {
+      return res.status(400).json({ error: "description contains invalid characters" });
+    }
+
+    for (const [k, v] of Object.entries(map)) {
+      if (v !== undefined) {
+        sets.push(`${k}= ?`);
+        params.push(v);
+      }
+    }
+
+    const now = nowIso();
+    sets.push(`updated_at = ?`);
+    params.push(now);
+
+    if (sets.length) {
+      db.prepare(`UPDATE listings SET ${sets.join(",")}WHERE id = ?`).run(...params, id);
+    }
+
+    if (pRaw.images !== undefined) {
+      db.prepare(`DELETE FROM listing_images WHERE listing_id = ?`).run(id);
+
+      const ins = db.prepare(
+        `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
+VALUES(?,?,?,?,?,?)`
+      );
+
+      const normalized = normalizeImages(pRaw.images ?? []).slice(0, 6);
+      normalized.forEach((img, idx) => ins.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx));
+    }
+
+    const updated = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
+    return res.json(mapListing(req, updated!));
+  }
+
+  const p = pRaw as z.infer<typeof UpdateListingSchema>;
 
   const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.isSuperadmin));
   const currentTitle = String(row.title ?? "");
@@ -1232,7 +1458,7 @@ app.patch("/api/listings/:id", requireAuth, (req, res) => {
     }
 
     const needsReapproval = titleChanged || descriptionChanged || speciesChanged || photoAdded;
-    if (needsReapproval && currentStatus !== "draft") {
+    if (needsReapproval) {
       map.status = "pending";
     }
   }
@@ -1504,8 +1730,113 @@ AND l.listing_type = 1
 });
 
 app.post("/api/wanted", requireAuth, (req, res) => {
-  const parsed = CreateWantedSchema.safeParse(req.body);
+  const draftParsed = DraftCreateWantedSchema.safeParse(req.body);
+  const parsed = draftParsed.success ? draftParsed : CreateWantedSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+
+  const requestedStatus = (parsed.data as any).status as ListingStatus | undefined;
+
+  // Drafts can be saved incomplete (no publish-time constraints).
+  if (requestedStatus === "draft") {
+    const d = parsed.data as any;
+    const titleDraft = normalizeInlineText(d.title ?? "").slice(0, 80);
+    if (hasDisallowedControlChars(titleDraft)) return res.status(400).json({ error: "Title contains invalid characters" });
+    const descriptionDraft = String(d.description ?? "").slice(0, 2000);
+    if (hasDisallowedControlChars(descriptionDraft)) return res.status(400).json({ error: "Description contains invalid characters" });
+
+    const categoryDraft = (LISTING_CATEGORIES as readonly string[]).includes(String(d.category)) ? String(d.category) : "Fish";
+    const locationDraft = normalizeInlineText(d.location ?? "").slice(0, 80);
+    if (hasDisallowedControlChars(locationDraft)) return res.status(400).json({ error: "Location contains invalid characters" });
+    const phoneDraft = normalizeInlineText(d.phone ?? "").slice(0, 30);
+    if (hasDisallowedControlChars(phoneDraft)) return res.status(400).json({ error: "Phone contains invalid characters" });
+
+    const speciesDraft = normalizeInlineText(d.species ?? "").slice(0, 60);
+    if (hasDisallowedControlChars(speciesDraft)) return res.status(400).json({ error: "Species contains invalid characters" });
+
+    const sexRaw = d.sex === null || d.sex === undefined ? "Unknown" : String(d.sex);
+    const sexDraft = (WANTED_SEXES as readonly string[]).includes(sexRaw) ? sexRaw : "Unknown";
+
+    const waterTypeRaw = d.waterType ?? null;
+    const waterTypeDraft =
+      waterTypeRaw === null || waterTypeRaw === undefined || String(waterTypeRaw).trim() === ""
+        ? null
+        : (WATER_TYPES as readonly string[]).includes(String(waterTypeRaw))
+          ? String(waterTypeRaw)
+          : null;
+
+    const qtyDraft = Number.isFinite(d.quantity) ? Math.max(1, Math.floor(Number(d.quantity))) : 1;
+    const sizeDraft = String(d.size ?? "").trim().slice(0, 40);
+    const budgetDraft = d.budgetCents ?? null;
+
+    const id = crypto.randomUUID();
+    const now = nowIso();
+    const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
+    const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
+    const user = req.user!;
+
+    db.prepare(
+      `
+INSERT INTO listings(
+  id,user_id,listing_type,
+  title,description,category,species,sex,water_type,size,shipping_offered,quantity,price_cents,
+  budget_cents,wanted_status,
+  location,phone,
+  status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
+)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+`
+    ).run(
+      id,
+      user.id,
+      1,
+      titleDraft,
+      descriptionDraft,
+      categoryDraft,
+      speciesDraft,
+      sexDraft,
+      waterTypeDraft,
+      sizeDraft,
+      0,
+      qtyDraft,
+      0,
+      budgetDraft,
+      "open",
+      locationDraft,
+      phoneDraft,
+      "draft",
+      expiresAt,
+      "none",
+      null,
+      now,
+      now,
+      null
+    );
+
+    if (d.images !== undefined) {
+      const insertImg = db.prepare(
+        `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
+VALUES(?,?,?,?,?,?)`
+      );
+      const normalized = normalizeImages(d.images ?? []).slice(0, 6);
+      normalized.forEach((img, idx) => {
+        insertImg.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx);
+      });
+    }
+
+    const row = db
+      .prepare(
+        `
+SELECT l.*, u.username as user_username
+FROM listings l
+JOIN users u ON u.id = l.user_id
+WHERE l.id = ?
+AND l.listing_type = 1
+`
+      )
+      .get(id) as any | undefined;
+
+    return res.status(201).json(mapWantedRow(req, row));
+  }
 
   const { title, category, location, description, waterType, sex, size, quantity, phone, images } = parsed.data;
   const species = parsed.data.species ? String(parsed.data.species).trim() : "";
@@ -1607,12 +1938,109 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
-  const parsed = UpdateWantedSchema.safeParse(req.body);
+  const currentLife = String(row.status ?? "active") as ListingStatus;
+  const parsed = (currentLife === "draft" ? DraftUpdateWantedSchema : UpdateWantedSchema).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
 
-  const p = parsed.data;
+  const pRaw = parsed.data;
   const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.isSuperadmin));
-  const currentLife = String(row.status ?? "active") as ListingStatus;
+
+  // Draft updates can be incomplete; skip publish-time constraints and body decoding.
+  if (currentLife === "draft") {
+    const sets: string[] = [];
+    const params: any[] = [];
+
+    const nextCategory =
+      pRaw.category === undefined
+        ? undefined
+        : (LISTING_CATEGORIES as readonly string[]).includes(String(pRaw.category)) && String(pRaw.category).trim()
+          ? String(pRaw.category)
+          : "Fish";
+
+    const nextSex =
+      pRaw.sex === undefined || pRaw.sex === null
+        ? undefined
+        : (WANTED_SEXES as readonly string[]).includes(String(pRaw.sex))
+          ? String(pRaw.sex)
+          : "Unknown";
+
+    const nextWater =
+      pRaw.waterType === undefined
+        ? undefined
+        : pRaw.waterType === null || String(pRaw.waterType).trim() === ""
+          ? null
+          : (WATER_TYPES as readonly string[]).includes(String(pRaw.waterType))
+            ? String(pRaw.waterType)
+            : null;
+
+    const map: Record<string, any> = {
+      title: pRaw.title === undefined ? undefined : normalizeInlineText(pRaw.title).slice(0, 80),
+      category: nextCategory,
+      location: pRaw.location === undefined ? undefined : normalizeInlineText(pRaw.location).slice(0, 80),
+      description: pRaw.description === undefined ? undefined : String(pRaw.description ?? "").slice(0, 2000),
+      species: pRaw.species === undefined ? undefined : normalizeInlineText(pRaw.species ?? "").slice(0, 60),
+      water_type: nextWater,
+      sex: nextSex,
+      phone: pRaw.phone === undefined ? undefined : normalizeInlineText(pRaw.phone).slice(0, 30),
+      size: pRaw.size === undefined ? undefined : String(pRaw.size ?? "").trim().slice(0, 40),
+      quantity: pRaw.quantity,
+      budget_cents: pRaw.budgetCents,
+    };
+
+    for (const k of ["title", "species", "location", "phone"] as const) {
+      const v = map[k];
+      if (v !== undefined && hasDisallowedControlChars(String(v))) {
+        return res.status(400).json({ error: `${k} contains invalid characters` });
+      }
+    }
+    if (map.description !== undefined && hasDisallowedControlChars(String(map.description))) {
+      return res.status(400).json({ error: "description contains invalid characters" });
+    }
+
+    for (const [k, v] of Object.entries(map)) {
+      if (v !== undefined) {
+        sets.push(`${k}= ?`);
+        params.push(v);
+      }
+    }
+
+    const now = nowIso();
+    sets.push(`updated_at = ?`);
+    params.push(now);
+
+    if (sets.length) {
+      db.prepare(`UPDATE listings SET ${sets.join(",")} WHERE id = ? AND listing_type = 1`).run(...params, id);
+    }
+
+    if (pRaw.images !== undefined) {
+      db.prepare(`DELETE FROM listing_images WHERE listing_id = ?`).run(id);
+
+      const ins = db.prepare(
+        `INSERT INTO listing_images(id,listing_id,url,thumb_url,medium_url,sort_order)
+VALUES(?,?,?,?,?,?)`
+      );
+
+      const normalized = normalizeImages(pRaw.images ?? []).slice(0, 6);
+      normalized.forEach((img, idx) => ins.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx));
+    }
+
+    const updated = db
+      .prepare(
+        `
+SELECT l.*, u.username as user_username
+FROM listings l
+JOIN users u ON u.id = l.user_id
+WHERE l.id = ?
+AND l.listing_type = 1
+`
+      )
+      .get(id) as any | undefined;
+
+    return res.json(mapWantedRow(req, updated));
+  }
+
+  const p = pRaw as z.infer<typeof UpdateWantedSchema>;
+
   const currentTitle = String(row.title ?? "");
   const currentSpecies = String(row.species ?? "");
   const currentBody = decodeWantedBodyFromDescription(String(row.description ?? "")).body;
@@ -1708,7 +2136,7 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
     }
 
     const needsReapproval = titleChanged || descriptionChanged || speciesChanged || photoAdded;
-    if (needsReapproval && currentLife !== "draft") {
+    if (needsReapproval) {
       map.status = "pending";
     }
   }

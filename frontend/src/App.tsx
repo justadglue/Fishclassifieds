@@ -16,6 +16,7 @@ import FaqPage from "./pages/FaqPage.tsx";
 import ContactPage from "./pages/ContactPage.tsx";
 import TermsPage from "./pages/TermsPage.tsx";
 import PrivacyPage from "./pages/PrivacyPage.tsx";
+import MyDraftsPage from "./pages/MyDraftsPage";
 import AdminRoute from "./admin/AdminRoute";
 import AdminLayout from "./admin/AdminLayout";
 import AdminDashboardPage from "./admin/pages/AdminDashboardPage";
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/post" element={<PostChoosePage />} />
         <Route path="/post/:kind" element={<PostListingPage />} />
         <Route path="/me" element={<MyListingsPage />} />
+        <Route path="/drafts" element={<MyDraftsPage />} />
         <Route path="/edit/:kind/:id" element={<EditListingPage />} />
         <Route path="/feature/:id" element={<FeatureListingPage />} />
         <Route path="/profile" element={<ProfilePage />} />

@@ -883,7 +883,7 @@ export default function MyListingsPage() {
           <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <div className="overflow-x-auto ">
               <table className="w-full min-w-[1180px] table-fixed lg:min-w-0">
-                <thead className="bg-slate-50">
+                <thead className="bg-slate-100/80 border-b border-slate-200 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.06)]">
                   <tr className="text-xs font-bold tracking-wider text-slate-600">
                     <SortTh label="Listing" k="listing" className="w-[20%] px-2 py-3" align="left" />
                     <SortTh label="Price" k="price" className="w-[6%] px-2 py-3" align="right" />

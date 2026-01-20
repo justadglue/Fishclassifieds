@@ -40,7 +40,7 @@ export type Listing = {
   updatedAt: string;
 };
 
-export type SortMode = "newest" | "price_asc" | "price_desc";
+export type SortMode = "newest" | "price_asc" | "price_desc" | "budget_asc" | "budget_desc";
 export type WantedStatus = "open" | "closed";
 
 export type WantedPost = {
@@ -267,6 +267,7 @@ export async function fetchWanted(params?: {
   status?: WantedStatus;
   minBudgetCents?: number;
   maxBudgetCents?: number;
+  sort?: SortMode;
   limit?: number;
   offset?: number;
 }) {
@@ -281,6 +282,7 @@ export async function fetchWanted(params?: {
   if (params?.status) qs.set("status", params.status);
   if (params?.minBudgetCents !== undefined) qs.set("min", String(params.minBudgetCents));
   if (params?.maxBudgetCents !== undefined) qs.set("max", String(params.maxBudgetCents));
+  if (params?.sort) qs.set("sort", params.sort);
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
   if (params?.offset !== undefined) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";

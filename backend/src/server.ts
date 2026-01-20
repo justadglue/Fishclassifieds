@@ -1232,6 +1232,7 @@ app.get("/api/wanted", (req, res) => {
   const maxRaw = req.query.maxBudgetCents ?? req.query.max;
   const min = minRaw !== undefined ? Number(minRaw) : undefined;
   const max = maxRaw !== undefined ? Number(maxRaw) : undefined;
+  const sort = String(req.query.sort ?? "newest");
 
   const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 24;
@@ -1304,6 +1305,10 @@ ${whereSql}
     .get(...params) as any;
   const total = Number(totalRow?.c ?? 0);
 
+  let orderBy = "l.created_at DESC, l.id DESC";
+  if (sort === "budget_asc") orderBy = "(l.budget_cents IS NULL) ASC, l.budget_cents ASC, l.created_at DESC, l.id DESC";
+  if (sort === "budget_desc") orderBy = "(l.budget_cents IS NULL) ASC, l.budget_cents DESC, l.created_at DESC, l.id DESC";
+
   const rows = db
     .prepare(
       `
@@ -1311,7 +1316,7 @@ SELECT l.*, u.username as user_username
 FROM listings l
 JOIN users u ON u.id = l.user_id
 ${whereSql}
-ORDER BY l.created_at DESC, l.id DESC
+ORDER BY ${orderBy}
 LIMIT ? OFFSET ?
 `
     )

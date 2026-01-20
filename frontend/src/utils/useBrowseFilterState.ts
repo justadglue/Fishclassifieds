@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { getListingOptionsCached, type Category, type ListingSex, type WaterType } from "../api";
+import { getListingOptionsCached, type Category, type ListingSex, type SortMode, type WaterType } from "../api";
 
 export type BrowseType = "sale" | "wanted";
-export type SortMode = "newest" | "price_asc" | "price_desc";
 export type PageSize = 12 | 24 | 48 | 96;
 
 function clampInt(v: string | null, fallback: number, min: number, max: number) {
@@ -44,7 +43,14 @@ export function useBrowseFilterState() {
     const minDollars = sp.get("min") ?? "";
     const maxDollars = sp.get("max") ?? "";
     const budgetDollars = sp.get("budget") ?? "";
-    const sort = (sp.get("sort") ?? "newest") as SortMode;
+    const rawSort = (sp.get("sort") ?? "newest") as SortMode;
+    const sort: SortMode = (() => {
+        if (browseType === "sale") {
+            return rawSort === "price_asc" || rawSort === "price_desc" || rawSort === "newest" ? rawSort : "newest";
+        }
+        // wanted
+        return rawSort === "budget_asc" || rawSort === "budget_desc" || rawSort === "newest" ? rawSort : "newest";
+    })();
 
     const page = clampInt(sp.get("page"), 1, 1, 999999);
     const per = clampInt(sp.get("per"), 24, 12, 200) as PageSize;
@@ -63,11 +69,15 @@ export function useBrowseFilterState() {
         next.set("type", nextType);
         next.set("page", "1");
         if (nextType === "wanted") {
-            next.delete("sort");
+            const s = (next.get("sort") ?? "newest") as SortMode;
+            if (s === "price_asc" || s === "price_desc") next.set("sort", "newest");
+            if (!next.get("sort")) next.set("sort", "newest");
             // Wanted uses a single budget filter, not min/max.
             next.delete("min");
             next.delete("max");
         } else {
+            const s = (next.get("sort") ?? "newest") as SortMode;
+            if (s === "budget_asc" || s === "budget_desc") next.set("sort", "newest");
             if (!next.get("sort")) next.set("sort", "newest");
             // Sale uses min/max price, not a single budget.
             next.delete("budget");
@@ -79,7 +89,7 @@ export function useBrowseFilterState() {
         const next = new URLSearchParams();
         next.set("type", browseType);
         next.set("page", "1");
-        if (browseType === "sale") next.set("sort", "newest");
+        next.set("sort", "newest");
         setSp(next, { replace: true });
     }
 

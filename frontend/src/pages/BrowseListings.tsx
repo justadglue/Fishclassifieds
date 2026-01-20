@@ -225,6 +225,7 @@ export default function BrowseListings() {
               waterType: waterType || undefined,
               sex: sex || undefined,
               minBudgetCents: budgetCents,
+              sort,
               limit: per,
               offset,
             });
@@ -404,20 +405,30 @@ export default function BrowseListings() {
               </div>
 
               <div className="flex items-center gap-2">
-                {browseType === "sale" && (
-                  <label className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-700">Sort</span>
-                    <select
-                      value={sort}
-                      onChange={(e) => setParam("sort", e.target.value)}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-                    >
-                      <option value="newest">Newest</option>
-                      <option value="price_asc">Price: Low → High</option>
-                      <option value="price_desc">Price: High → Low</option>
-                    </select>
-                  </label>
-                )}
+                {/* Keep layout identical between Sale/Wanted to avoid UI "jumping" when toggling listing type. */}
+                <label className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-700">Sort</span>
+                  <select
+                    value={sort}
+                    onChange={(e) => setParam("sort", e.target.value)}
+                    className={[
+                      "min-w-[190px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400",
+                    ].join(" ")}
+                  >
+                    <option value="newest">Newest</option>
+                    {browseType === "sale" ? (
+                      <>
+                        <option value="price_asc">Price: Low → High</option>
+                        <option value="price_desc">Price: High → Low</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="budget_asc">Budget: Low → High</option>
+                        <option value="budget_desc">Budget: High → Low</option>
+                      </>
+                    )}
+                  </select>
+                </label>
 
                 <label className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-700">Per page</span>

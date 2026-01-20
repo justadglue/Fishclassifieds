@@ -29,7 +29,6 @@ import {
   type Listing,
   type WantedPost,
 } from "../api";
-import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
@@ -93,7 +92,7 @@ function parseMs(iso: string | null | undefined) {
   return Number.isFinite(n) ? n : null;
 }
 
-type SortKey = "listing" | "price" | "views" | "status" | "created" | "updated" | "expiresIn";
+type SortKey = "listing" | "price" | "views" | "status" | "published" | "created" | "updated" | "expiresIn";
 type SortDir = "asc" | "desc";
 
 function statusRank(l: Listing) {
@@ -275,6 +274,11 @@ function sortMixedRows(rows: MixedRow[], sortKey: SortKey, sortDir: SortDir, now
     return parseMs(iso);
   }
 
+  function getPublishedMs(r: MixedRow): number | null {
+    const iso = r.kind === "sale" ? (r.sale?.publishedAt ?? null) : (r.wanted?.publishedAt ?? null);
+    return parseMs(iso);
+  }
+
   function getUpdatedMs(r: MixedRow): number | null {
     const iso = r.kind === "sale" ? r.sale?.updatedAt : r.wanted?.updatedAt;
     return parseMs(iso);
@@ -324,6 +328,13 @@ function sortMixedRows(rows: MixedRow[], sortKey: SortKey, sortDir: SortDir, now
       case "created": {
         const ar = getCreatedMs(a);
         const br = getCreatedMs(b);
+        const base = cmpNumNullLast(ar, br);
+        r = base * (ar == null || br == null ? 1 : dirMul);
+        break;
+      }
+      case "published": {
+        const ar = getPublishedMs(a);
+        const br = getPublishedMs(b);
         const base = cmpNumNullLast(ar, br);
         r = base * (ar == null || br == null ? 1 : dirMul);
         break;
@@ -606,6 +617,7 @@ export default function MyListingsPage() {
     price: "asc",
     views: "desc",
     status: "asc",
+    published: "desc",
     created: "desc",
     updated: "desc",
     expiresIn: "asc",
@@ -655,7 +667,6 @@ export default function MyListingsPage() {
     );
 
     const thAlign = align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
-    const btnJustify = align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start";
 
     return (
       <th className={[thAlign, className].filter(Boolean).join(" ")}>
@@ -663,10 +674,10 @@ export default function MyListingsPage() {
           type="button"
           onClick={() => toggleSort(k)}
           title={title ?? `Sort by ${label}`}
-          className={["inline-flex w-full items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100", btnJustify].join(" ")}
+          className="inline-flex w-full items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100"
         >
-          <span>{label}</span>
-          {icon}
+          <span className={["min-w-0 flex-1 truncate whitespace-nowrap", thAlign].join(" ")}>{label}</span>
+          <span className="shrink-0">{icon}</span>
         </button>
       </th>
     );
@@ -794,15 +805,15 @@ export default function MyListingsPage() {
               <table className="w-full min-w-[1180px] table-fixed lg:min-w-0">
                 <thead className="bg-slate-50">
                   <tr className="text-xs font-bold tracking-wider text-slate-600">
-                    <SortTh label="Listing" k="listing" className="w-[25%] px-4 py-3" align="left" />
-                    <SortTh label="Price" k="price" className="w-[10%] px-4 py-3" align="right" />
-                    <SortTh label="Views" k="views" className="w-[8%] px-4 py-3" align="right" />
-                    <SortTh label="Status" k="status" className="w-[8%] px-4 py-3" title="Default: Status then Updated" align="left" />
-                    <th className="w-[8%] px-4 py-3 text-left">Published</th>
-                    <SortTh label="Created" k="created" className="w-[8%] px-4 py-3" align="left" />
-                    <SortTh label="Updated" k="updated" className="w-[8%] px-4 py-3" align="left" />
-                    <SortTh label="Expiry" k="expiresIn" className="w-[8%] px-4 py-3" align="right" />
-                    <th className="w-[8%] px-4 py-3 text-center">Actions</th>
+                    <SortTh label="Listing" k="listing" className="w-[20%] px-2 py-3" align="left" />
+                    <SortTh label="Price" k="price" className="w-[6%] px-2 py-3" align="right" />
+                    <SortTh label="Views" k="views" className="w-[6%] px-2 py-3" align="right" />
+                    <SortTh label="Status" k="status" className="w-[6%] px-2 py-3" title="Default: Status then Updated" align="left" />
+                    <SortTh label="Published" k="published" className="w-[7.5%] px-2 py-3" align="left" />
+                    <SortTh label="Created" k="created" className="w-[6.5%] px-2 py-3" align="left" />
+                    <SortTh label="Updated" k="updated" className="w-[7%] px-2 py-3" align="left" />
+                    <SortTh label="Expiry" k="expiresIn" className="w-[6%] px-2 py-3" align="right" />
+                    <th className="w-[6%] px-2 py-3 text-center">Actions</th>
                   </tr>
                 </thead>
 
@@ -855,14 +866,6 @@ export default function MyListingsPage() {
                                   <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
                                     For sale
                                   </span>
-                                  <span className="min-w-0 truncate">
-                                    {(() => {
-                                      const species = String(l.species ?? "").trim();
-                                      const details = decodeSaleDetailsFromDescription(l.description).details;
-                                      const ship = details.willingToShip ? "Shipping offered" : "Local only";
-                                      return species ? `${species} • ${ship}` : ship;
-                                    })()}
-                                  </span>
                                 </div>
                                 <div className="mt-1">{renderFeaturedText(l)}</div>
                               </div>
@@ -882,11 +885,25 @@ export default function MyListingsPage() {
                           </td>
 
                           <td className="px-4 py-4 align-top text-left">
-                            <div className="text-sm font-semibold text-slate-700">{l.publishedAt ? new Date(l.publishedAt).toLocaleDateString() : "—"}</div>
+                            {l.publishedAt ? (
+                              <div className="text-sm font-semibold leading-tight text-slate-700">
+                                <div>{new Date(l.publishedAt).toLocaleDateString()}</div>
+                                <div className="text-xs font-semibold text-slate-600">
+                                  {new Date(l.publishedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-sm font-semibold text-slate-700">—</div>
+                            )}
                           </td>
 
                           <td className="px-4 py-4 align-top text-left">
-                            <div className="text-sm font-semibold text-slate-700">{new Date(l.createdAt).toLocaleDateString()}</div>
+                            <div className="text-sm font-semibold leading-tight text-slate-700">
+                              <div>{new Date(l.createdAt).toLocaleDateString()}</div>
+                              <div className="text-xs font-semibold text-slate-600">
+                                {new Date(l.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                              </div>
+                            </div>
                           </td>
 
                           <td className="px-4 py-4 align-top text-left">
@@ -1018,7 +1035,6 @@ export default function MyListingsPage() {
                                 <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
                                   Wanted
                                 </span>
-                                <span className="min-w-0 truncate">{String(w.species ?? "").trim() || ""}</span>
                               </div>
                               <div className="mt-1">{renderFeaturedTextAny(w.featuredUntil ?? null)}</div>
                             </div>
@@ -1038,11 +1054,25 @@ export default function MyListingsPage() {
                         </td>
 
                         <td className="px-4 py-4 align-top text-left">
-                          <div className="text-sm font-semibold text-slate-700">{w.publishedAt ? new Date(w.publishedAt).toLocaleDateString() : "—"}</div>
+                          {w.publishedAt ? (
+                            <div className="text-sm font-semibold leading-tight text-slate-700">
+                              <div>{new Date(w.publishedAt).toLocaleDateString()}</div>
+                              <div className="text-xs font-semibold text-slate-600">
+                                {new Date(w.publishedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-sm font-semibold text-slate-700">—</div>
+                          )}
                         </td>
 
                         <td className="px-4 py-4 align-top text-left">
-                          <div className="text-sm font-semibold text-slate-700">{new Date(w.createdAt).toLocaleDateString()}</div>
+                          <div className="text-sm font-semibold leading-tight text-slate-700">
+                            <div>{new Date(w.createdAt).toLocaleDateString()}</div>
+                            <div className="text-xs font-semibold text-slate-600">
+                              {new Date(w.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                            </div>
+                          </div>
                         </td>
 
                         <td className="px-4 py-4 align-top text-left">

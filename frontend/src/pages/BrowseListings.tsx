@@ -36,13 +36,13 @@ function relativeTime(iso: string) {
 
 function descriptionPreview(raw: string) {
   const decoded = decodeSaleDetailsFromDescription(raw);
-  const body = decoded.hadPrefix ? decoded.body : raw;
+  const body = decoded.body;
   return body.replace(/\s+/g, " ").trim();
 }
 
 function wantedDescriptionPreview(raw: string) {
   const decoded = decodeWantedDetailsFromDescription(raw);
-  const body = decoded.hadPrefix ? decoded.body : raw;
+  const body = decoded.body;
   return body.replace(/\s+/g, " ").trim();
 }
 

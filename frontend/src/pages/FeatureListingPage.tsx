@@ -52,15 +52,14 @@ export default function FeatureListingPage() {
 
   const canBeFeatured = useMemo(() => {
     if (!item) return false;
-    if (item.kind === "sale") return item.item.status === "active" && item.item.resolution === "none";
-    return item.item.lifecycleStatus === "active" && item.item.status === "open";
+    return item.item.status === "active";
   }, [item]);
 
   const featuringState = useMemo<"none" | "active" | "expired">(() => {
     if (!item) return "none";
     const until = item.item.featuredUntil ?? null;
     if (until !== null) return until > Date.now() ? "active" : "expired";
-    return item.item.featured ? "active" : "none";
+    return "none";
   }, [item]);
 
   async function onConfirm(featured: boolean) {

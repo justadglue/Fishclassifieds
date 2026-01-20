@@ -46,7 +46,6 @@ router.get("/approvals", (req, res) => {
     .prepare(
       `
 SELECT l.id,l.listing_type,l.title,l.category,l.location,l.created_at,l.updated_at,
-       l.wanted_status,
        u.id as user_id,u.username as user_username,u.email as user_email
 FROM listings l
 JOIN users u ON u.id = l.user_id
@@ -63,7 +62,6 @@ LIMIT 500
     title: String(r.title ?? ""),
     category: String(r.category ?? ""),
     location: String(r.location ?? ""),
-    wantedStatus: Number(r.listing_type) === 1 ? String(r.wanted_status ?? "open") : null,
     createdAt: String(r.created_at ?? ""),
     updatedAt: String(r.updated_at ?? ""),
     user: {

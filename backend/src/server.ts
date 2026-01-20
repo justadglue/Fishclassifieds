@@ -5,7 +5,7 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
-import { openDb, type ListingRow, type ListingStatus, type ListingResolution } from "./db.js";
+import { openDb, type ListingRow, type ListingStatus } from "./db.js";
 import crypto from "crypto";
 import multer from "multer";
 import path from "path";
@@ -237,9 +237,8 @@ function assertListingOwner(req: express.Request, res: express.Response, row: an
   return true;
 }
 
-const StatusSchema = z.enum(["draft", "pending", "active", "paused", "expired", "deleted"]);
-const ResolutionSchema = z.enum(["none", "sold"]);
-// Public visibility: pending posts are hidden until approved.
+const StatusSchema = z.enum(["draft", "pending", "active", "paused", "sold", "closed", "expired", "deleted"]);
+// Public visibility: only active posts are visible to non-owners.
 const PUBLIC_LIFECYCLE: ListingStatus[] = ["active"];
 
 const MAX_DESC_BODY_LEN = 1000;
@@ -297,6 +296,8 @@ UPDATE listings
 SET status='expired',updated_at=?
 WHERE status <> 'deleted'
 AND status <> 'expired'
+AND status <> 'sold'
+AND status <> 'closed'
 AND expires_at IS NOT NULL
 AND expires_at <> ''
 AND expires_at < ?
@@ -304,56 +305,15 @@ AND expires_at < ?
   ).run(now, now);
 }
 
-function ensureWantedExpiresAtPass() {
-  const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
-  const days = Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30;
-
-  const rows = db
-    .prepare(
-      `
-SELECT id, created_at
-FROM listings
-WHERE listing_type = 1
-AND status <> 'deleted'
-AND (expires_at IS NULL OR expires_at = '')
-`
-    )
-    .all() as Array<{ id: string; created_at: string }>;
-
-  if (!rows.length) return;
-
-  const upd = db.prepare(`UPDATE listings SET expires_at = ?, updated_at = ? WHERE id = ? AND listing_type = 1`);
-  const now = nowIso();
-  const tx = db.transaction(() => {
-    for (const r of rows) {
-      const createdAt = String((r as any).created_at ?? "").trim();
-      if (!createdAt) continue;
-      const expiresAt = addDaysIso(createdAt, days);
-      upd.run(expiresAt, now, String(r.id));
-    }
-  });
-
-  try {
-    tx();
-  } catch {
-    // Best-effort backfill; safe to ignore.
-  }
-}
-
 const ImageAssetSchema = z.object({
   fullUrl: z.string().min(1),
   thumbUrl: z.string().min(1),
   medUrl: z.string().min(1),
 });
-const ImagesInputSchema = z.array(z.union([z.string(), ImageAssetSchema])).max(6).optional().default([]);
+const ImagesInputSchema = z.array(ImageAssetSchema).max(6).optional().default([]);
 
-function normalizeImages(input: (string | ImageAsset)[]): ImageAsset[] {
-  return (input ?? []).map((x) => {
-    if (typeof x === "string") {
-      return { fullUrl: x, thumbUrl: x, medUrl: x };
-    }
-    return x;
-  });
+function normalizeImages(input: ImageAsset[] | null | undefined): ImageAsset[] {
+  return (input ?? []).slice(0, 6);
 }
 
 const ListingSexSchema = z.enum(LISTING_SEXES).default("Unknown");
@@ -443,7 +403,6 @@ const DraftUpdateListingSchema = z.object({
   images: ImagesInputSchema.optional(),
 });
 
-const WantedStatusSchema = z.enum(["open", "closed"]);
 const WANTED_SEXES = [...LISTING_SEXES, "No preference"] as const;
 const WantedSexSchema = z.enum(WANTED_SEXES);
 
@@ -899,8 +858,8 @@ app.post("/api/listings", requireAuth, (req, res) => {
     db.prepare(
       `INSERT INTO listings(
 id,user_id,listing_type,featured,title,category,species,sex,price_cents,location,description,phone,
-status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
-)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+status,expires_at,created_at,updated_at,deleted_at
+)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(
       id,
       user.id,
@@ -916,8 +875,6 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
       phoneFinal,
       "draft",
       expiresAt,
-      "none",
-      null,
       now,
       now,
       null
@@ -935,7 +892,7 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
 VALUES(?,?,?,?,?,?)`
     );
 
-    const normalized = normalizeImages((d.images ?? []) as any).slice(0, 6);
+    const normalized = normalizeImages(d.images);
     normalized.forEach((img, idx) => {
       insertImg.run(crypto.randomUUID(), id, img.fullUrl, img.thumbUrl, img.medUrl, idx);
     });
@@ -973,8 +930,8 @@ VALUES(?,?,?,?,?,?)`
   db.prepare(
     `INSERT INTO listings(
 id,user_id,listing_type,featured,title,category,species,sex,price_cents,location,description,phone,
-status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
-)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+status,expires_at,created_at,updated_at,deleted_at
+)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
     id,
     user.id,
@@ -990,8 +947,6 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
     phone,
     status,
     expiresAt,
-    "none",
-    null,
     now,
     now,
     null
@@ -1059,7 +1014,7 @@ LIMIT ? OFFSET ?
 
 app.get("/api/my/wanted", requireAuth, (req, res) => {
   runAutoExpirePass();
-  ensureWantedExpiresAtPass();
+  const includeDeleted = String(req.query.includeDeleted ?? "").trim() === "1";
   const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 100;
   const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
@@ -1067,7 +1022,15 @@ app.get("/api/my/wanted", requireAuth, (req, res) => {
 
   const user = req.user!;
 
-  const totalRow = db.prepare(`SELECT COUNT(*)as c FROM listings WHERE listing_type = 1 AND user_id = ?`).get(user.id) as any;
+  const where: string[] = [];
+  const params: any[] = [];
+  where.push(`l.listing_type = 1`);
+  where.push(`l.user_id = ?`);
+  params.push(user.id);
+  if (!includeDeleted) where.push(`l.status <> 'deleted'`);
+  const whereSql = `WHERE ${where.join(" AND ")}`;
+
+  const totalRow = db.prepare(`SELECT COUNT(*)as c FROM listings l ${whereSql}`).get(...params) as any;
   const total = Number(totalRow?.c ?? 0);
 
   const rows = db
@@ -1076,13 +1039,12 @@ app.get("/api/my/wanted", requireAuth, (req, res) => {
 SELECT l.*, u.username as user_username
 FROM listings l
 JOIN users u ON u.id = l.user_id
-WHERE l.listing_type = 1
-AND l.user_id = ?
+${whereSql}
 ORDER BY l.updated_at DESC, l.created_at DESC, l.id DESC
 LIMIT ? OFFSET ?
 `
     )
-    .all(user.id, limit, offset) as any[];
+    .all(...params, limit, offset) as any[];
 
   return res.json({
     items: rows.map((r) => mapWantedRow(req, r)),
@@ -1094,7 +1056,6 @@ LIMIT ? OFFSET ?
 
 app.get("/api/featured", (req, res) => {
   runAutoExpirePass();
-  ensureWantedExpiresAtPass();
 
   const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 24;
@@ -1107,14 +1068,9 @@ app.get("/api/featured", (req, res) => {
       `
 SELECT COUNT(*) as c
 FROM listings l
-WHERE l.featured = 1
-AND (l.featured_until IS NULL OR l.featured_until > ?)
+WHERE l.featured_until IS NOT NULL
+AND l.featured_until > ?
 AND l.status IN('active')
-AND (
-  (l.listing_type = 0 AND l.resolution = 'none')
-  OR
-  (l.listing_type = 1 AND l.wanted_status = 'open')
-)
 `
     )
     .get(nowMs) as any;
@@ -1126,14 +1082,9 @@ AND (
 SELECT l.*, u.username as user_username
 FROM listings l
 JOIN users u ON u.id = l.user_id
-WHERE l.featured = 1
-AND (l.featured_until IS NULL OR l.featured_until > ?)
+WHERE l.featured_until IS NOT NULL
+AND l.featured_until > ?
 AND l.status IN('active')
-AND (
-  (l.listing_type = 0 AND l.resolution = 'none')
-  OR
-  (l.listing_type = 1 AND l.wanted_status = 'open')
-)
 ORDER BY l.created_at DESC, l.id DESC
 LIMIT ? OFFSET ?
 `
@@ -1171,12 +1122,12 @@ app.get("/api/listings", (req, res) => {
   const params: any[] = [];
   where.push(`listing_type = 0`);
   where.push(`status IN('active')`);
-  where.push(`resolution = 'none'`);
+  // NOTE: Public visibility is controlled by `status`.
 
   if (featured === "1") {
-    where.push(`featured = 1`);
     // Only show currently-featured items to the public “featured carousel”.
-    where.push(`(featured_until IS NULL OR featured_until > ?)`);
+    where.push(`featured_until IS NOT NULL`);
+    where.push(`featured_until > ?`);
     params.push(Date.now());
   }
 
@@ -1255,11 +1206,10 @@ app.get("/api/listings/:id", optionalAuth, (req, res) => {
   const isOwner = isListingOwner(req, row);
   const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.isSuperadmin));
   const status = String(row.status ?? "active") as ListingStatus;
-  const resolution = String(row.resolution ?? "none") as ListingResolution;
 
   if (!isOwner && !isAdmin && status === "deleted") return res.status(404).json({ error: "Not found" });
 
-  const isPublic = PUBLIC_LIFECYCLE.includes(status) || resolution !== "none";
+  const isPublic = PUBLIC_LIFECYCLE.includes(status);
   const canView = isOwner || isPublic || (isAdmin && status === "pending");
   if (!canView) return res.status(404).json({ error: "Not found" });
 
@@ -1424,19 +1374,21 @@ VALUES(?,?,?,?,?,?)`
     map.size = sizeNext;
   }
 
+  // Featuring is time-bound (no legacy "featured forever" support).
   if (p.featuredUntil !== undefined) {
-    map.featured_until = p.featuredUntil;
-    // If client sets/clears featured_until but doesn't explicitly set featured, keep them in sync.
-    if (p.featured === undefined) {
-      map.featured = p.featuredUntil === null ? 0 : 1;
-    }
-  }
-
-  if (p.featured !== undefined) {
-    map.featured = p.featured ? 1 : 0;
-    // Turning off featuring clears the timer unless explicitly provided.
-    if (!p.featured && p.featuredUntil === undefined) {
+    if (p.featuredUntil === null) {
+      map.featured = 0;
       map.featured_until = null;
+    } else {
+      map.featured = 1;
+      map.featured_until = p.featuredUntil;
+    }
+  } else if (p.featured !== undefined) {
+    if (!p.featured) {
+      map.featured = 0;
+      map.featured_until = null;
+    } else {
+      return res.status(400).json({ error: "featuredUntil is required when enabling featuring." });
     }
   }
 
@@ -1537,7 +1489,7 @@ function mapWantedRow(req: express.Request, row: any) {
     username: row.user_username ? String(row.user_username) : null,
     sellerAvatarUrl,
     sellerBio,
-    featured: Boolean(Number((row as any).featured ?? 0)),
+    featured: (row as any).featured_until != null,
     featuredUntil: (row as any).featured_until ?? null,
     views: Number((row as any).views ?? 0),
     title: String(row.title),
@@ -1550,8 +1502,7 @@ function mapWantedRow(req: express.Request, row: any) {
     budgetCents: row.budget_cents != null ? Number(row.budget_cents) : null,
     location: String(row.location),
     phone: String(row.phone ?? ""),
-    status: WantedStatusSchema.parse(String(row.wanted_status ?? "open")),
-    lifecycleStatus: StatusSchema.parse(String(row.status ?? "active")),
+    status: StatusSchema.parse(String(row.status ?? "active")),
     expiresAt: row.expires_at ?? null,
     description: String(row.description),
     images,
@@ -1568,7 +1519,6 @@ function requireWantedOwner(req: express.Request, row: any) {
 
 app.get("/api/wanted", (req, res) => {
   runAutoExpirePass();
-  ensureWantedExpiresAtPass();
   const q = String(req.query.q ?? "").trim().toLowerCase();
   const species = String(req.query.species ?? "").trim().toLowerCase();
   const category = String(req.query.category ?? "").trim();
@@ -1576,13 +1526,8 @@ app.get("/api/wanted", (req, res) => {
   const waterType = String(req.query.waterType ?? "").trim().toLowerCase();
   const sex = String(req.query.sex ?? "").trim();
   const size = String(req.query.size ?? "").trim().toLowerCase();
-  const statusRaw = String(req.query.status ?? "").trim();
-  const statusFilter = statusRaw === "open" || statusRaw === "closed" ? statusRaw : null;
-
-  const minRaw = req.query.minBudgetCents ?? req.query.min;
-  const maxRaw = req.query.maxBudgetCents ?? req.query.max;
-  const min = minRaw !== undefined ? Number(minRaw) : undefined;
-  const max = maxRaw !== undefined ? Number(maxRaw) : undefined;
+  const min = req.query.minBudgetCents !== undefined ? Number(req.query.minBudgetCents) : undefined;
+  const max = req.query.maxBudgetCents !== undefined ? Number(req.query.maxBudgetCents) : undefined;
   const sort = String(req.query.sort ?? "newest");
 
   const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
@@ -1594,9 +1539,7 @@ app.get("/api/wanted", (req, res) => {
   const params: any[] = [];
   where.push(`l.listing_type = 1`);
   where.push(`l.status IN('active')`);
-  // Default: only open posts are visible publicly. Allow explicit filtering by status for dev/admin use.
-  if (statusFilter) where.push(`l.wanted_status = ?`), params.push(statusFilter);
-  else where.push(`l.wanted_status = 'open'`);
+  // NOTE: Public visibility is controlled by `status`.
 
   if (q) {
     where.push("(lower(l.title)LIKE ? OR lower(l.description)LIKE ? OR lower(l.location)LIKE ? OR lower(l.species)LIKE ?)");
@@ -1683,7 +1626,6 @@ LIMIT ? OFFSET ?
 
 app.get("/api/wanted/:id", optionalAuth, (req, res) => {
   runAutoExpirePass();
-  ensureWantedExpiresAtPass();
   const id = req.params.id;
   let row = db
     .prepare(
@@ -1700,11 +1642,7 @@ AND l.listing_type = 1
   const isOwner = requireWantedOwner(req, row);
   const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.isSuperadmin));
   const status = String(row.status ?? "active") as ListingStatus;
-  const wantedStatus = String(row.wanted_status ?? "open");
-  if (!isOwner && !isAdmin && (status === "deleted" || status === "expired")) {
-    return res.status(404).json({ error: "Not found" });
-  }
-  if (wantedStatus !== "open" && !isOwner && !isAdmin) {
+  if (!isOwner && !isAdmin && (status === "deleted" || status === "expired" || status === "sold" || status === "closed")) {
     return res.status(404).json({ error: "Not found" });
   }
 
@@ -1712,7 +1650,7 @@ AND l.listing_type = 1
   const canView = isOwner || isPublic || (isAdmin && status === "pending");
   if (!canView) return res.status(404).json({ error: "Not found" });
   // Track views for public (non-owner) wanted detail views.
-  if (!isOwner && !isAdmin && isPublic && wantedStatus === "open") {
+  if (!isOwner && !isAdmin && isPublic) {
     db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ? AND listing_type = 1`).run(id);
     row = db
       .prepare(
@@ -1779,11 +1717,11 @@ app.post("/api/wanted", requireAuth, (req, res) => {
 INSERT INTO listings(
   id,user_id,listing_type,
   title,description,category,species,sex,water_type,size,shipping_offered,quantity,price_cents,
-  budget_cents,wanted_status,
+  budget_cents,
   location,phone,
-  status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
+  status,expires_at,created_at,updated_at,deleted_at
 )
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 `
     ).run(
       id,
@@ -1800,13 +1738,10 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       qtyDraft,
       0,
       budgetDraft,
-      "open",
       locationDraft,
       phoneDraft,
       "draft",
       expiresAt,
-      "none",
-      null,
       now,
       now,
       null
@@ -1873,11 +1808,11 @@ AND l.listing_type = 1
 INSERT INTO listings(
   id,user_id,listing_type,
   title,description,category,species,sex,water_type,size,shipping_offered,quantity,price_cents,
-  budget_cents,wanted_status,
+  budget_cents,
   location,phone,
-  status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
+  status,expires_at,created_at,updated_at,deleted_at
 )
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 `
   ).run(
     id,
@@ -1894,13 +1829,10 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     qtyFinal,
     0,
     budgetCents,
-    "open",
     location,
     phone,
     status,
     expiresAt,
-    "none",
-    null,
     now,
     now,
     null
@@ -2049,12 +1981,11 @@ AND l.listing_type = 1
   const nextBody = decodeWantedBodyFromDescription(descNext).body;
   ensureDecodedBodyOk(nextBody);
 
-  // Only allow featuring for active, open, unexpired wanted posts.
+  // Only allow featuring for active, unexpired wanted posts.
   if (p.featured !== undefined || p.featuredUntil !== undefined) {
     const life = String(row.status ?? "active") as ListingStatus;
-    const wantedStatus = String(row.wanted_status ?? "open");
-    if (life !== "active" || wantedStatus !== "open") {
-      return res.status(400).json({ error: "Only active, open wanted posts can be featured." });
+    if (life !== "active") {
+      return res.status(400).json({ error: "Only active wanted posts can be featured." });
     }
   }
 
@@ -2075,19 +2006,21 @@ AND l.listing_type = 1
     budget_cents: p.budgetCents,
   };
 
-  // Featuring support (same columns as regular listings).
+  // Featuring support (time-bound; no legacy "featured forever" support).
   if (p.featuredUntil !== undefined) {
-    map.featured_until = p.featuredUntil;
-    // If client sets/clears featured_until but doesn't explicitly set featured, keep them in sync.
-    if (p.featured === undefined) {
-      map.featured = p.featuredUntil === null ? 0 : 1;
-    }
-  }
-  if (p.featured !== undefined) {
-    map.featured = p.featured ? 1 : 0;
-    // Turning off featuring clears the timer unless explicitly provided.
-    if (!p.featured && p.featuredUntil === undefined) {
+    if (p.featuredUntil === null) {
+      map.featured = 0;
       map.featured_until = null;
+    } else {
+      map.featured = 1;
+      map.featured_until = p.featuredUntil;
+    }
+  } else if (p.featured !== undefined) {
+    if (!p.featured) {
+      map.featured = 0;
+      map.featured_until = null;
+    } else {
+      return res.status(400).json({ error: "featuredUntil is required when enabling featuring." });
     }
   }
 
@@ -2189,8 +2122,13 @@ app.post("/api/wanted/:id/close", requireAuth, (req, res) => {
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
-  const now = nowIso();
-  db.prepare(`UPDATE listings SET wanted_status='closed',status='paused',updated_at=? WHERE id = ? AND listing_type = 1`).run(now, id);
+  const status = String(row.status ?? "active") as ListingStatus;
+  if (status === "deleted") return res.status(400).json({ error: "Wanted post is deleted" });
+  if (status === "expired") return res.status(400).json({ error: "Wanted post is expired" });
+  if (status === "sold" || status === "closed") return res.status(400).json({ error: "Wanted post is already resolved" });
+  if (status !== "active" && status !== "paused") return res.status(400).json({ error: "Only active or paused wanted posts can be closed" });
+
+  setWantedStatus(id, "closed");
 
   const updated = db
     .prepare(
@@ -2212,9 +2150,7 @@ app.post("/api/wanted/:id/reopen", requireAuth, (req, res) => {
   const row = db.prepare(`SELECT * FROM listings WHERE id = ? AND listing_type = 1`).get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
-
-  const now = nowIso();
-  db.prepare(`UPDATE listings SET wanted_status='open',status='active',updated_at=? WHERE id = ? AND listing_type = 1`).run(now, id);
+  return res.status(400).json({ error: "Closed wanted posts cannot be reopened. Create a new listing instead." });
 
   const updated = db
     .prepare(
@@ -2233,21 +2169,18 @@ AND l.listing_type = 1
 
 app.post("/api/wanted/:id/pause", requireAuth, (req, res) => {
   runAutoExpirePass();
-  ensureWantedExpiresAtPass();
   const id = req.params.id;
   const row = db.prepare(`SELECT * FROM listings WHERE id = ? AND listing_type = 1`).get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
   const status = String(row.status ?? "active") as ListingStatus;
-  const wantedStatus = String(row.wanted_status ?? "open");
   if (status === "deleted") return res.status(400).json({ error: "Wanted post is deleted" });
   if (status === "expired") return res.status(400).json({ error: "Wanted post is expired" });
-  if (wantedStatus !== "open") return res.status(400).json({ error: "Only open wanted posts can be paused" });
+  if (status === "sold" || status === "closed") return res.status(400).json({ error: "Resolved wanted posts cannot be paused" });
   if (status !== "active") return res.status(400).json({ error: "Only active wanted posts can be paused" });
 
-  const now = nowIso();
-  db.prepare(`UPDATE listings SET status='paused',updated_at=? WHERE id = ? AND listing_type = 1`).run(now, id);
+  setWantedStatus(id, "paused");
 
   const updated = db
     .prepare(
@@ -2265,21 +2198,18 @@ AND l.listing_type = 1
 
 app.post("/api/wanted/:id/resume", requireAuth, (req, res) => {
   runAutoExpirePass();
-  ensureWantedExpiresAtPass();
   const id = req.params.id;
   const row = db.prepare(`SELECT * FROM listings WHERE id = ? AND listing_type = 1`).get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
   const status = String(row.status ?? "active") as ListingStatus;
-  const wantedStatus = String(row.wanted_status ?? "open");
   if (status === "deleted") return res.status(400).json({ error: "Wanted post is deleted" });
   if (status === "expired") return res.status(400).json({ error: "Wanted post is expired" });
-  if (wantedStatus !== "open") return res.status(400).json({ error: "Only open wanted posts can be resumed" });
+  if (status === "sold" || status === "closed") return res.status(400).json({ error: "Resolved wanted posts cannot be resumed" });
   if (status !== "paused") return res.status(400).json({ error: "Only paused wanted posts can be resumed" });
 
-  const now = nowIso();
-  db.prepare(`UPDATE listings SET status='active',updated_at=? WHERE id = ? AND listing_type = 1`).run(now, id);
+  setWantedStatus(id, "active");
 
   const updated = db
     .prepare(
@@ -2297,22 +2227,20 @@ AND l.listing_type = 1
 
 app.post("/api/wanted/:id/relist", requireAuth, (req, res) => {
   runAutoExpirePass();
-  ensureWantedExpiresAtPass();
   const id = req.params.id;
   const row = db.prepare(`SELECT * FROM listings WHERE id = ? AND listing_type = 1`).get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
   const status = String(row.status ?? "active") as ListingStatus;
-  const wantedStatus = String(row.wanted_status ?? "open");
   if (status === "deleted") return res.status(400).json({ error: "Wanted post is deleted" });
-  if (status === "expired") return res.status(400).json({ error: "Wanted post is expired" });
-  if (wantedStatus !== "closed") return res.status(400).json({ error: "Only closed wanted posts can be relisted" });
+  if (status !== "expired") return res.status(400).json({ error: "Only expired wanted posts can be relisted" });
 
   const now = nowIso();
   const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
   const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
-  db.prepare(`UPDATE listings SET wanted_status='open',status='active',expires_at=?,updated_at=? WHERE id = ? AND listing_type = 1`).run(expiresAt, now, id);
+  db.prepare(`UPDATE listings SET expires_at=?,updated_at=? WHERE id = ? AND listing_type = 1`).run(expiresAt, now, id);
+  setWantedStatus(id, "active");
 
   const updated = db
     .prepare(
@@ -2335,7 +2263,8 @@ app.delete("/api/wanted/:id", requireAuth, (req, res) => {
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
   db.prepare(`DELETE FROM listing_images WHERE listing_id = ?`).run(id);
-  db.prepare(`DELETE FROM listings WHERE id = ? AND listing_type = 1`).run(id);
+  const now = nowIso();
+  db.prepare(`UPDATE listings SET status='deleted',deleted_at=?,updated_at=? WHERE id = ? AND listing_type = 1`).run(now, now, id);
   return res.json({ ok: true });
 });
 
@@ -2350,14 +2279,38 @@ function loadOwnedListing(req: express.Request, res: express.Response) {
   return row as ListingRow & any;
 }
 
-function setLifecycle(id: string, status: ListingStatus) {
+function setSaleStatus(id: string, status: ListingStatus) {
   const now = nowIso();
-  db.prepare(`UPDATE listings SET status=?,updated_at=? WHERE id=? AND listing_type = 0`).run(status, now, id);
+  const isResolved = status === "sold" || status === "closed";
+  const clearFeatured = isResolved ? 1 : 0;
+  db.prepare(
+    `
+UPDATE listings
+SET status = ?,
+    featured = CASE WHEN ? = 1 THEN 0 ELSE featured END,
+    featured_until = CASE WHEN ? = 1 THEN NULL ELSE featured_until END,
+    updated_at = ?
+WHERE id = ?
+AND listing_type = 0
+`
+  ).run(status, clearFeatured, clearFeatured, now, id);
 }
 
-function setResolution(id: string, resolution: ListingResolution) {
+function setWantedStatus(id: string, status: ListingStatus) {
   const now = nowIso();
-  db.prepare(`UPDATE listings SET resolution=?,resolved_at=?,updated_at=? WHERE id=? AND listing_type = 0`).run(resolution, now, now, id);
+  const isResolved = status === "sold" || status === "closed";
+  const clearFeatured = isResolved ? 1 : 0;
+  db.prepare(
+    `
+UPDATE listings
+SET status = ?,
+    featured = CASE WHEN ? = 1 THEN 0 ELSE featured END,
+    featured_until = CASE WHEN ? = 1 THEN NULL ELSE featured_until END,
+    updated_at = ?
+WHERE id = ?
+AND listing_type = 1
+`
+  ).run(status, clearFeatured, clearFeatured, now, id);
 }
 
 app.post("/api/listings/:id/pause", requireAuth, (req, res) => {
@@ -2366,15 +2319,14 @@ app.post("/api/listings/:id/pause", requireAuth, (req, res) => {
   if (!row) return;
 
   const status = String(row.status ?? "active") as ListingStatus;
-  const resolution = String(row.resolution ?? "none") as ListingResolution;
 
   if (status === "deleted") return res.status(400).json({ error: "Listing is deleted" });
   if (status === "expired") return res.status(400).json({ error: "Listing is expired" });
+  if (status === "sold" || status === "closed") return res.status(400).json({ error: "Resolved listings cannot be paused" });
   if (status === "paused") return res.json(mapListing(req, row));
-  if (status === "draft") return res.status(400).json({ error: "Draft listings must be published first" });
-  if (resolution !== "none") return res.status(400).json({ error: "Resolved listings cannot be paused" });
+  if (status !== "active") return res.status(400).json({ error: "Only active listings can be paused" });
 
-  setLifecycle(row.id, "paused");
+  setSaleStatus(row.id, "paused");
   const updated = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(row.id) as (ListingRow & any) | undefined;
   return res.json(mapListing(req, updated!));
 });
@@ -2385,14 +2337,13 @@ app.post("/api/listings/:id/resume", requireAuth, (req, res) => {
   if (!row) return;
 
   const status = String(row.status ?? "active") as ListingStatus;
-  const resolution = String(row.resolution ?? "none") as ListingResolution;
 
   if (status === "deleted") return res.status(400).json({ error: "Listing is deleted" });
   if (status === "expired") return res.status(400).json({ error: "Listing is expired" });
-  if (resolution !== "none") return res.status(400).json({ error: "Resolved listings cannot be resumed" });
+  if (status === "sold" || status === "closed") return res.status(400).json({ error: "Resolved listings cannot be resumed" });
   if (status !== "paused") return res.status(400).json({ error: "Only paused listings can be resumed" });
 
-  setLifecycle(row.id, "active");
+  setSaleStatus(row.id, "active");
   const updated = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(row.id) as (ListingRow & any) | undefined;
   return res.json(mapListing(req, updated!));
 });
@@ -2403,13 +2354,29 @@ app.post("/api/listings/:id/mark-sold", requireAuth, (req, res) => {
   if (!row) return;
 
   const status = String(row.status ?? "active") as ListingStatus;
-  const resolution = String(row.resolution ?? "none") as ListingResolution;
 
   if (status === "deleted") return res.status(400).json({ error: "Listing is deleted" });
   if (status === "expired") return res.status(400).json({ error: "Listing is expired" });
-  if (resolution !== "none") return res.status(400).json({ error: "Listing is already resolved" });
+  if (status === "sold" || status === "closed") return res.status(400).json({ error: "Listing is already resolved" });
+  if (status !== "active" && status !== "paused") return res.status(400).json({ error: "Only active or paused listings can be resolved" });
 
-  setResolution(row.id, "sold");
+  setSaleStatus(row.id, "sold");
+  const updated = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(row.id) as (ListingRow & any) | undefined;
+  return res.json(mapListing(req, updated!));
+});
+
+app.post("/api/listings/:id/mark-closed", requireAuth, (req, res) => {
+  runAutoExpirePass();
+  const row = loadOwnedListing(req, res);
+  if (!row) return;
+
+  const status = String(row.status ?? "active") as ListingStatus;
+  if (status === "deleted") return res.status(400).json({ error: "Listing is deleted" });
+  if (status === "expired") return res.status(400).json({ error: "Listing is expired" });
+  if (status === "sold" || status === "closed") return res.status(400).json({ error: "Listing is already resolved" });
+  if (status !== "active" && status !== "paused") return res.status(400).json({ error: "Only active or paused listings can be resolved" });
+
+  setSaleStatus(row.id, "closed");
   const updated = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(row.id) as (ListingRow & any) | undefined;
   return res.json(mapListing(req, updated!));
 });
@@ -2423,10 +2390,9 @@ app.post("/api/listings/:id/relist", requireAuth, (req, res) => {
   if (!assertListingOwner(req, res, row)) return;
 
   const status = String(row.status ?? "active") as ListingStatus;
-  const resolution = String(row.resolution ?? "none") as ListingResolution;
   if (status === "deleted") return res.status(400).json({ error: "Listing is deleted" });
   if (status === "expired") return res.status(400).json({ error: "Listing is expired" });
-  if (resolution !== "sold") return res.status(400).json({ error: "Only sold listings can be relisted" });
+  if (status !== "sold" && status !== "closed") return res.status(400).json({ error: "Only sold/closed listings can be relisted" });
 
   const now = nowIso();
   const newId = crypto.randomUUID();
@@ -2446,15 +2412,15 @@ ORDER BY sort_order ASC`
     .all(id) as Array<{ url: string; thumb_url: string | null; medium_url: string | null; sort_order: number }>;
 
   const tx = db.transaction(() => {
-    // Archive old sold listing (so the new listing replaces it in "My listings")
+    // Archive old resolved listing (so the new listing replaces it in "My listings")
     db.prepare(`UPDATE listings SET status='deleted',deleted_at=?,updated_at=? WHERE id=?`).run(now, now, id);
 
     // Create new paused listing (hidden) for final edits before resuming to active.
     db.prepare(
       `INSERT INTO listings(
 id,user_id,listing_type,featured,title,category,species,sex,price_cents,location,description,phone,
-status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
-) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+status,expires_at,created_at,updated_at,deleted_at
+) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(
       newId,
       Number(row.user_id),
@@ -2470,8 +2436,6 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
       phone,
       "paused",
       expiresAt,
-      "none",
-      null,
       now,
       now,
       null
@@ -2529,7 +2493,6 @@ ORDER BY sort_order ASC`
 function mapListing(req: express.Request, row: ListingRow & any) {
   const images = getImagesForListing(req, row.id);
   const status = String(row.status ?? "active") as ListingStatus;
-  const resolution = String(row.resolution ?? "none") as ListingResolution;
   const sellerUsername = (() => {
     try {
       const uid = (row as any).user_id;
@@ -2566,7 +2529,7 @@ function mapListing(req: express.Request, row: ListingRow & any) {
 
   return {
     id: row.id,
-    featured: Boolean(Number((row as any).featured ?? 0)),
+    featured: (row as any).featured_until != null,
     featuredUntil: (row as any).featured_until ?? null,
     views: Number((row as any).views ?? 0),
     sellerUsername,
@@ -2585,11 +2548,9 @@ function mapListing(req: express.Request, row: ListingRow & any) {
     phone: String((row as any).phone ?? ""),
     images,
     status,
-    resolution,
     expiresAt: row.expires_at ?? null,
-    resolvedAt: row.resolved_at ?? null,
     createdAt: row.created_at,
-    updatedAt: row.updated_at ?? row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 

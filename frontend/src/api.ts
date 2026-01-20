@@ -1,8 +1,7 @@
 // Single source of truth for dropdown options is the backend endpoint:
 // GET /api/meta/options
 export type Category = string;
-export type ListingStatus = "draft" | "pending" | "active" | "paused" | "expired" | "deleted";
-export type ListingResolution = "none" | "sold";
+export type ListingStatus = "draft" | "pending" | "active" | "paused" | "sold" | "closed" | "expired" | "deleted";
 export type ListingSex = string;
 export type WaterType = string;
 
@@ -33,15 +32,12 @@ export type Listing = {
   phone: string;
   images: ImageAsset[];
   status: ListingStatus;
-  resolution: ListingResolution;
   expiresAt: string | null;
-  resolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
 export type SortMode = "newest" | "price_asc" | "price_desc" | "budget_asc" | "budget_desc";
-export type WantedStatus = "open" | "closed";
 
 export type WantedPost = {
   id: string;
@@ -62,8 +58,7 @@ export type WantedPost = {
   budgetCents: number | null;
   location: string;
   phone: string;
-  status: WantedStatus;
-  lifecycleStatus?: ListingStatus;
+  status: ListingStatus;
   expiresAt?: string | null;
   description: string;
   images: ImageAsset[];
@@ -182,13 +177,9 @@ export function resolveImageUrl(u: string | null | undefined) {
   return s;
 }
 
-export function resolveAssets(images: Array<string | ImageAsset> | null | undefined): ImageAsset[] {
+export function resolveAssets(images: ImageAsset[] | null | undefined): ImageAsset[] {
   const arr = images ?? [];
   return arr.map((x) => {
-    if (typeof x === "string") {
-      const ru = resolveImageUrl(x) ?? x;
-      return { fullUrl: ru, thumbUrl: ru, medUrl: ru };
-    }
     const full = resolveImageUrl(x.fullUrl) ?? x.fullUrl;
     const thumb = resolveImageUrl(x.thumbUrl) ?? x.thumbUrl;
     const med = resolveImageUrl(x.medUrl) ?? x.medUrl;
@@ -203,7 +194,6 @@ export type AdminApprovalItem = {
   title: string;
   category: string;
   location: string;
-  wantedStatus: string | null;
   createdAt: string;
   updatedAt: string;
   user: { id: number; username: string; email: string };
@@ -317,10 +307,11 @@ export async function fetchMyListings(params?: { limit?: number; offset?: number
   return apiFetch<{ items: Listing[]; total: number; limit: number; offset: number }>(`/api/my/listings${suffix}`);
 }
 
-export async function fetchMyWanted(params?: { limit?: number; offset?: number }) {
+export async function fetchMyWanted(params?: { limit?: number; offset?: number; includeDeleted?: boolean }) {
   const qs = new URLSearchParams();
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
   if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+  if (params?.includeDeleted) qs.set("includeDeleted", "1");
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return apiFetch<{ items: WantedPost[]; total: number; limit: number; offset: number }>(`/api/my/wanted${suffix}`);
 }
@@ -376,7 +367,6 @@ export async function fetchWanted(params?: {
   waterType?: WaterType;
   sex?: ListingSex;
   size?: string;
-  status?: WantedStatus;
   minBudgetCents?: number;
   maxBudgetCents?: number;
   sort?: SortMode;
@@ -391,9 +381,8 @@ export async function fetchWanted(params?: {
   if (params?.waterType) qs.set("waterType", params.waterType);
   if (params?.sex) qs.set("sex", params.sex);
   if (params?.size) qs.set("size", params.size);
-  if (params?.status) qs.set("status", params.status);
-  if (params?.minBudgetCents !== undefined) qs.set("min", String(params.minBudgetCents));
-  if (params?.maxBudgetCents !== undefined) qs.set("max", String(params.maxBudgetCents));
+  if (params?.minBudgetCents !== undefined) qs.set("minBudgetCents", String(params.minBudgetCents));
+  if (params?.maxBudgetCents !== undefined) qs.set("maxBudgetCents", String(params.maxBudgetCents));
   if (params?.sort) qs.set("sort", params.sort);
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
   if (params?.offset !== undefined) qs.set("offset", String(params.offset));
@@ -417,7 +406,7 @@ export async function createWantedPost(input: {
   location: string;
   description: string;
   phone: string;
-  images?: Array<string | ImageAsset>;
+  images?: ImageAsset[];
   status?: "draft" | "active";
 }) {
   return apiFetch<WantedPost>(`/api/wanted`, {
@@ -441,7 +430,7 @@ export async function updateWantedPost(
     location?: string;
     description?: string;
     phone?: string;
-    images?: Array<string | ImageAsset>;
+    images?: ImageAsset[];
     featured?: boolean;
     featuredUntil?: number | null;
   }
@@ -514,7 +503,7 @@ export async function createListing(input: {
   location: string;
   description: string;
   phone: string;
-  images?: Array<string | ImageAsset>;
+  images?: ImageAsset[];
   status?: "draft" | "active";
 }) {
   const body = JSON.stringify(input);
@@ -540,7 +529,7 @@ export async function updateListing(
     location?: string;
     description?: string;
     phone?: string;
-    images?: Array<string | ImageAsset>;
+    images?: ImageAsset[];
     featured?: boolean;
     featuredUntil?: number | null;
   }
@@ -577,7 +566,7 @@ export async function deleteListing(id: string) {
   });
 }
 
-async function postAction(id: string, action: "pause" | "resume" | "mark-sold") {
+async function postAction(id: string, action: "pause" | "resume" | "mark-sold" | "mark-closed") {
   return apiFetch<Listing>(`/api/listings/${encodeURIComponent(id)}/${action}`, {
     method: "POST",
   });
@@ -593,6 +582,10 @@ export function resumeListing(id: string) {
 
 export function markSold(id: string) {
   return postAction(id, "mark-sold");
+}
+
+export function markClosed(id: string) {
+  return postAction(id, "mark-closed");
 }
 
 export async function uploadImage(file: File): Promise<ImageAsset> {

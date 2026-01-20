@@ -82,9 +82,9 @@ function cap1(s: string) {
 }
 
 function statusLabel(l: Listing) {
-  // If sold, show Sold (not Active).
-  if (l.resolution === "sold") return "Sold";
-  return cap1(l.status);
+  if (l.status === "sold") return "Sold";
+  if (l.status === "closed") return "Closed";
+  return cap1(String(l.status));
 }
 
 function parseMs(iso: string | null | undefined) {
@@ -98,7 +98,6 @@ type SortDir = "asc" | "desc";
 
 function statusRank(l: Listing) {
   // Custom priority (lower = higher). Sold treated as its own state.
-  if (l.resolution === "sold") return 5;
   switch (l.status) {
     case "active":
       return 0;
@@ -110,30 +109,55 @@ function statusRank(l: Listing) {
       return 3;
     case "expired":
       return 4;
-    case "deleted":
+    case "sold":
+      return 5;
+    case "closed":
       return 6;
-    default:
+    case "deleted":
       return 7;
+    default:
+      return 8;
   }
 }
 
+function statusRankWanted(w: WantedPost) {
+  switch (w.status) {
+    case "active":
+      return 0;
+    case "pending":
+      return 1;
+    case "paused":
+      return 2;
+    case "draft":
+      return 3;
+    case "expired":
+      return 4;
+    case "closed":
+      return 5;
+    case "sold":
+      return 6;
+    case "deleted":
+      return 7;
+    default:
+      return 8;
+  }
+}
 function StatusText({ l }: { l: Listing }) {
   const s = l.status;
-  const r = l.resolution;
 
   const cls =
-    r !== "none"
-      ? "text-slate-800"
-      : s === "active"
-        ? "text-emerald-700"
-        : s === "pending"
-          ? "text-amber-700"
-          : s === "paused"
-            ? "text-violet-700"
-            : s === "expired"
-              ? "text-slate-600"
-              : s === "draft"
-                ? "text-sky-700"
+    s === "active"
+      ? "text-emerald-700"
+      : s === "pending"
+        ? "text-amber-700"
+        : s === "paused"
+          ? "text-violet-700"
+          : s === "expired"
+            ? "text-slate-600"
+            : s === "draft"
+              ? "text-sky-700"
+              : s === "sold" || s === "closed"
+                ? "text-slate-800"
                 : s === "deleted"
                   ? "text-red-700"
                   : "text-slate-700";
@@ -145,37 +169,26 @@ function StatusText({ l }: { l: Listing }) {
 }
 
 function WantedStatusText({ w }: { w: WantedPost }) {
-  const life = w.lifecycleStatus;
   const s = w.status;
   const cls =
-    life === "expired"
-      ? "text-slate-600"
-      : s === "closed"
-        ? "text-slate-700"
-        : life === "draft"
-          ? "text-sky-700"
-          : life === "paused"
-            ? "text-violet-700"
-            : life === "pending"
-              ? "text-amber-700"
-              : s === "open"
-                ? "text-emerald-700"
-                : "text-slate-700";
+    s === "active"
+      ? "text-emerald-700"
+      : s === "pending"
+        ? "text-amber-700"
+        : s === "paused"
+          ? "text-violet-700"
+          : s === "draft"
+            ? "text-sky-700"
+            : s === "expired"
+              ? "text-slate-600"
+              : s === "sold" || s === "closed"
+                ? "text-slate-800"
+                : s === "deleted"
+                  ? "text-red-700"
+                  : "text-slate-700";
   return (
     <div className={`text-sm font-semibold ${cls}`}>
-      <div>
-        {life === "expired"
-          ? "Expired"
-          : s === "closed"
-            ? "Closed"
-            : life === "draft"
-              ? "Draft"
-              : life === "paused"
-                ? "Paused"
-                : life === "pending"
-                  ? "Pending"
-                  : "Active"}
-      </div>
+      <div>{s === "sold" ? "Sold" : s === "closed" ? "Closed" : cap1(String(s))}</div>
     </div>
   );
 }
@@ -275,7 +288,7 @@ function sortMixedRows(rows: MixedRow[], sortKey: SortKey, sortDir: SortDir, now
 
   function getStatusRankMixed(r: MixedRow) {
     if (r.kind === "sale") return statusRank(r.sale!);
-    return r.wanted?.status === "open" ? 0 : 2;
+    return r.wanted ? statusRankWanted(r.wanted) : 9;
   }
 
   function cmpRow(a: MixedRow, b: MixedRow) {
@@ -390,7 +403,7 @@ export default function MyListingsPage() {
           const res = await fetchMyWanted({ limit: 200, offset: 0 });
           if (!cancelled) {
             // Wanted tab excludes drafts (drafts appear only in All + Drafts tabs)
-            const nextWanted = (res.items ?? []).filter((w) => w.lifecycleStatus !== "draft");
+            const nextWanted = (res.items ?? []).filter((w) => w.status !== "draft");
             setWantedItems(nextWanted);
             // Compute initial ordering on load only; do NOT auto-reorder after local row updates.
             const rows = nextWanted.map((w, idx) => ({ kind: "wanted" as const, key: `wanted:${w.id}`, idx: 10_000 + idx, wanted: w }));
@@ -412,7 +425,7 @@ export default function MyListingsPage() {
           ]);
           if (!cancelled) {
             const nextItems = (saleRes.items ?? []).filter((l) => l.status === "draft");
-            const nextWanted = (wantedRes.items ?? []).filter((w) => w.lifecycleStatus === "draft");
+            const nextWanted = (wantedRes.items ?? []).filter((w) => w.status === "draft");
             setItems(nextItems);
             setWantedItems(nextWanted);
             const rows: MixedRow[] = [
@@ -466,23 +479,11 @@ export default function MyListingsPage() {
   }, []);
 
   function renderFeaturedText(l: Listing) {
-    return renderFeaturedTextAny(l.featured, l.featuredUntil ?? null);
+    return renderFeaturedTextAny(l.featuredUntil ?? null);
   }
 
-  function renderFeaturedTextAny(featured: boolean | undefined, until: number | null) {
-    // We show this line if there is an active/expired featuring timer, or if the legacy `featured` flag is set.
-    const shouldShow = Boolean(featured) || until !== null;
-    if (!shouldShow) return null;
-
-    // Legacy fallback (no timer set)
-    if (until === null) {
-      return (
-        <div className="inline-flex shrink-0 items-center gap-1 text-[11px] font-bold leading-none text-emerald-700">
-          <CircleCheck aria-hidden="true" className="h-4 w-4" />
-          <span>Featured</span>
-        </div>
-      );
-    }
+  function renderFeaturedTextAny(until: number | null) {
+    if (until === null) return null;
 
     const diffMs = until - nowMs;
     const hourMs = 60 * 60 * 1000;
@@ -534,8 +535,7 @@ export default function MyListingsPage() {
   async function onPauseResumeWanted(w: WantedPost) {
     setErr(null);
     try {
-      const life = w.lifecycleStatus ?? "active";
-      const updated = life === "paused" ? await resumeWantedPost(w.id) : await pauseWantedPost(w.id);
+      const updated = w.status === "paused" ? await resumeWantedPost(w.id) : await pauseWantedPost(w.id);
       setWantedItems((prev) => prev.map((x) => (x.id === w.id ? updated : x)));
       setExpandedId(`wanted:${w.id}`);
     } catch (e: any) {
@@ -554,10 +554,6 @@ export default function MyListingsPage() {
     } catch (e: any) {
       setErr(e?.message ?? "Failed to close wanted post");
     }
-  }
-
-  async function onRelistWanted(w: WantedPost) {
-    nav(`/edit/wanted/${encodeURIComponent(w.id)}?relist=1`);
   }
 
   async function onDeleteWanted(id: string) {
@@ -820,12 +816,12 @@ export default function MyListingsPage() {
                     const openHref = l.status === "draft" ? `/post/sale?draft=${encodeURIComponent(l.id)}` : `/listing/sale/${l.id}`;
                     const isDraft = l.status === "draft";
 
-                    const canToggle = l.status !== "expired" && l.status !== "deleted" && l.status !== "draft" && l.resolution === "none";
-                    const canResolve = l.status !== "expired" && l.status !== "deleted" && l.resolution === "none";
+                    const canToggle = l.status === "active" || l.status === "paused";
+                    const canResolve = l.status === "active" || l.status === "paused";
 
                     const toggleTitle = l.status === "paused" ? "Resume" : "Pause";
-                    const canFeature = l.status === "active" && l.resolution === "none";
-                    const isSold = l.resolution === "sold";
+                    const canFeature = l.status === "active";
+                    const isSold = l.status === "sold";
 
                     return (
                       <tbody key={row.key} className="group">
@@ -983,9 +979,8 @@ export default function MyListingsPage() {
                   const w = row.wanted!;
                   const assets = resolveAssets(w.images ?? []);
                   const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
-                  const openHref =
-                    w.lifecycleStatus === "draft" ? `/post/wanted?draft=${encodeURIComponent(w.id)}` : `/listing/wanted/${w.id}`;
-                  const isDraft = w.lifecycleStatus === "draft";
+                  const openHref = w.status === "draft" ? `/post/wanted?draft=${encodeURIComponent(w.id)}` : `/listing/wanted/${w.id}`;
+                  const isDraft = w.status === "draft";
 
                   return (
                     <tbody key={row.key} className="group">
@@ -1020,7 +1015,7 @@ export default function MyListingsPage() {
                                 </span>
                                 <span className="min-w-0 truncate">{String(w.species ?? "").trim() || ""}</span>
                               </div>
-                              <div className="mt-1">{renderFeaturedTextAny(Boolean(w.featured), w.featuredUntil ?? null)}</div>
+                              <div className="mt-1">{renderFeaturedTextAny(w.featuredUntil ?? null)}</div>
                             </div>
                           </div>
                         </td>
@@ -1075,11 +1070,11 @@ export default function MyListingsPage() {
                               ) : (
                                 <>
                                   {(() => {
-                                    const canFeature = w.lifecycleStatus === "active" && w.status === "open";
+                                    const canFeature = w.status === "active";
                                     return (
                                       <ActionButton
                                         label={w.featured ? "Manage featuring" : "Feature this listing"}
-                                        title={!canFeature ? "Only active, open wanted posts can be featured." : w.featured ? "Manage featuring" : "Feature this listing"}
+                                        title={!canFeature ? "Only active wanted posts can be featured." : w.featured ? "Manage featuring" : "Feature this listing"}
                                         variant="feature"
                                         disabled={!canFeature}
                                         onClick={() => nav(`/feature/${encodeURIComponent(w.id)}`)}
@@ -1088,34 +1083,21 @@ export default function MyListingsPage() {
                                     );
                                   })()}
                                   <ActionLink to={`/edit/wanted/${w.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
-                                  {w.status === "open" ? (
-                                    <>
-                                      <ActionButton
-                                        label={w.lifecycleStatus === "paused" ? "Resume" : "Pause"}
-                                        title={w.lifecycleStatus === "paused" ? "Resume" : "Pause"}
-                                        disabled={w.lifecycleStatus !== "active" && w.lifecycleStatus !== "paused"}
-                                        onClick={() => onPauseResumeWanted(w)}
-                                        icon={w.lifecycleStatus === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
-                                      />
-                                      <ActionButton
-                                        label="Mark closed"
-                                        title="Mark closed"
-                                        variant="primary"
-                                        disabled={w.lifecycleStatus !== "active"}
-                                        onClick={() => onCloseWanted(w)}
-                                        icon={<Check aria-hidden="true" className="h-4 w-4" />}
-                                      />
-                                    </>
-                                  ) : (
-                                    <ActionButton
-                                      label="Relist"
-                                      title="Relist"
-                                      variant="primary"
-                                      disabled={w.lifecycleStatus === "expired" || w.lifecycleStatus === "deleted"}
-                                      onClick={() => onRelistWanted(w)}
-                                      icon={<RotateCcw aria-hidden="true" className="h-4 w-4" />}
-                                    />
-                                  )}
+                                  <ActionButton
+                                    label={w.status === "paused" ? "Resume" : "Pause"}
+                                    title={w.status === "paused" ? "Resume" : "Pause"}
+                                    disabled={w.status !== "active" && w.status !== "paused"}
+                                    onClick={() => onPauseResumeWanted(w)}
+                                    icon={w.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
+                                  />
+                                  <ActionButton
+                                    label="Mark as Closed"
+                                    title="Mark as Closed"
+                                    variant="primary"
+                                    disabled={w.status !== "active" && w.status !== "paused"}
+                                    onClick={() => onCloseWanted(w)}
+                                    icon={<Check aria-hidden="true" className="h-4 w-4" />}
+                                  />
                                 </>
                               )}
                               <ActionButton

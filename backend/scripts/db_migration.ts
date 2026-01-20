@@ -124,6 +124,35 @@ function stripWaterTypeLine(desc: string): string {
   return without.replace(/\n{3,}/g, "\n\n").trim();
 }
 
+const WANTED_START = "[[FC_WANTED_DETAILS]]";
+const WANTED_END = "[[/FC_WANTED_DETAILS]]";
+
+function hasWantedDetailsPrefix(desc: string): boolean {
+  const raw = String(desc ?? "");
+  const s = raw.indexOf(WANTED_START);
+  const e = raw.indexOf(WANTED_END);
+  return s !== -1 && e !== -1 && e > s;
+}
+
+function buildWantedDetailsPrefix(): string {
+  // Keep in sync with frontend `buildWantedDetailsPrefix`:
+  // - two blank lines between prefix and body
+  return [WANTED_START, `priceType=each`, WANTED_END, "", ""].join("\n");
+}
+
+function encodeWantedDetailsIntoDescription(body: string): string {
+  const prefix = buildWantedDetailsPrefix();
+  const cleanedBody = String(body ?? "").trim();
+  return `${prefix}${cleanedBody ? cleanedBody : ""}`.trim();
+}
+
+function addDaysIso(iso: string, days: number) {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return null;
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString();
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -456,15 +485,6 @@ AND contact IS NOT NULL;
     migrations.push("listings.budget_cents already exists");
   }
 
-  if (!hasColumn(db, "listings", "wanted_status")) {
-    db.exec(`ALTER TABLE listings ADD COLUMN wanted_status TEXT NOT NULL DEFAULT 'open';`);
-    migrations.push("Added listings.wanted_status (wanted)");
-  } else {
-    migrations.push("listings.wanted_status already exists");
-  }
-
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type_wanted_status_created_at ON listings(listing_type, wanted_status, created_at);`);
-
   // Remove legacy wanted_posts table (it is expected to be empty).
   if (hasTable(db, "wanted_posts")) {
     db.exec(`DROP TABLE IF EXISTS wanted_posts;`);
@@ -478,16 +498,19 @@ AND contact IS NOT NULL;
   ensureReportsTable(db);
   ensureAdminAuditTable(db);
 
-  // Drop legacy columns on listings (owner_token, image_url, and older wanted budget columns) by rebuilding the table.
+  // Drop legacy columns on listings (owner_token, image_url, older wanted budget columns, and now removed status columns) by rebuilding the table.
   const hasOwnerToken = hasColumn(db, "listings", "owner_token");
   const hasImageUrl = hasColumn(db, "listings", "image_url");
   const hasBudgetMin = hasColumn(db, "listings", "budget_min_cents");
   const hasBudgetMax = hasColumn(db, "listings", "budget_max_cents");
+  const hasResolution = hasColumn(db, "listings", "resolution");
+  const hasResolvedAt = hasColumn(db, "listings", "resolved_at");
+  const hasWantedStatus = hasColumn(db, "listings", "wanted_status");
 
   const hasAgeStill = hasColumn(db, "listings", "age");
   const hasSizeNow = hasColumn(db, "listings", "size");
   const needsListingsRebuild =
-    hasOwnerToken || hasImageUrl || hasBudgetMin || hasBudgetMax || (hasAgeStill && hasSizeNow);
+    hasOwnerToken || hasImageUrl || hasBudgetMin || hasBudgetMax || (hasAgeStill && hasSizeNow) || hasResolution || hasResolvedAt || hasWantedStatus;
 
   if (needsListingsRebuild) {
     const budgetExpr = hasBudgetMax && hasBudgetMin
@@ -527,6 +550,30 @@ VALUES(?,?,?,?,?,?)`
       if (inserted) migrations.push(`Backfilled listing_images from legacy listings.image_url for ${inserted} row(s)`);
     }
 
+    // Migrate legacy status values into the new unified `status` column.
+    // Sale listings: resolution='sold' -> status='sold'
+    // Wanted listings: wanted_status='closed' -> status='closed'
+    if (hasResolution) {
+      db.exec(`
+UPDATE listings
+SET status = 'sold'
+WHERE listing_type = 0
+AND resolution = 'sold'
+AND status NOT IN ('sold', 'closed', 'deleted');
+`);
+      migrations.push("Migrated legacy listings.resolution='sold' to status='sold'");
+    }
+    if (hasWantedStatus) {
+      db.exec(`
+UPDATE listings
+SET status = 'closed'
+WHERE listing_type = 1
+AND wanted_status = 'closed'
+AND status NOT IN ('sold', 'closed', 'deleted');
+`);
+      migrations.push("Migrated legacy listings.wanted_status='closed' to status='closed'");
+    }
+
     db.exec(`PRAGMA foreign_keys = OFF;`);
     const tx = db.transaction(() => {
       const sizeExpr = hasAgeStill ? "COALESCE(NULLIF(trim(size), ''), COALESCE(age, ''))" : "COALESCE(size, '')";
@@ -548,14 +595,11 @@ CREATE TABLE IF NOT EXISTS listings_new(
   quantity INTEGER NOT NULL DEFAULT 1,
   price_cents INTEGER NOT NULL,
   budget_cents INTEGER,
-  wanted_status TEXT NOT NULL DEFAULT 'open',
   location TEXT NOT NULL,
   description TEXT NOT NULL,
   phone TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'active',
   expires_at TEXT,
-  resolution TEXT NOT NULL DEFAULT 'none',
-  resolved_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   deleted_at TEXT,
@@ -563,15 +607,15 @@ CREATE TABLE IF NOT EXISTS listings_new(
 );
 `);
 
-      // Copy over all non-legacy columns. (Any legacy columns like owner_token/image_url are dropped.)
+      // Copy over all non-legacy columns. Legacy columns (owner_token, image_url, budget_min/max, age, resolution, resolved_at, wanted_status) are dropped.
       db.exec(`
 INSERT INTO listings_new(
   id,user_id,listing_type,
   featured,featured_until,views,
   title,category,species,sex,water_type,size,shipping_offered,quantity,price_cents,
-  budget_cents,wanted_status,
+  budget_cents,
   location,description,phone,
-  status,expires_at,resolution,resolved_at,
+  status,expires_at,
   created_at,updated_at,deleted_at
 )
 SELECT
@@ -591,14 +635,11 @@ SELECT
   COALESCE(quantity, 1),
   COALESCE(price_cents, 0),
   CASE WHEN COALESCE(listing_type, 0) = 1 THEN ${budgetExpr} ELSE NULL END,
-  COALESCE(wanted_status, 'open'),
   location,
   description,
   COALESCE(phone, ''),
   COALESCE(status, 'active'),
   expires_at,
-  COALESCE(resolution, 'none'),
-  resolved_at,
   created_at,
   COALESCE(updated_at, created_at),
   deleted_at
@@ -608,7 +649,7 @@ FROM listings;
       db.exec(`DROP TABLE listings;`);
       db.exec(`ALTER TABLE listings_new RENAME TO listings;`);
 
-      // Recreate indexes (minus legacy owner_token index).
+      // Recreate indexes (minus legacy owner_token/resolution/wanted_status indexes).
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_created_at ON listings(created_at);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_updated_at ON listings(updated_at);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_species ON listings(species);`);
@@ -619,21 +660,88 @@ FROM listings;
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_featured_until ON listings(featured_until);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_views ON listings(views);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);`);
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_resolution ON listings(resolution);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_expires_at ON listings(expires_at);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type ON listings(listing_type);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type_created_at ON listings(listing_type, created_at);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type_user_id ON listings(listing_type, user_id);`);
-      db.exec(
-        `CREATE INDEX IF NOT EXISTS idx_listings_listing_type_wanted_status_created_at ON listings(listing_type, wanted_status, created_at);`
-      );
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type_status_created_at ON listings(listing_type, status, created_at);`);
     });
 
     tx();
     db.exec(`PRAGMA foreign_keys = ON;`);
-    migrations.push("Rebuilt listings table to remove legacy listings.owner_token/image_url and old wanted budget columns");
+    migrations.push("Rebuilt listings table to remove legacy columns (owner_token, image_url, age, budget_min/max, resolution, resolved_at, wanted_status)");
   } else {
-    migrations.push("listings already has no legacy owner_token/image_url columns");
+    migrations.push("listings already has no legacy columns that require table rebuild");
+  }
+
+  // Ensure listings.expires_at exists (wanted + sale TTL support).
+  if (!hasColumn(db, "listings", "expires_at")) {
+    db.exec(`ALTER TABLE listings ADD COLUMN expires_at TEXT;`);
+    migrations.push("Added listings.expires_at");
+  } else {
+    migrations.push("listings.expires_at already exists");
+  }
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_expires_at ON listings(expires_at);`);
+
+  // Remove legacy "featured forever" rows (featured=1 but no timer).
+  if (hasColumn(db, "listings", "featured") && hasColumn(db, "listings", "featured_until")) {
+    const changed = db
+      .prepare(`UPDATE listings SET featured = 0, featured_until = NULL WHERE featured = 1 AND featured_until IS NULL`)
+      .run().changes;
+    if (changed) migrations.push(`Cleared legacy featured-without-timer for ${changed} row(s)`);
+  }
+
+  // Backfill wanted expires_at for legacy rows (runtime no longer backfills this).
+  if (hasColumn(db, "listings", "listing_type") && hasColumn(db, "listings", "created_at") && hasColumn(db, "listings", "expires_at")) {
+    const ttlDaysRaw = Number(process.env.LISTING_TTL_DAYS ?? "30");
+    const ttlDays = Number.isFinite(ttlDaysRaw) && ttlDaysRaw > 0 ? Math.floor(ttlDaysRaw) : 30;
+    const now = new Date().toISOString();
+
+    const rows = db
+      .prepare(
+        `
+SELECT id, created_at
+FROM listings
+WHERE listing_type = 1
+AND status <> 'deleted'
+AND (expires_at IS NULL OR trim(expires_at) = '')
+`
+      )
+      .all() as Array<{ id: string; created_at: string }>;
+
+    const upd = db.prepare(`UPDATE listings SET expires_at = ?, updated_at = ? WHERE id = ? AND listing_type = 1`);
+    let backfilled = 0;
+    for (const r of rows) {
+      const exp = addDaysIso(String(r.created_at ?? ""), ttlDays);
+      if (!exp) continue;
+      upd.run(exp, now, String(r.id));
+      backfilled++;
+    }
+    if (backfilled) migrations.push(`Backfilled expires_at for ${backfilled} wanted listing(s)`);
+  }
+
+  // Normalize wanted descriptions to always include the details prefix (no deployed back-compat needed).
+  if (hasColumn(db, "listings", "listing_type") && hasColumn(db, "listings", "description")) {
+    const rows = db
+      .prepare(
+        `
+SELECT id, description
+FROM listings
+WHERE listing_type = 1
+AND description IS NOT NULL
+`
+      )
+      .all() as Array<{ id: string; description: string }>;
+
+    const upd = db.prepare(`UPDATE listings SET description = ? WHERE id = ? AND listing_type = 1`);
+    let updated = 0;
+    for (const r of rows) {
+      const desc = String(r.description ?? "");
+      if (hasWantedDetailsPrefix(desc)) continue;
+      upd.run(encodeWantedDetailsIntoDescription(desc), String(r.id));
+      updated++;
+    }
+    if (updated) migrations.push(`Prefixed description details for ${updated} wanted listing(s)`);
   }
 
   if (args.seedFeatured) {
@@ -648,7 +756,6 @@ FROM listings;
 SELECT id
 FROM listings
 WHERE status IN('active','pending')
-AND resolution = 'none'
 AND (deleted_at IS NULL OR deleted_at = '')
 ORDER BY created_at DESC
 LIMIT 6

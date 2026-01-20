@@ -70,10 +70,10 @@ function fmtStatus(l: Listing) {
   if (l.status === "pending") parts.push("Pending (awaiting approval)");
   if (l.status === "active") parts.push("Active (public)");
   if (l.status === "paused") parts.push("Paused (hidden)");
+  if (l.status === "sold") parts.push("Sold (hidden)");
+  if (l.status === "closed") parts.push("Closed (hidden)");
   if (l.status === "expired") parts.push("Expired (hidden)");
   if (l.status === "deleted") parts.push("Deleted");
-
-  if (l.resolution === "sold") parts.push("Marked sold");
 
   return parts.join(" • ");
 }
@@ -483,18 +483,11 @@ function SaleEditForm() {
   );
   const maxDescLen = Math.max(1, 1000 - detailsPrefix.length);
 
-  const canTogglePause =
-    !relistMode &&
-    !!orig &&
-    orig.status !== "draft" &&
-    orig.status !== "expired" &&
-    orig.status !== "deleted" &&
-    orig.resolution === "none";
+  const canTogglePause = !relistMode && !!orig && (orig.status === "active" || orig.status === "paused");
 
   const toggleLabel = orig?.status === "paused" ? "Resume listing" : "Pause listing";
 
-  const canResolve =
-    !relistMode && !!orig && orig.status !== "expired" && orig.status !== "deleted" && orig.resolution === "none";
+  const canResolve = !relistMode && !!orig && (orig.status === "active" || orig.status === "paused");
 
   return (
     <div className="min-h-full">
@@ -1108,7 +1101,7 @@ function WantedEditForm() {
         const decoded = decodeWantedDetailsFromDescription(w.description);
         setPriceType(decoded.details.priceType);
         setCustomPriceText(decoded.details.customPriceText);
-        setDescription(decoded.hadPrefix ? decoded.body : w.description);
+        setDescription(decoded.body);
         setInitialPhotoAssets((w as any).images ?? []);
       } catch (e: any) {
         if (!cancelled) setErr(e?.message ?? "Failed to load wanted post");

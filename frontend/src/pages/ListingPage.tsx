@@ -139,11 +139,11 @@ export default function ListingPage() {
     if (kind === "sale") {
       const d = decoded;
       const raw = (item as Listing).description ?? "";
-      return d?.hadPrefix ? d.body : raw;
+      return d?.body ?? raw;
     }
     const d = wantedDecoded;
     const raw = (item as WantedPost).description ?? "";
-    return d?.hadPrefix ? d.body : String(raw);
+    return d?.body ?? String(raw);
   }, [decoded, wantedDecoded, item, kind]);
 
   const details = decoded?.details ?? { quantity: 1, priceType: "each" as const, customPriceText: "", willingToShip: false };

@@ -5,8 +5,7 @@ import Database from "better-sqlite3";
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "app.db");
 
-export type ListingStatus = "draft" | "pending" | "active" | "paused" | "expired" | "deleted";
-export type ListingResolution = "none" | "sold";
+export type ListingStatus = "draft" | "pending" | "active" | "paused" | "sold" | "closed" | "expired" | "deleted";
 
 export type ListingRow = {
   id: string;
@@ -24,14 +23,11 @@ export type ListingRow = {
   quantity?: number;
   price_cents: number;
   budget_cents?: number | null;
-  wanted_status?: string;
   location: string;
   description: string;
   phone: string;
   status: ListingStatus;
   expires_at: string | null;
-  resolution: ListingResolution;
-  resolved_at: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -194,14 +190,11 @@ CREATE TABLE IF NOT EXISTS listings(
   price_cents INTEGER NOT NULL,
   -- Wanted-only fields (used when listing_type=1)
   budget_cents INTEGER,
-  wanted_status TEXT NOT NULL DEFAULT 'open',
   location TEXT NOT NULL,
   description TEXT NOT NULL,
   phone TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'active',
   expires_at TEXT,
-  resolution TEXT NOT NULL DEFAULT 'none',
-  resolved_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   deleted_at TEXT,
@@ -228,43 +221,12 @@ CREATE INDEX IF NOT EXISTS idx_listings_featured ON listings(featured);
 CREATE INDEX IF NOT EXISTS idx_listings_featured_until ON listings(featured_until);
 CREATE INDEX IF NOT EXISTS idx_listings_views ON listings(views);
 CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);
-CREATE INDEX IF NOT EXISTS idx_listings_resolution ON listings(resolution);
 CREATE INDEX IF NOT EXISTS idx_listings_expires_at ON listings(expires_at);
 CREATE INDEX IF NOT EXISTS idx_listings_listing_type ON listings(listing_type);
 CREATE INDEX IF NOT EXISTS idx_listings_listing_type_created_at ON listings(listing_type, created_at);
 CREATE INDEX IF NOT EXISTS idx_listings_listing_type_user_id ON listings(listing_type, user_id);
-CREATE INDEX IF NOT EXISTS idx_listings_listing_type_wanted_status_created_at ON listings(listing_type, wanted_status, created_at);
 CREATE INDEX IF NOT EXISTS idx_listing_images_listing_id ON listing_images(listing_id);
 `);
-}
-
-function assertUsersSchema(db: Database.Database) {
-  const cols = db.prepare(`PRAGMA table_info(users)`).all() as Array<{ name: string }>;
-  const names = new Set(cols.map((c) => String((c as any).name)));
-  const required = ["is_admin", "is_superadmin"] as const;
-  for (const col of required) {
-    if (!names.has(col)) {
-      throw new Error(
-        `DB schema missing required column '${col}' on table 'users'. ` + `Run: npm --prefix backend run db:migration`
-      );
-    }
-  }
-}
-
-function assertListingsSchema(db: Database.Database) {
-  // We intentionally do NOT auto-migrate in runtime. If the DB file predates a schema change,
-  // fail fast with a clear message so the operator can run the migration script.
-  const cols = db.prepare(`PRAGMA table_info(listings)`).all() as Array<{ name: string }>;
-  const names = new Set(cols.map((c) => String((c as any).name)));
-  const required = ["shipping_offered"] as const;
-  for (const col of required) {
-    if (!names.has(col)) {
-      throw new Error(
-        `DB schema missing required column '${col}' on table 'listings'. ` +
-          `Run: npm --prefix backend run db:migration`
-      );
-    }
-  }
 }
 
 let _db: Database.Database | null = null;
@@ -276,8 +238,6 @@ export function openDb() {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   createSchema(db);
-  assertUsersSchema(db);
-  assertListingsSchema(db);
   _db = db;
   return db;
 }

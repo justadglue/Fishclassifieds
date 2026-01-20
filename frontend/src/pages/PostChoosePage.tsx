@@ -37,7 +37,7 @@ export default function PostChoosePage() {
         const [saleRes, wantedRes] = await Promise.all([fetchMyListings({ limit: 200, offset: 0 }), fetchMyWanted({ limit: 200, offset: 0 })]);
         if (cancelled) return;
         const anySaleDraft = (saleRes.items ?? []).some((l) => l.status === "draft");
-        const anyWantedDraft = (wantedRes.items ?? []).some((w) => w.lifecycleStatus === "draft");
+        const anyWantedDraft = (wantedRes.items ?? []).some((w) => w.status === "draft");
         setHasDrafts(anySaleDraft || anyWantedDraft);
       } catch {
         if (!cancelled) setHasDrafts(false);

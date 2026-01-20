@@ -20,6 +20,7 @@ import { nowIso as nowIsoSecurity } from "./security.js";
 import { BIO_FIELDS_REQUIRED_CATEGORIES, LISTING_CATEGORIES, LISTING_SEXES, OTHER_CATEGORY, WATER_TYPES } from "./listingOptions.js";
 import argon2 from "argon2";
 import adminRoutes from "./admin/adminRoutes.js";
+import { decodeSaleBodyFromDescription, decodeWantedBodyFromDescription } from "./listingDetailsBlock.js";
 
 assertConfig();
 
@@ -240,6 +241,43 @@ const StatusSchema = z.enum(["draft", "pending", "active", "paused", "expired", 
 const ResolutionSchema = z.enum(["none", "sold"]);
 // Public visibility: pending posts are hidden until approved.
 const PUBLIC_LIFECYCLE: ListingStatus[] = ["active"];
+
+const MAX_DESC_BODY_LEN = 1000;
+
+function normalizeInlineText(s: unknown) {
+  return String(s ?? "")
+    .replace(/\r?\n/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasDisallowedControlChars(s: string) {
+  // Allow newlines in long-form description, but block other control chars.
+  return /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(s);
+}
+
+function ensureTitleOk(titleRaw: string) {
+  const t = normalizeInlineText(titleRaw);
+  if (hasDisallowedControlChars(t)) throw new Error("Title contains invalid characters");
+  // Must contain at least one letter/number (avoid titles like '---').
+  if (!/[A-Za-z0-9]/.test(t)) throw new Error("Title must contain at least one letter or number");
+  return t;
+}
+
+function ensureSpeciesOk(speciesRaw: string) {
+  const t = normalizeInlineText(speciesRaw);
+  if (hasDisallowedControlChars(t)) throw new Error("Species contains invalid characters");
+  // Species is optional in some categories; if present, require it to be meaningful.
+  if (t && !/[A-Za-z0-9]/.test(t)) throw new Error("Species must contain at least one letter or number");
+  return t;
+}
+
+function ensureDecodedBodyOk(body: string) {
+  const b = String(body ?? "").trim();
+  if (hasDisallowedControlChars(b)) throw new Error("Description contains invalid characters");
+  if (b.length > MAX_DESC_BODY_LEN) throw new Error(`Description is too long. Max ${MAX_DESC_BODY_LEN} characters.`);
+  return b;
+}
 
 function addDaysIso(isoNow: string, days: number) {
   const d = new Date(isoNow);
@@ -761,6 +799,10 @@ app.post("/api/listings", requireAuth, (req, res) => {
   const requireApproval = forceApprovalForNonAdmins || String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
 
   const { title, category, species, sex, waterType, size, shippingOffered, priceCents, location, description, phone, images } = parsed.data;
+  // Enforce safe inline text and effective body length (details prefix is excluded).
+  const safeTitle = ensureTitleOk(title);
+  const decodedBody = decodeSaleBodyFromDescription(description).body;
+  ensureDecodedBodyOk(decodedBody);
   const requestedStatus = parsed.data.status;
   // Drafts stay draft. Non-admins always go to pending for moderation.
   const status: ListingStatus = requestedStatus === "draft" ? "draft" : requireApproval ? "pending" : "active";
@@ -769,7 +811,7 @@ app.post("/api/listings", requireAuth, (req, res) => {
   const isOther = isOtherCategory(category);
   const bioDisabled = !bioRequired && !isOther;
 
-  const speciesFinal = bioDisabled ? "" : String(species ?? "").trim();
+  const speciesFinal = bioDisabled ? "" : ensureSpeciesOk(species ?? "");
   const sexFinal = bioDisabled ? "Unknown" : String(sex ?? "Unknown");
   const waterTypeFinal = bioDisabled ? null : (waterType ?? null);
   const sizeFinal = bioDisabled ? "" : String(size ?? "").trim();
@@ -793,7 +835,7 @@ status,expires_at,resolution,resolved_at,created_at,updated_at,deleted_at
     user.id,
     0,
     0,
-    title,
+    safeTitle,
     category,
     speciesFinal,
     sexFinal,
@@ -1102,10 +1144,20 @@ app.patch("/api/listings/:id", requireAuth, (req, res) => {
   if (currentStatus === "deleted") return res.status(400).json({ error: "Listing is deleted" });
   if (currentStatus === "expired") return res.status(400).json({ error: "Listing is expired" });
 
+  const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.isSuperadmin));
+  const currentTitle = String(row.title ?? "");
+  const currentSpecies = String(row.species ?? "");
+  const currentBody = decodeSaleBodyFromDescription(String((row as any).description ?? "")).body;
+
+  const titleNext = p.title !== undefined ? ensureTitleOk(p.title) : currentTitle;
+  const descNext = p.description !== undefined ? String(p.description ?? "") : String((row as any).description ?? "");
+  const nextBody = decodeSaleBodyFromDescription(descNext).body;
+  ensureDecodedBodyOk(nextBody);
+
   const sets: string[] = [];
   const params: any[] = [];
   const map: Record<string, any> = {
-    title: p.title,
+    title: p.title !== undefined ? titleNext : undefined,
     category: p.category,
     species: p.species,
     sex: p.sex,
@@ -1124,7 +1176,7 @@ app.patch("/api/listings/:id", requireAuth, (req, res) => {
   const isOther = isOtherCategory(nextCategory);
   const bioDisabled = !bioRequired && !isOther;
 
-  const speciesNext = bioDisabled ? "" : String((p.species ?? row.species) ?? "").trim();
+  const speciesNext = bioDisabled ? "" : ensureSpeciesOk((p.species ?? row.species) ?? "");
   const sexNext = bioDisabled ? "Unknown" : String((p.sex ?? (row as any).sex) ?? "Unknown");
   const waterTypeNext = bioDisabled ? null : (p.waterType !== undefined ? (p.waterType ?? null) : ((row as any).water_type ?? null));
   const sizeNext = bioDisabled ? "" : String(p.size !== undefined ? (p.size ?? "") : ((row as any).size ?? "")).trim();
@@ -1159,6 +1211,29 @@ app.patch("/api/listings/:id", requireAuth, (req, res) => {
     // Turning off featuring clears the timer unless explicitly provided.
     if (!p.featured && p.featuredUntil === undefined) {
       map.featured_until = null;
+    }
+  }
+
+  // Re-approval rule (non-admin): new photo added OR changes to title/description/species -> status=pending.
+  // Deletions/reorders alone do not trigger (only newly-added URLs).
+  if (!isAdmin) {
+    const titleChanged = p.title !== undefined && titleNext !== currentTitle;
+    const descriptionChanged = p.description !== undefined && nextBody !== currentBody;
+    const speciesChanged = !bioDisabled && p.species !== undefined && speciesNext !== currentSpecies;
+
+    let photoAdded = false;
+    if (p.images) {
+      const existing = db
+        .prepare(`SELECT url FROM listing_images WHERE listing_id = ?`)
+        .all(id) as Array<{ url: string }>;
+      const prevSet = new Set(existing.map((r) => String(r.url)));
+      const normalized = normalizeImages(p.images ?? []).slice(0, 6);
+      photoAdded = normalized.some((img) => !prevSet.has(String(img.fullUrl)));
+    }
+
+    const needsReapproval = titleChanged || descriptionChanged || speciesChanged || photoAdded;
+    if (needsReapproval && currentStatus !== "draft") {
+      map.status = "pending";
     }
   }
 
@@ -1435,12 +1510,15 @@ app.post("/api/wanted", requireAuth, (req, res) => {
   const { title, category, location, description, waterType, sex, size, quantity, phone, images } = parsed.data;
   const species = parsed.data.species ? String(parsed.data.species).trim() : "";
   const budgetCents = parsed.data.budgetCents ?? null;
+  const safeTitle = ensureTitleOk(title);
+  const decodedBody = decodeWantedBodyFromDescription(description).body;
+  ensureDecodedBodyOk(decodedBody);
 
   const bioRequired = isBioFieldsRequiredCategory(category);
   const isOther = isOtherCategory(category);
   const bioDisabled = !bioRequired && !isOther;
   const waterTypeFinal = bioDisabled ? null : (waterType ?? null);
-  const speciesFinal = bioDisabled ? "" : species;
+  const speciesFinal = bioDisabled ? "" : ensureSpeciesOk(species);
   const sexFinal = bioDisabled ? "Unknown" : (sex ?? "Unknown");
   const qtyFinal = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity!)) : 1;
   const sizeFinal = bioDisabled ? "" : String(size ?? "").trim();
@@ -1474,7 +1552,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     id,
     user.id,
     1,
-    title,
+    safeTitle,
     description,
     category,
     speciesFinal,
@@ -1533,6 +1611,15 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
 
   const p = parsed.data;
+  const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.isSuperadmin));
+  const currentLife = String(row.status ?? "active") as ListingStatus;
+  const currentTitle = String(row.title ?? "");
+  const currentSpecies = String(row.species ?? "");
+  const currentBody = decodeWantedBodyFromDescription(String(row.description ?? "")).body;
+  const titleNext = p.title !== undefined ? ensureTitleOk(p.title) : currentTitle;
+  const descNext = p.description !== undefined ? String(p.description ?? "") : String(row.description ?? "");
+  const nextBody = decodeWantedBodyFromDescription(descNext).body;
+  ensureDecodedBodyOk(nextBody);
 
   // Only allow featuring for active, open, unexpired wanted posts.
   if (p.featured !== undefined || p.featuredUntil !== undefined) {
@@ -1547,7 +1634,7 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
   const params: any[] = [];
 
   const map: Record<string, any> = {
-    title: p.title,
+    title: p.title !== undefined ? titleNext : undefined,
     category: p.category,
     location: p.location,
     description: p.description,
@@ -1584,7 +1671,7 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
   const waterTypeNext = bioDisabled ? null : (p.waterType !== undefined ? (p.waterType ?? null) : (row.water_type ?? null));
   if (bioRequired && !waterTypeNext) return res.status(400).json({ error: "Water type is required" });
 
-  const speciesNext = bioDisabled ? "" : (p.species !== undefined ? (p.species ? String(p.species).trim() : "") : String(row.species ?? ""));
+  const speciesNext = bioDisabled ? "" : ensureSpeciesOk(p.species !== undefined ? (p.species ?? "") : (row.species ?? ""));
   if (bioRequired && !isOther && !String(speciesNext ?? "").trim()) return res.status(400).json({ error: "Species is required" });
 
   const sexNext = bioDisabled
@@ -1602,6 +1689,28 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
     map.size = "";
   } else if (p.category !== undefined || p.waterType !== undefined) {
     map.water_type = waterTypeNext;
+  }
+
+  // Re-approval rule (non-admin): new photo added OR changes to title/description/species -> status=pending.
+  if (!isAdmin) {
+    const titleChanged = p.title !== undefined && titleNext !== currentTitle;
+    const descriptionChanged = p.description !== undefined && nextBody !== currentBody;
+    const speciesChanged = !bioDisabled && p.species !== undefined && speciesNext !== currentSpecies;
+
+    let photoAdded = false;
+    if (p.images !== undefined) {
+      const existing = db
+        .prepare(`SELECT url FROM listing_images WHERE listing_id = ?`)
+        .all(id) as Array<{ url: string }>;
+      const prevSet = new Set(existing.map((r) => String(r.url)));
+      const normalized = normalizeImages(p.images ?? []).slice(0, 6);
+      photoAdded = normalized.some((img) => !prevSet.has(String(img.fullUrl)));
+    }
+
+    const needsReapproval = titleChanged || descriptionChanged || speciesChanged || photoAdded;
+    if (needsReapproval && currentLife !== "draft") {
+      map.status = "pending";
+    }
   }
 
   for (const [k, v] of Object.entries(map)) {

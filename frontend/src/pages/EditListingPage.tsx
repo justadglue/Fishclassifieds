@@ -67,7 +67,7 @@ const MAX_CUSTOM_PRICE_TYPE_LEN = 20;
 function fmtStatus(l: Listing) {
   const parts: string[] = [];
   if (l.status === "draft") parts.push("Draft (hidden)");
-  if (l.status === "pending") parts.push("Pending (public)");
+  if (l.status === "pending") parts.push("Pending (awaiting approval)");
   if (l.status === "active") parts.push("Active (public)");
   if (l.status === "paused") parts.push("Paused (hidden)");
   if (l.status === "expired") parts.push("Expired (hidden)");

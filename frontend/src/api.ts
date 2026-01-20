@@ -33,6 +33,7 @@ export type Listing = {
   images: ImageAsset[];
   status: ListingStatus;
   expiresAt: string | null;
+  publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -62,6 +63,7 @@ export type WantedPost = {
   expiresAt?: string | null;
   description: string;
   images: ImageAsset[];
+  publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };

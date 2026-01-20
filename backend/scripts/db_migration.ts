@@ -576,6 +576,7 @@ AND status NOT IN ('sold', 'closed', 'deleted');
 
     db.exec(`PRAGMA foreign_keys = OFF;`);
     const tx = db.transaction(() => {
+      const publishedExpr = hasColumn(db, "listings", "published_at") ? "published_at" : "NULL";
       const sizeExpr = hasAgeStill ? "COALESCE(NULLIF(trim(size), ''), COALESCE(age, ''))" : "COALESCE(size, '')";
       db.exec(`
 CREATE TABLE IF NOT EXISTS listings_new(
@@ -599,6 +600,7 @@ CREATE TABLE IF NOT EXISTS listings_new(
   description TEXT NOT NULL,
   phone TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'active',
+  published_at TEXT,
   expires_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -615,7 +617,7 @@ INSERT INTO listings_new(
   title,category,species,sex,water_type,size,shipping_offered,quantity,price_cents,
   budget_cents,
   location,description,phone,
-  status,expires_at,
+  status,published_at,expires_at,
   created_at,updated_at,deleted_at
 )
 SELECT
@@ -639,6 +641,7 @@ SELECT
   description,
   COALESCE(phone, ''),
   COALESCE(status, 'active'),
+  ${publishedExpr},
   expires_at,
   created_at,
   COALESCE(updated_at, created_at),
@@ -660,6 +663,7 @@ FROM listings;
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_featured_until ON listings(featured_until);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_views ON listings(views);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_published_at ON listings(published_at);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_expires_at ON listings(expires_at);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type ON listings(listing_type);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_listing_type_created_at ON listings(listing_type, created_at);`);
@@ -682,6 +686,15 @@ FROM listings;
     migrations.push("listings.expires_at already exists");
   }
   db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_expires_at ON listings(expires_at);`);
+
+  // Ensure listings.published_at exists (public posted time).
+  if (!hasColumn(db, "listings", "published_at")) {
+    db.exec(`ALTER TABLE listings ADD COLUMN published_at TEXT;`);
+    migrations.push("Added listings.published_at");
+  } else {
+    migrations.push("listings.published_at already exists");
+  }
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_published_at ON listings(published_at);`);
 
   // Remove legacy "featured forever" rows (featured=1 but no timer).
   if (hasColumn(db, "listings", "featured") && hasColumn(db, "listings", "featured_until")) {
@@ -742,6 +755,48 @@ AND description IS NOT NULL
       updated++;
     }
     if (updated) migrations.push(`Prefixed description details for ${updated} wanted listing(s)`);
+  }
+
+  // Backfill published_at (prefer admin approval time where available; else created_at).
+  if (hasColumn(db, "listings", "published_at") && hasColumn(db, "listings", "created_at")) {
+    // First, if we have admin audit approvals, use the earliest approval timestamp per listing.
+    if (hasTable(db, "admin_audit")) {
+      try {
+        const changed = db
+          .prepare(
+            `
+UPDATE listings
+SET published_at = (
+  SELECT MIN(a.created_at)
+  FROM admin_audit a
+  WHERE a.action = 'approve'
+  AND a.target_id = listings.id
+  AND a.target_kind = CASE WHEN COALESCE(listings.listing_type, 0) = 1 THEN 'wanted' ELSE 'sale' END
+)
+WHERE published_at IS NULL
+`
+          )
+          .run().changes;
+        if (changed) migrations.push(`Backfilled published_at from admin approvals for ${changed} listing(s)`);
+      } catch {
+        // ignore; fall back to created_at below
+      }
+    }
+
+    // Fallback for already-public (or previously public) listings.
+    const changed2 = db
+      .prepare(
+        `
+UPDATE listings
+SET published_at = created_at
+WHERE published_at IS NULL
+AND created_at IS NOT NULL
+AND trim(created_at) <> ''
+AND status NOT IN ('draft','pending')
+`
+      )
+      .run().changes;
+    if (changed2) migrations.push(`Backfilled published_at from created_at for ${changed2} listing(s)`);
   }
 
   if (args.seedFeatured) {

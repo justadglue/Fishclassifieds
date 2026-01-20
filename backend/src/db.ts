@@ -27,6 +27,7 @@ export type ListingRow = {
   description: string;
   phone: string;
   status: ListingStatus;
+  published_at?: string | null;
   expires_at: string | null;
   created_at: string;
   updated_at: string;
@@ -194,6 +195,7 @@ CREATE TABLE IF NOT EXISTS listings(
   description TEXT NOT NULL,
   phone TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'active',
+  published_at TEXT,
   expires_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -221,6 +223,7 @@ CREATE INDEX IF NOT EXISTS idx_listings_featured ON listings(featured);
 CREATE INDEX IF NOT EXISTS idx_listings_featured_until ON listings(featured_until);
 CREATE INDEX IF NOT EXISTS idx_listings_views ON listings(views);
 CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);
+CREATE INDEX IF NOT EXISTS idx_listings_published_at ON listings(published_at);
 CREATE INDEX IF NOT EXISTS idx_listings_expires_at ON listings(expires_at);
 CREATE INDEX IF NOT EXISTS idx_listings_listing_type ON listings(listing_type);
 CREATE INDEX IF NOT EXISTS idx_listings_listing_type_created_at ON listings(listing_type, created_at);

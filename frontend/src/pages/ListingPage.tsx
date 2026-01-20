@@ -169,7 +169,8 @@ export default function ListingPage() {
   const wantedHasBudget = kind === "wanted" ? (item as WantedPost | null)?.budgetCents != null : false;
 
   const qtyLabel = kind === "wanted" ? `Qty ${(item as any)?.quantity ?? 1} wanted` : `Qty ${details.quantity} available`;
-  const postedAgo = item?.createdAt ? timeAgo(item.createdAt) : "";
+  const postedIso = item?.publishedAt ?? item?.createdAt ?? null;
+  const postedAgo = postedIso ? timeAgo(postedIso) : "";
 
   function DefaultAvatar() {
     return (
@@ -376,7 +377,7 @@ export default function ListingPage() {
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-500">
                     <div>
                       Posted {postedAgo ? `${postedAgo} • ` : ""}
-                      {new Date(item.createdAt).toLocaleString(undefined, {
+                      {new Date(postedIso ?? item.createdAt).toLocaleString(undefined, {
                         year: "numeric",
                         month: "short",
                         day: "2-digit",

@@ -544,7 +544,7 @@ export default function BrowseListings() {
                       </div>
 
                       <div className="absolute bottom-4 left-4 text-[11px] font-semibold text-slate-500">
-                        {relativeTime(l.createdAt)}
+                        {relativeTime(l.publishedAt ?? l.createdAt)}
                       </div>
                       <div className="absolute bottom-4 right-4 rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold text-white shadow-sm">
                         {centsToDollars(l.priceCents)}
@@ -602,7 +602,7 @@ export default function BrowseListings() {
                     </div>
 
                     <div className="absolute bottom-4 left-4 text-[11px] font-semibold text-slate-500">
-                      {relativeTime(w.createdAt)}
+                      {relativeTime(w.publishedAt ?? w.createdAt)}
                     </div>
                     <div className="absolute bottom-4 right-4 rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold text-white shadow-sm">
                       {budgetPillText(w)}

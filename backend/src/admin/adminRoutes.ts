@@ -86,7 +86,16 @@ router.post("/approvals/:kind/:id/approve", (req, res) => {
   if (!row) return res.status(404).json({ error: "Not found" });
 
   const now = nowIso();
-  db.prepare(`UPDATE listings SET status = 'active', updated_at = ? WHERE id = ? AND listing_type = ?`).run(now, id, lt);
+  db.prepare(
+    `
+UPDATE listings
+SET status = 'active',
+    published_at = COALESCE(published_at, ?),
+    updated_at = ?
+WHERE id = ?
+AND listing_type = ?
+`
+  ).run(now, now, id, lt);
   audit(db, req.user!.id, "approve", kind, id, { prevStatus: row.status });
   return res.json({ ok: true });
 });

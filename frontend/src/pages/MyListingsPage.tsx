@@ -791,13 +791,14 @@ export default function MyListingsPage() {
           (viewType === "all" && (items.length > 0 || wantedItems.length > 0)) ? (
           <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <div className="overflow-x-auto ">
-              <table className="w-full min-w-[1080px] table-fixed lg:min-w-0">
+              <table className="w-full min-w-[1180px] table-fixed lg:min-w-0">
                 <thead className="bg-slate-50">
                   <tr className="text-xs font-bold tracking-wider text-slate-600">
                     <SortTh label="Listing" k="listing" className="w-[25%] px-4 py-3" align="left" />
                     <SortTh label="Price" k="price" className="w-[10%] px-4 py-3" align="right" />
                     <SortTh label="Views" k="views" className="w-[8%] px-4 py-3" align="right" />
                     <SortTh label="Status" k="status" className="w-[8%] px-4 py-3" title="Default: Status then Updated" align="left" />
+                    <th className="w-[8%] px-4 py-3 text-left">Published</th>
                     <SortTh label="Created" k="created" className="w-[8%] px-4 py-3" align="left" />
                     <SortTh label="Updated" k="updated" className="w-[8%] px-4 py-3" align="left" />
                     <SortTh label="Expiry" k="expiresIn" className="w-[8%] px-4 py-3" align="right" />
@@ -881,6 +882,10 @@ export default function MyListingsPage() {
                           </td>
 
                           <td className="px-4 py-4 align-top text-left">
+                            <div className="text-sm font-semibold text-slate-700">{l.publishedAt ? new Date(l.publishedAt).toLocaleDateString() : "—"}</div>
+                          </td>
+
+                          <td className="px-4 py-4 align-top text-left">
                             <div className="text-sm font-semibold text-slate-700">{new Date(l.createdAt).toLocaleDateString()}</div>
                           </td>
 
@@ -911,7 +916,7 @@ export default function MyListingsPage() {
 
                         {isExpanded && (
                           <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(row.key)}>
-                            <td colSpan={8} className="px-4 pb-4 pt-0">
+                            <td colSpan={9} className="px-4 pb-4 pt-0">
                               <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
                                 {isDraft ? (
                                   <ActionLink to={openHref} label="Resume draft" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
@@ -1033,6 +1038,10 @@ export default function MyListingsPage() {
                         </td>
 
                         <td className="px-4 py-4 align-top text-left">
+                          <div className="text-sm font-semibold text-slate-700">{w.publishedAt ? new Date(w.publishedAt).toLocaleDateString() : "—"}</div>
+                        </td>
+
+                        <td className="px-4 py-4 align-top text-left">
                           <div className="text-sm font-semibold text-slate-700">{new Date(w.createdAt).toLocaleDateString()}</div>
                         </td>
 
@@ -1063,7 +1072,7 @@ export default function MyListingsPage() {
 
                       {isExpanded && (
                         <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(row.key)}>
-                          <td colSpan={8} className="px-4 pb-4 pt-0">
+                          <td colSpan={9} className="px-4 pb-4 pt-0">
                             <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
                               {isDraft ? (
                                 <ActionLink to={openHref} label="Resume draft" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />

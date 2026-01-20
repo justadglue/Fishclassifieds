@@ -858,8 +858,8 @@ app.post("/api/listings", requireAuth, (req, res) => {
     db.prepare(
       `INSERT INTO listings(
 id,user_id,listing_type,featured,title,category,species,sex,price_cents,location,description,phone,
-status,expires_at,created_at,updated_at,deleted_at
-)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+status,published_at,expires_at,created_at,updated_at,deleted_at
+)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(
       id,
       user.id,
@@ -874,6 +874,7 @@ status,expires_at,created_at,updated_at,deleted_at
       descriptionFinal,
       phoneFinal,
       "draft",
+      null,
       expiresAt,
       now,
       now,
@@ -908,6 +909,7 @@ VALUES(?,?,?,?,?,?)`
   ensureDecodedBodyOk(decodedBody);
   // Drafts stay draft. Non-admins always go to pending for moderation.
   const status: ListingStatus = requireApproval ? "pending" : "active";
+  const publishedAt = status === "active" ? now : null;
 
   const bioRequired = isBioFieldsRequiredCategory(category);
   const isOther = isOtherCategory(category);
@@ -930,8 +932,8 @@ VALUES(?,?,?,?,?,?)`
   db.prepare(
     `INSERT INTO listings(
 id,user_id,listing_type,featured,title,category,species,sex,price_cents,location,description,phone,
-status,expires_at,created_at,updated_at,deleted_at
-)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+status,published_at,expires_at,created_at,updated_at,deleted_at
+)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
     id,
     user.id,
@@ -946,6 +948,7 @@ status,expires_at,created_at,updated_at,deleted_at
     description,
     phone,
     status,
+    publishedAt,
     expiresAt,
     now,
     now,
@@ -1085,7 +1088,7 @@ JOIN users u ON u.id = l.user_id
 WHERE l.featured_until IS NOT NULL
 AND l.featured_until > ?
 AND l.status IN('active')
-ORDER BY l.created_at DESC, l.id DESC
+ORDER BY COALESCE(l.published_at, l.created_at) DESC, l.id DESC
 LIMIT ? OFFSET ?
 `
     )
@@ -1176,9 +1179,9 @@ app.get("/api/listings", (req, res) => {
   const totalRow = db.prepare(`SELECT COUNT(*)as c FROM listings ${whereSql}`).get(...params) as any;
   const total = Number(totalRow?.c ?? 0);
 
-  let orderBy = "created_at DESC,id DESC";
-  if (sort === "price_asc") orderBy = "price_cents ASC,created_at DESC,id DESC";
-  if (sort === "price_desc") orderBy = "price_cents DESC,created_at DESC,id DESC";
+  let orderBy = "COALESCE(published_at, created_at) DESC,id DESC";
+  if (sort === "price_asc") orderBy = "price_cents ASC,COALESCE(published_at, created_at) DESC,id DESC";
+  if (sort === "price_desc") orderBy = "price_cents DESC,COALESCE(published_at, created_at) DESC,id DESC";
 
   const sql = `
 SELECT * FROM listings
@@ -1506,6 +1509,7 @@ function mapWantedRow(req: express.Request, row: any) {
     expiresAt: row.expires_at ?? null,
     description: String(row.description),
     images,
+    publishedAt: (row as any).published_at ?? null,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };
@@ -1599,9 +1603,11 @@ ${whereSql}
     .get(...params) as any;
   const total = Number(totalRow?.c ?? 0);
 
-  let orderBy = "l.created_at DESC, l.id DESC";
-  if (sort === "budget_asc") orderBy = "(l.budget_cents IS NULL) ASC, l.budget_cents ASC, l.created_at DESC, l.id DESC";
-  if (sort === "budget_desc") orderBy = "(l.budget_cents IS NULL) ASC, l.budget_cents DESC, l.created_at DESC, l.id DESC";
+  let orderBy = "COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
+  if (sort === "budget_asc")
+    orderBy = "(l.budget_cents IS NULL) ASC, l.budget_cents ASC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
+  if (sort === "budget_desc")
+    orderBy = "(l.budget_cents IS NULL) ASC, l.budget_cents DESC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
 
   const rows = db
     .prepare(
@@ -1719,9 +1725,9 @@ INSERT INTO listings(
   title,description,category,species,sex,water_type,size,shipping_offered,quantity,price_cents,
   budget_cents,
   location,phone,
-  status,expires_at,created_at,updated_at,deleted_at
+  status,published_at,expires_at,created_at,updated_at,deleted_at
 )
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 `
     ).run(
       id,
@@ -1741,6 +1747,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       locationDraft,
       phoneDraft,
       "draft",
+      null,
       expiresAt,
       now,
       now,
@@ -1802,6 +1809,7 @@ AND l.listing_type = 1
   const forceApprovalForNonAdmins = !user.isAdmin && !user.isSuperadmin;
   const requireApproval = forceApprovalForNonAdmins || String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
   const status: ListingStatus = requireApproval ? "pending" : "active";
+  const publishedAt = status === "active" ? now : null;
 
   db.prepare(
     `
@@ -1810,9 +1818,9 @@ INSERT INTO listings(
   title,description,category,species,sex,water_type,size,shipping_offered,quantity,price_cents,
   budget_cents,
   location,phone,
-  status,expires_at,created_at,updated_at,deleted_at
+  status,published_at,expires_at,created_at,updated_at,deleted_at
 )
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 `
   ).run(
     id,
@@ -1832,6 +1840,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     location,
     phone,
     status,
+    publishedAt,
     expiresAt,
     now,
     now,
@@ -2419,8 +2428,8 @@ ORDER BY sort_order ASC`
     db.prepare(
       `INSERT INTO listings(
 id,user_id,listing_type,featured,title,category,species,sex,price_cents,location,description,phone,
-status,expires_at,created_at,updated_at,deleted_at
-) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+status,published_at,expires_at,created_at,updated_at,deleted_at
+) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(
       newId,
       Number(row.user_id),
@@ -2435,6 +2444,7 @@ status,expires_at,created_at,updated_at,deleted_at
       row.description,
       phone,
       "paused",
+      null,
       expiresAt,
       now,
       now,
@@ -2549,6 +2559,7 @@ function mapListing(req: express.Request, row: ListingRow & any) {
     images,
     status,
     expiresAt: row.expires_at ?? null,
+    publishedAt: (row as any).published_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

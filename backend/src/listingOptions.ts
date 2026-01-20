@@ -8,6 +8,7 @@ export const LISTING_CATEGORIES = [
     "Crabs",
     "Crayfish",
     "Clams & Mussels",
+    "Axolotls",
     "Plants",
     "Corals",
     "Equipment",
@@ -31,6 +32,7 @@ export const BIO_FIELDS_REQUIRED_CATEGORIES = [
     "Crabs",
     "Crayfish",
     "Clams & Mussels",
+    "Axolotls",
     "Plants",
     "Corals",
 ] as const;

@@ -867,36 +867,36 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
 
                         <Field label="Quantity" required error={fieldErrors.quantity}>
                             <input
-                            type="number"
-                            value={quantityInput}
-                            onChange={(e) => {
-                                const raw = e.target.value;
+                                type="number"
+                                value={quantityInput}
+                                onChange={(e) => {
+                                    const raw = e.target.value;
 
-                                // Allow empty while typing
-                                if (raw === "") {
-                                setQuantityInput("");
-                                return;
-                                }
+                                    // Allow empty while typing
+                                    if (raw === "") {
+                                        setQuantityInput("");
+                                        return;
+                                    }
 
-                                // Only allow digits
-                                if (!/^\d+$/.test(raw)) return;
+                                    // Only allow digits
+                                    if (!/^\d+$/.test(raw)) return;
 
-                                setQuantityInput(raw);
-                                clearFieldError("quantity");
-                            }}
-                            onBlur={() => {
-                                const n = Number.parseInt(quantityInput, 10);
+                                    setQuantityInput(raw);
+                                    clearFieldError("quantity");
+                                }}
+                                onBlur={() => {
+                                    const n = Number.parseInt(quantityInput, 10);
 
-                                const finalValue = Number.isFinite(n) && n >= 1 ? n : 1;
+                                    const finalValue = Number.isFinite(n) && n >= 1 ? n : 1;
 
-                                setQuantityInput(String(finalValue));
-                                setQuantity(finalValue);
-                            }}
-                            inputMode="numeric"
-                            step={1}
-                            min={1}
-                            className={controlClass(Boolean(fieldErrors.quantity))}
-                            required
+                                    setQuantityInput(String(finalValue));
+                                    setQuantity(finalValue);
+                                }}
+                                inputMode="numeric"
+                                step={1}
+                                min={1}
+                                className={controlClass(Boolean(fieldErrors.quantity))}
+                                required
                             />
                         </Field>
 

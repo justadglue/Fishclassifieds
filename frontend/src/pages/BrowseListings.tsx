@@ -538,7 +538,7 @@ export default function BrowseListings() {
                             </div>
                           </div>
                         </div>
-                        <div className="mt-3 line-clamp-2 text-xs text-slate-700">
+                        <div className="mt-1 line-clamp-2 text-xs text-slate-700">
                           {descriptionPreview(l.description) || "No description."}
                         </div>
                       </div>
@@ -595,7 +595,7 @@ export default function BrowseListings() {
                         </div>
                       </div>
 
-                      <div className="mt-3 line-clamp-3 text-xs text-slate-700">
+                      <div className="mt-1 line-clamp-3 text-xs text-slate-700">
                         {wantedDescriptionPreview(w.description) || "No description."}
                       </div>
 

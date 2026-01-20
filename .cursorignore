@@ -1,0 +1,25 @@
+# Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+# Dependencies (huge)
+**/node_modules/
+
+# Build outputs (generated)
+backend/dist/
+frontend/dist/
+**/*.tsbuildinfo
+
+# Tooling caches
+**/.vite/
+**/.cache/
+**/.turbo/
+**/.parcel-cache/
+
+# Runtime data (SQLite + uploads)
+backend/data/app.db*
+backend/data/uploads/
+
+# Logs
+**/*.log
+
+# OS cruft
+.DS_Store
+Thumbs.db

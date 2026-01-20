@@ -82,7 +82,7 @@ export default function PostChoosePage() {
 
           {hasDrafts ? (
             <Link
-              to="/drafts"
+              to="/me?type=drafts"
               className="group flex flex-col items-center rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:col-span-2"
             >
               <div className="text-sm font-bold text-slate-500">Drafts</div>

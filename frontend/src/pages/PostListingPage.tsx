@@ -480,7 +480,7 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
                         images: uploadedAssets,
                     });
                     if (mode === "draft") {
-                        nav("/drafts");
+                        nav("/me?type=drafts");
                         return;
                     }
                     const w = await createWantedPost({
@@ -518,7 +518,7 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
                     images: uploadedAssets,
                     status: mode,
                 });
-                nav(mode === "draft" ? "/drafts" : listingDetailPath(kind, w.id));
+                nav(mode === "draft" ? "/me?type=drafts" : listingDetailPath(kind, w.id));
             } else {
                 const sexToSubmit: ListingSex = ((bioFieldsEnabled && sex ? sex : "Unknown") as ListingSex) ?? "Unknown";
                 const speciesToSubmit = bioFieldsEnabled ? species.trim() : "";
@@ -543,7 +543,7 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
                         images: uploadedAssets,
                     });
                     if (mode === "draft") {
-                        nav("/drafts");
+                        nav("/me?type=drafts");
                         return;
                     }
                     const created = await createListing({
@@ -582,7 +582,7 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
                     status: mode,
                 });
 
-                nav(mode === "draft" ? "/drafts" : listingDetailPath(kind, created.id));
+                nav(mode === "draft" ? "/me?type=drafts" : listingDetailPath(kind, created.id));
             }
         } catch (e: any) {
             setErr(e?.message ?? (isWanted ? "Failed to create wanted post" : "Failed to post listing"));

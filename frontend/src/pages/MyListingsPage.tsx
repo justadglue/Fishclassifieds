@@ -395,7 +395,8 @@ export default function MyListingsPage() {
   const [wantedItems, setWantedItems] = useState<WantedPost[]>([]);
   const [rowOrder, setRowOrder] = useState<string[]>([]);
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "status", dir: "asc" });
-  const [loading, setLoading] = useState(false);
+  // Treat the page as "loading" until the first listings fetch completes, to avoid empty-state flashing.
+  const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -431,9 +432,13 @@ export default function MyListingsPage() {
     let cancelled = false;
     async function run() {
       setErr(null);
+      if (!user) {
+        // Keep loading=true until auth/redirect resolves; don't flash empty states.
+        setLoading(true);
+        return;
+      }
       setLoading(true);
       try {
-        if (!user) return;
         if (viewType === "wanted") {
           const res = await fetchMyWanted({ limit: 200, offset: 0 });
           if (!cancelled) {

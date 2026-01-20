@@ -519,14 +519,14 @@ export default function MyListingsPage() {
     );
   }
 
-  async function onDelete(id: string) {
+  async function onDelete(l: Listing) {
     setErr(null);
-    const ok = window.confirm("Delete this listing? This cannot be undone.");
+    const ok = window.confirm(l.status === "draft" ? "Delete this Draft? This cannot be undone." : "Delete this listing? This cannot be undone.");
     if (!ok) return;
 
     try {
-      await deleteListing(id);
-      setItems((prev) => prev.filter((l) => l.id !== id));
+      await deleteListing(l.id);
+      setItems((prev) => prev.filter((x) => x.id !== l.id));
     } catch (e: any) {
       setErr(e?.message ?? "Delete failed");
     }
@@ -556,13 +556,13 @@ export default function MyListingsPage() {
     }
   }
 
-  async function onDeleteWanted(id: string) {
+  async function onDeleteWanted(w: WantedPost) {
     setErr(null);
-    const ok = window.confirm("Delete this wanted post? This cannot be undone.");
+    const ok = window.confirm(w.status === "draft" ? "Delete this Draft? This cannot be undone." : "Delete this wanted post? This cannot be undone.");
     if (!ok) return;
     try {
-      await deleteWantedPost(id);
-      setWantedItems((prev) => prev.filter((w) => w.id !== id));
+      await deleteWantedPost(w.id);
+      setWantedItems((prev) => prev.filter((x) => x.id !== w.id));
     } catch (e: any) {
       setErr(e?.message ?? "Delete failed");
     }
@@ -965,7 +965,7 @@ export default function MyListingsPage() {
                                   label="Delete"
                                   title="Delete"
                                   variant="danger"
-                                  onClick={() => onDelete(l.id)}
+                                  onClick={() => onDelete(l)}
                                   icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
                                 />
                               </div>
@@ -1104,7 +1104,7 @@ export default function MyListingsPage() {
                                 label="Delete"
                                 title="Delete wanted post"
                                 variant="danger"
-                                onClick={() => onDeleteWanted(w.id)}
+                                onClick={() => onDeleteWanted(w)}
                                 icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
                               />
                             </div>

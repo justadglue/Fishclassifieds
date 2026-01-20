@@ -756,11 +756,13 @@ app.post("/api/listings", requireAuth, (req, res) => {
   const now = nowIso();
   const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
   const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
-  const requireApproval = String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
   const user = req.user!;
+  const forceApprovalForNonAdmins = !user.isAdmin && !user.isSuperadmin;
+  const requireApproval = forceApprovalForNonAdmins || String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
 
   const { title, category, species, sex, waterType, size, shippingOffered, priceCents, location, description, phone, images } = parsed.data;
   const requestedStatus = parsed.data.status;
+  // Drafts stay draft. Non-admins always go to pending for moderation.
   const status: ListingStatus = requestedStatus === "draft" ? "draft" : requireApproval ? "pending" : "active";
 
   const bioRequired = isBioFieldsRequiredCategory(category);
@@ -1064,16 +1066,18 @@ app.get("/api/listings/:id", optionalAuth, (req, res) => {
   if (!row) return res.status(404).json({ error: "Not found" });
 
   const isOwner = isListingOwner(req, row);
+  const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.isSuperadmin));
   const status = String(row.status ?? "active") as ListingStatus;
   const resolution = String(row.resolution ?? "none") as ListingResolution;
 
-  if (!isOwner && status === "deleted") return res.status(404).json({ error: "Not found" });
+  if (!isOwner && !isAdmin && status === "deleted") return res.status(404).json({ error: "Not found" });
 
   const isPublic = PUBLIC_LIFECYCLE.includes(status) || resolution !== "none";
-  if (!isOwner && !isPublic) return res.status(404).json({ error: "Not found" });
+  const canView = isOwner || isPublic || (isAdmin && status === "pending");
+  if (!canView) return res.status(404).json({ error: "Not found" });
 
   // Track views for public (non-owner) listing detail views.
-  if (!isOwner && isPublic) {
+  if (!isOwner && !isAdmin && isPublic) {
     db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ? AND listing_type = 0`).run(id);
     row = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
   }
@@ -1393,19 +1397,21 @@ AND l.listing_type = 1
     .get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   const isOwner = requireWantedOwner(req, row);
+  const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.isSuperadmin));
   const status = String(row.status ?? "active") as ListingStatus;
   const wantedStatus = String(row.wanted_status ?? "open");
-  if (!isOwner && (status === "deleted" || status === "expired")) {
+  if (!isOwner && !isAdmin && (status === "deleted" || status === "expired")) {
     return res.status(404).json({ error: "Not found" });
   }
-  if (wantedStatus !== "open" && !isOwner) {
+  if (wantedStatus !== "open" && !isOwner && !isAdmin) {
     return res.status(404).json({ error: "Not found" });
   }
 
   const isPublic = PUBLIC_LIFECYCLE.includes(status);
-  if (!isOwner && !isPublic) return res.status(404).json({ error: "Not found" });
+  const canView = isOwner || isPublic || (isAdmin && status === "pending");
+  if (!canView) return res.status(404).json({ error: "Not found" });
   // Track views for public (non-owner) wanted detail views.
-  if (!isOwner && isPublic && wantedStatus === "open") {
+  if (!isOwner && !isAdmin && isPublic && wantedStatus === "open") {
     db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ? AND listing_type = 1`).run(id);
     row = db
       .prepare(
@@ -1448,8 +1454,9 @@ app.post("/api/wanted", requireAuth, (req, res) => {
   const now = nowIso();
   const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
   const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
-  const requireApproval = String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
   const user = req.user!;
+  const forceApprovalForNonAdmins = !user.isAdmin && !user.isSuperadmin;
+  const requireApproval = forceApprovalForNonAdmins || String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
   const status: ListingStatus = requireApproval ? "pending" : "active";
 
   db.prepare(

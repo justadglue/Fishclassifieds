@@ -6,6 +6,7 @@ import { useAuth } from "../auth";
 import Header from "../components/Header";
 import homepageBackground from "../assets/homepage_background_1.jpg";
 import featuredArowana from "../assets/featured_arowana.jpg";
+import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
 
 function centsToDollars(cents: number) {
   const s = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -32,6 +33,13 @@ function budgetLabel(w: WantedPost) {
 
 function FeaturedCard({ item }: { item: FeaturedItem }) {
   const hero = item.kind === "sale" ? featuredHeroUrl(item.item) : featuredHeroUrlWanted(item.item);
+  const salePricePill = (() => {
+    if (item.kind !== "sale") return null;
+    const details = decodeSaleDetailsFromDescription(item.item.description).details;
+    if (details.priceType === "free") return "Free";
+    if (details.priceType === "offer") return "Make an Offer";
+    return centsToDollars(item.item.priceCents);
+  })();
   return (
     <div className="group min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
       <div className="relative aspect-4/3 w-full bg-slate-100">
@@ -65,7 +73,7 @@ function FeaturedCard({ item }: { item: FeaturedItem }) {
             </div>
           </div>
           <div className="shrink-0 rounded-xl bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">
-            {item.kind === "sale" ? centsToDollars(item.item.priceCents) : budgetLabel(item.item)}
+            {item.kind === "sale" ? salePricePill : budgetLabel(item.item)}
           </div>
         </div>
       </div>

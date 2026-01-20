@@ -499,6 +499,13 @@ export default function BrowseListings() {
                 ? saleItems.map((l) => {
                   const assets = resolveAssets(l.images ?? []);
                   const hero = assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+                  const saleDetails = decodeSaleDetailsFromDescription(l.description).details;
+                  const pricePillText =
+                    saleDetails.priceType === "free"
+                      ? "Free"
+                      : saleDetails.priceType === "offer"
+                        ? "Make an Offer"
+                        : centsToDollars(l.priceCents);
 
                   return (
                     <Link
@@ -547,7 +554,7 @@ export default function BrowseListings() {
                         {relativeTime(l.publishedAt ?? l.createdAt)}
                       </div>
                       <div className="absolute bottom-4 right-4 rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold text-white shadow-sm">
-                        {centsToDollars(l.priceCents)}
+                        {pricePillText}
                       </div>
                     </Link>
                   );

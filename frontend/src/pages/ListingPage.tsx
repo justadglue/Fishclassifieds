@@ -147,6 +147,15 @@ export default function ListingPage() {
   }, [decoded, wantedDecoded, item, kind]);
 
   const details = decoded?.details ?? { quantity: 1, priceType: "each" as const, customPriceText: "", willingToShip: false };
+  const isSpecialSalePrice = details.priceType === "free" || details.priceType === "offer";
+  const salePriceLabel =
+    kind === "sale" && item
+      ? details.priceType === "free"
+        ? "Free"
+        : details.priceType === "offer"
+          ? "Make an Offer"
+          : centsToDollars((item as Listing).priceCents)
+      : "";
   const priceSuffix =
     details.priceType === "each"
       ? "each"
@@ -155,6 +164,7 @@ export default function ListingPage() {
         : details.customPriceText
           ? `(${details.customPriceText})`
           : "(custom)";
+  const priceTypeLabel = isSpecialSalePrice ? (details.priceType === "free" ? "Free" : "Make an Offer") : priceSuffix;
 
   const wantedDetails = wantedDecoded?.details ?? ({ priceType: "each", customPriceText: "" } as const);
   const wantedPriceSuffix =
@@ -526,8 +536,8 @@ export default function ListingPage() {
                   <>
                     <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Price</div>
                     <div className="mt-1 flex items-baseline gap-2">
-                      <div className="text-3xl font-extrabold text-slate-900">{centsToDollars((item as Listing).priceCents)}</div>
-                      <div className="text-sm font-semibold text-slate-600">{priceSuffix}</div>
+                      <div className="text-3xl font-extrabold text-slate-900">{salePriceLabel}</div>
+                      {!isSpecialSalePrice ? <div className="text-sm font-semibold text-slate-600">{priceSuffix}</div> : null}
                     </div>
                     <div className="mt-2 text-sm font-semibold text-slate-700">
                       <span className="text-slate-500">{qtyLabel}</span>
@@ -673,7 +683,7 @@ export default function ListingPage() {
                           ) : (
                             <div className="flex items-baseline justify-between gap-4">
                               <dt className="font-semibold text-slate-600">Price type</dt>
-                              <dd className="font-semibold text-slate-900">{priceSuffix}</dd>
+                              <dd className="font-semibold text-slate-900">{priceTypeLabel}</dd>
                             </div>
                           )}
                           <div className="flex items-baseline justify-between gap-4">

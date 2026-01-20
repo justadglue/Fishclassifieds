@@ -20,7 +20,7 @@ import { nowIso as nowIsoSecurity } from "./security.js";
 import { BIO_FIELDS_REQUIRED_CATEGORIES, LISTING_CATEGORIES, LISTING_SEXES, OTHER_CATEGORY, WATER_TYPES } from "./listingOptions.js";
 import argon2 from "argon2";
 import adminRoutes from "./admin/adminRoutes.js";
-import { decodeSaleBodyFromDescription, decodeWantedBodyFromDescription } from "./listingDetailsBlock.js";
+import { decodeSaleBodyFromDescription, decodeSaleDetailsFromDescription, decodeWantedBodyFromDescription } from "./listingDetailsBlock.js";
 
 assertConfig();
 
@@ -276,6 +276,18 @@ function ensureDecodedBodyOk(body: string) {
   if (hasDisallowedControlChars(b)) throw new Error("Description contains invalid characters");
   if (b.length > MAX_DESC_BODY_LEN) throw new Error(`Description is too long. Max ${MAX_DESC_BODY_LEN} characters.`);
   return b;
+}
+
+function validateSalePricingOrThrow(input: { description: string; priceCents: number }) {
+  const decoded = decodeSaleDetailsFromDescription(String(input.description ?? ""));
+  const priceType = decoded.details.priceType;
+  const custom = String(decoded.details.customPriceText ?? "").trim();
+
+  if (!priceType) throw new Error("Price type is required");
+  if (priceType === "custom" && !custom) throw new Error("Custom price type is required.");
+  if ((priceType === "free" || priceType === "offer") && Number(input.priceCents ?? 0) !== 0) {
+    throw new Error(`Price must be $0.00 when price type is ${priceType === "free" ? "Free" : "Make an Offer"}.`);
+  }
 }
 
 function addDaysIso(isoNow: string, days: number) {
@@ -907,6 +919,12 @@ VALUES(?,?,?,?,?,?)`
   const safeTitle = ensureTitleOk(title);
   const decodedBody = decodeSaleBodyFromDescription(description).body;
   ensureDecodedBodyOk(decodedBody);
+  // Enforce that the embedded sale details include a valid, explicit price type.
+  try {
+    validateSalePricingOrThrow({ description, priceCents });
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? "Invalid pricing" });
+  }
   // Drafts stay draft. Non-admins always go to pending for moderation.
   const status: ListingStatus = requireApproval ? "pending" : "active";
   const publishedAt = status === "active" ? now : null;
@@ -1332,6 +1350,13 @@ VALUES(?,?,?,?,?,?)`
   const descNext = p.description !== undefined ? String(p.description ?? "") : String((row as any).description ?? "");
   const nextBody = decodeSaleBodyFromDescription(descNext).body;
   ensureDecodedBodyOk(nextBody);
+  // Enforce pricing semantics (Free/Offer => $0.00, Custom => custom text) on non-draft edits.
+  try {
+    const priceNext = p.priceCents !== undefined ? Number(p.priceCents) : Number((row as any).price_cents ?? 0);
+    validateSalePricingOrThrow({ description: descNext, priceCents: priceNext });
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? "Invalid pricing" });
+  }
 
   const sets: string[] = [];
   const params: any[] = [];

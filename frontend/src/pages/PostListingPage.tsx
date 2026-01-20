@@ -98,7 +98,7 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
         priceDollars: string;
         budget: string;
         willingToShip: boolean;
-        priceType: PriceType;
+        priceType: PriceType | "";
         customPriceText: string;
         location: string;
         phone: string;
@@ -119,7 +119,7 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
             priceDollars: "",
             budget: "",
             willingToShip: false,
-            priceType: "each",
+            priceType: "",
             customPriceText: "",
             location: "",
             phone: "",
@@ -178,8 +178,10 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
     const [budget, setBudget] = useState("");
     const [willingToShip, setWillingToShip] = useState(false);
 
-    const [priceType, setPriceType] = useState<PriceType>("each");
+    const [priceType, setPriceType] = useState<PriceType | "">("");
     const [customPriceText, setCustomPriceText] = useState("");
+    const priceIsSpecial = !isWanted && (priceType === "free" || priceType === "offer");
+    const priceTypeRequired = !isWanted || Boolean(String(budget ?? "").trim());
 
     const [location, setLocation] = useState("");
     const [phone, setPhone] = useState("");
@@ -191,6 +193,8 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
     const [submitting, setSubmitting] = useState(false);
     const [err, setErr] = useState<string | null>(null);
     const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
+
+    const [quantityInput, setQuantityInput] = useState("1");
 
     // Baseline snapshot: for new listings it's the default empty state; for drafts we replace baseline after the draft loads.
     useEffect(() => {
@@ -421,7 +425,8 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
         }
 
         const custom = customPriceText.trim();
-        if (strict && !priceType) nextErrors.priceType = "Required field";
+        if (strict && priceTypeRequired && !priceType) nextErrors.priceType = "Required field";
+        // If user selected "custom" at all, custom text must be present (even if price type isn't required by budget).
         if (strict && priceType === "custom" && !custom) nextErrors.customPriceText = "Required field";
         else if (priceType === "custom" && custom.length > MAX_CUSTOM_PRICE_TYPE_LEN) {
             nextErrors.customPriceText = `Custom price type must be ${MAX_CUSTOM_PRICE_TYPE_LEN} characters or less.`;
@@ -431,8 +436,15 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
         if (strict && !body) nextErrors.description = "Required field";
         if (body.length > MAX_DESC_BODY_LEN) nextErrors.description = `Description is too long. Max ${MAX_DESC_BODY_LEN} characters.`;
 
-        const priceCents = isWanted ? null : strict ? dollarsToCentsMaybe(priceDollars) : (dollarsToCentsMaybe(priceDollars) ?? 0);
-        if (!isWanted && strict && priceCents === null) nextErrors.price = "Please enter a valid non-negative price.";
+        const priceIsSpecial = !isWanted && (priceType === "free" || priceType === "offer");
+        const priceCents = isWanted
+            ? null
+            : priceIsSpecial
+                ? 0
+                : strict
+                    ? dollarsToCentsMaybe(priceDollars)
+                    : (dollarsToCentsMaybe(priceDollars) ?? 0);
+        if (!isWanted && strict && !priceIsSpecial && priceCents === null) nextErrors.price = "Please enter a valid non-negative price.";
 
         if (Object.values(nextErrors).some(Boolean)) {
             setFieldErrors(nextErrors);
@@ -441,7 +453,7 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
         }
 
         // Narrow types for TS (should be unreachable due to validation above).
-        if (!isWanted && strict && priceCents === null) return;
+        if (!isWanted && strict && !priceIsSpecial && priceCents === null) return;
         if (strict && bioFieldsRequiredForUser && !sex) return;
 
         const photoCounts = photoUploaderRef.current?.getCounts() ?? { total: 0, uploaded: 0 };
@@ -826,50 +838,71 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
                                 <input
                                     inputMode="decimal"
                                     value={budget}
+                                    placeholder='Leave blank for "Make an Offer"'
                                     onChange={(e) => setBudget(sanitizeMoneyInput(e.target.value))}
                                     maxLength={MAX_MONEY_INPUT_LEN}
                                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
                                 />
                             </Field>
                         ) : (
-                            <Field label="Price ($)" required error={fieldErrors.price}>
+                            <Field label="Price ($)" required={!priceIsSpecial} error={fieldErrors.price}>
                                 <input
-                                    value={priceDollars}
+                                    value={priceIsSpecial ? "" : priceDollars}
+                                    placeholder={priceIsSpecial ? (priceType === "free" ? "Free" : "Make an Offer") : undefined}
                                     onChange={(e) => {
                                         setPriceDollars(sanitizeMoneyInput(e.target.value));
                                         clearFieldError("price");
                                     }}
                                     inputMode="decimal"
                                     maxLength={MAX_MONEY_INPUT_LEN}
-                                    className={controlClass(Boolean(fieldErrors.price))}
-                                    required
+                                    className={controlClass(
+                                        Boolean(fieldErrors.price),
+                                        "disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed",
+                                    )}
+                                    required={!priceIsSpecial}
+                                    disabled={submitting || priceIsSpecial}
                                 />
                             </Field>
                         )}
 
                         <Field label="Quantity" required error={fieldErrors.quantity}>
                             <input
-                                type="number"
-                                value={String(quantity)}
-                                onChange={(e) => {
-                                    const raw = e.target.value;
-                                    const n = raw === "" ? NaN : Number.parseInt(raw, 10);
-                                    if (!Number.isFinite(n)) return;
-                                    setQuantity(Math.max(1, n));
-                                    clearFieldError("quantity");
-                                }}
-                                onBlur={() => setQuantity((q) => (Number.isFinite(q) ? Math.max(1, Math.floor(q)) : 1))}
-                                inputMode="numeric"
-                                step={1}
-                                min={1}
-                                className={controlClass(Boolean(fieldErrors.quantity))}
-                                required
+                            type="number"
+                            value={quantityInput}
+                            onChange={(e) => {
+                                const raw = e.target.value;
+
+                                // Allow empty while typing
+                                if (raw === "") {
+                                setQuantityInput("");
+                                return;
+                                }
+
+                                // Only allow digits
+                                if (!/^\d+$/.test(raw)) return;
+
+                                setQuantityInput(raw);
+                                clearFieldError("quantity");
+                            }}
+                            onBlur={() => {
+                                const n = Number.parseInt(quantityInput, 10);
+
+                                const finalValue = Number.isFinite(n) && n >= 1 ? n : 1;
+
+                                setQuantityInput(String(finalValue));
+                                setQuantity(finalValue);
+                            }}
+                            inputMode="numeric"
+                            step={1}
+                            min={1}
+                            className={controlClass(Boolean(fieldErrors.quantity))}
+                            required
                             />
                         </Field>
 
                         <div className="block">
                             <div className={["mb-1 text-xs font-semibold", fieldErrors.priceType || fieldErrors.customPriceText ? "text-red-700" : "text-slate-700"].join(" ")}>
-                                Price type <span className="text-red-600">*</span>
+                                Price type {priceTypeRequired ? <span className="text-red-600">*</span> : null}
                             </div>
                             {priceType === "custom" ? (
                                 <div className="relative">
@@ -891,7 +924,7 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
                                         />
                                         <button
                                             type="button"
-                                            onClick={() => setPriceType("each")}
+                                            onClick={() => setPriceType("")}
                                             className="shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                                             title="Return to dropdown options"
                                             aria-label="Return to dropdown options"
@@ -910,18 +943,23 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
                                 <select
                                     value={priceType}
                                     onChange={(e) => {
-                                        setPriceType(e.target.value as PriceType);
+                                        setPriceType(e.target.value as PriceType | "");
                                         clearFieldError("priceType");
                                     }}
                                     className={[
                                         "h-10 w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none",
                                         fieldErrors.priceType ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
                                     ].join(" ")}
-                                    required
+                                    required={priceTypeRequired}
                                 >
                                     <option value="each">Each</option>
                                     <option value="all">All</option>
+                                    {isWanted ? null : <option value="offer">Make an Offer</option>}
+                                    {isWanted ? null : <option value="free">Free</option>}
                                     <option value="custom">Custom</option>
+                                    <option value="" disabled hidden>
+                                        Select...
+                                    </option>
                                 </select>
                             )}
                             {fieldErrors.priceType && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.priceType}</div>}

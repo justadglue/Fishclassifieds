@@ -63,6 +63,7 @@ function expiresInShort(iso: string) {
 }
 
 const MAX_CUSTOM_PRICE_TYPE_LEN = 20;
+const MAX_DESC_BODY_LEN = 1000;
 
 function fmtStatus(l: Listing) {
   const parts: string[] = [];
@@ -126,8 +127,10 @@ function SaleEditForm() {
   const [size, setSize] = useState("");
   const [priceDollars, setPriceDollars] = useState("");
   const [quantity, setQuantity] = useState(1);
-  const [priceType, setPriceType] = useState<PriceType>("each");
+  const [quantityInput, setQuantityInput] = useState("1");
+  const [priceType, setPriceType] = useState<PriceType | "">("");
   const [customPriceText, setCustomPriceText] = useState("");
+  const priceIsSpecial = priceType === "free" || priceType === "offer";
   const [willingToShip, setWillingToShip] = useState(false);
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
@@ -236,6 +239,7 @@ function SaleEditForm() {
         setPhone(l.phone ?? "");
         const decoded = decodeSaleDetailsFromDescription(l.description);
         setQuantity(decoded.details.quantity);
+        setQuantityInput(String(decoded.details.quantity ?? 1));
         setPriceType(decoded.details.priceType);
         setCustomPriceText(decoded.details.customPriceText);
         setWillingToShip(decoded.details.willingToShip);
@@ -302,8 +306,8 @@ function SaleEditForm() {
     else if (phoneTrim.length < 6) nextErrors.phone = "Phone number looks too short.";
     else if (phoneTrim.length > 30) nextErrors.phone = "Phone number is too long.";
 
-    const priceCents = dollarsToCents(priceDollars);
-    if (priceCents === null) nextErrors.price = "Please enter a valid non-negative price.";
+    const priceCentsMaybe = priceIsSpecial ? 0 : dollarsToCents(priceDollars);
+    if (!priceIsSpecial && priceCentsMaybe === null) nextErrors.price = "Please enter a valid non-negative price.";
 
     const qty = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
     if (qty < 1) nextErrors.quantity = "Quantity must be at least 1.";
@@ -317,7 +321,7 @@ function SaleEditForm() {
 
     if (!description.trim()) nextErrors.description = "Required field";
 
-    if (!nextErrors.description && !nextErrors.customPriceText && priceCents !== null) {
+    if (!nextErrors.description && !nextErrors.customPriceText && priceCentsMaybe !== null) {
       const detailsPrefix = buildSaleDetailsPrefix({ quantity: qty, priceType, customPriceText: custom, willingToShip });
       const maxBodyLen = Math.max(1, 1000 - detailsPrefix.length);
       if (description.trim().length > maxBodyLen) {
@@ -331,7 +335,8 @@ function SaleEditForm() {
       return;
     }
     // Narrow types for TS (should be unreachable due to validation above).
-    if (priceCents === null) return;
+    if (!priceIsSpecial && priceCentsMaybe === null) return;
+    const priceCents = priceCentsMaybe ?? 0;
     if (bioFieldsRequiredForUser && !sex) return;
 
     const sexToSubmit: ListingSex = ((bioFieldsEnabled && sex ? sex : "Unknown") as ListingSex) ?? "Unknown";
@@ -419,6 +424,7 @@ function SaleEditForm() {
     setPhone(l.phone ?? "");
     const decoded = decodeSaleDetailsFromDescription(l.description);
     setQuantity(decoded.details.quantity);
+    setQuantityInput(String(decoded.details.quantity ?? 1));
     setPriceType(decoded.details.priceType);
     setCustomPriceText(decoded.details.customPriceText);
     setWillingToShip(decoded.details.willingToShip);
@@ -744,19 +750,21 @@ function SaleEditForm() {
                   Price ($) <span className="text-red-600">*</span>
                 </div>
                 <input
-                  value={priceDollars}
+                  value={priceIsSpecial ? "" : priceDollars}
                   onChange={(e) => {
                     setPriceDollars(sanitizeMoneyInput(e.target.value));
                     clearFieldError("price");
                   }}
+                  placeholder={priceIsSpecial ? (priceType === "free" ? "Free" : "Make an Offer") : undefined}
                   inputMode="decimal"
                   maxLength={MAX_MONEY_INPUT_LEN}
                   className={[
                     "w-full rounded-xl border px-3 py-2 text-sm outline-none",
                     fieldErrors.price ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
+                    "disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed",
                   ].join(" ")}
-                  required
-                  disabled={loading}
+                  required={!priceIsSpecial}
+                  disabled={loading || priceIsSpecial}
                 />
                 {fieldErrors.price && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.price}</div>}
               </label>
@@ -767,18 +775,28 @@ function SaleEditForm() {
                 </div>
                 <input
                   type="number"
-                  value={String(quantity)}
+                  value={quantityInput}
                   onChange={(e) => {
                     const raw = e.target.value;
-                    const n = raw === "" ? NaN : Number.parseInt(raw, 10);
-                    if (!Number.isFinite(n)) return;
-                    setQuantity(Math.max(1, n));
+                    // Allow empty while typing
+                    if (raw === "") {
+                      setQuantityInput("");
+                      return;
+                    }
+                    // Only allow digits
+                    if (!/^\d+$/.test(raw)) return;
+                    setQuantityInput(raw);
                     clearFieldError("quantity");
                   }}
                   inputMode="numeric"
                   step={1}
                   min={1}
-                  onBlur={() => setQuantity((q) => (Number.isFinite(q) ? Math.max(1, Math.floor(q)) : 1))}
+                  onBlur={() => {
+                    const n = Number.parseInt(quantityInput, 10);
+                    const finalValue = Number.isFinite(n) && n >= 1 ? n : 1;
+                    setQuantityInput(String(finalValue));
+                    setQuantity(finalValue);
+                  }}
                   className={[
                     "w-full rounded-xl border px-3 py-2 text-sm outline-none",
                     fieldErrors.quantity ? "border-red-300 focus:border-red-500" : "border-slate-200 focus:border-slate-400",
@@ -814,7 +832,7 @@ function SaleEditForm() {
                       />
                       <button
                         type="button"
-                        onClick={() => setPriceType("each")}
+                        onClick={() => setPriceType("")}
                         className="shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                         title="Return to dropdown options"
                         aria-label="Return to dropdown options"
@@ -835,7 +853,7 @@ function SaleEditForm() {
                   <select
                     value={priceType}
                     onChange={(e) => {
-                      setPriceType(e.target.value as PriceType);
+                      setPriceType(e.target.value as PriceType | "");
                       clearFieldError("priceType");
                     }}
                     className={[
@@ -847,7 +865,12 @@ function SaleEditForm() {
                   >
                     <option value="each">Each</option>
                     <option value="all">All</option>
+                    <option value="offer">Make an Offer</option>
+                    <option value="free">Free</option>
                     <option value="custom">Custom</option>
+                    <option value="" disabled hidden>
+                      Select...
+                    </option>
                   </select>
                 )}
                 {fieldErrors.priceType && <div className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.priceType}</div>}
@@ -1036,12 +1059,14 @@ function WantedEditForm() {
   const [sex, setSex] = useState<ListingSex | "">("");
   const [size, setSize] = useState("");
   const [quantity, setQuantity] = useState<number>(1);
+  const [quantityInput, setQuantityInput] = useState("1");
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
   const [budget, setBudget] = useState("");
-  const [priceType, setPriceType] = useState<PriceType>("each");
+  const [priceType, setPriceType] = useState<PriceType | "">("");
   const [customPriceText, setCustomPriceText] = useState("");
   const [description, setDescription] = useState("");
+  const priceTypeRequired = Boolean(String(budget ?? "").trim());
 
   const customPriceInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -1093,6 +1118,9 @@ function WantedEditForm() {
         setSex((w as any).sex ?? "");
         setSize((w as any).size ?? "");
         setQuantity(Number.isFinite(Number((w as any).quantity)) ? Math.max(1, Math.floor(Number((w as any).quantity))) : 1);
+        setQuantityInput(
+          String(Number.isFinite(Number((w as any).quantity)) ? Math.max(1, Math.floor(Number((w as any).quantity))) : 1)
+        );
         setLocation(w.location);
         setPhone((w as any).phone ?? "");
         setBudget(centsToDollarsMaybe(w.budgetCents));
@@ -1161,12 +1189,17 @@ function WantedEditForm() {
       if (phoneTrim.length < 6) throw new Error("Phone number looks too short.");
       if (phoneTrim.length > 30) throw new Error("Phone number is too long.");
 
-      if (!priceType) throw new Error("Price type is required.");
+      if (priceTypeRequired && !priceType) throw new Error("Price type is required.");
       const custom = customPriceText.trim();
+      // If user selected "custom" at all, custom text must be present (even if price type isn't required by budget).
       if (priceType === "custom" && !custom) throw new Error("Custom price type is required.");
       if (priceType === "custom" && custom.length > MAX_CUSTOM_PRICE_TYPE_LEN) {
         throw new Error(`Custom price type must be ${MAX_CUSTOM_PRICE_TYPE_LEN} characters or less.`);
       }
+
+      const body = String(description ?? "").trim();
+      if (!body) throw new Error("Description is required.");
+      if (body.length > MAX_DESC_BODY_LEN) throw new Error(`Description is too long. Max ${MAX_DESC_BODY_LEN} characters.`);
 
       const photoCounts = photoUploaderRef.current?.getCounts() ?? { total: 0, uploaded: 0 };
       if (photoCounts.total === 0) {
@@ -1181,7 +1214,7 @@ function WantedEditForm() {
         throw new Error("Images were selected but none uploaded successfully. Remove broken images or retry upload.");
       }
 
-      const finalDescription = encodeWantedDetailsIntoDescription({ priceType, customPriceText: custom }, description.trim());
+      const finalDescription = encodeWantedDetailsIntoDescription({ priceType, customPriceText: custom }, body);
 
       if (relistMode) {
         const created = await createWantedPost({
@@ -1298,6 +1331,9 @@ function WantedEditForm() {
                   value={species}
                   onChange={(e) => setSpecies(e.target.value)}
                   disabled={saving || !isOwner || !bioFieldsEnabled}
+                  required={bioFieldsRequiredForUser}
+                  minLength={2}
+                  maxLength={60}
                   className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
                 />
               </label>
@@ -1310,9 +1346,12 @@ function WantedEditForm() {
                   value={waterType}
                   onChange={(e) => setWaterType(e.target.value as any)}
                   disabled={saving || !isOwner || !bioFieldsEnabled}
+                  required={bioFieldsRequiredForUser}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
                 >
-                  <option value="">Select…</option>
+                  <option value="" disabled hidden>
+                    Select…
+                  </option>
                   {waterTypes.map((w) => (
                     <option key={w} value={w}>
                       {w}
@@ -1327,9 +1366,12 @@ function WantedEditForm() {
                   value={sex}
                   onChange={(e) => setSex(e.target.value as any)}
                   disabled={saving || !isOwner || !bioFieldsEnabled}
+                  required={bioFieldsRequiredForUser}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
                 >
-                  <option value="">Select…</option>
+                  <option value="" disabled hidden>
+                    Select…
+                  </option>
                   {wantedSexOptions.map((s) => (
                     <option key={s} value={s}>
                       {s}
@@ -1344,6 +1386,8 @@ function WantedEditForm() {
                   value={size}
                   onChange={(e) => setSize(e.target.value)}
                   disabled={saving || !isOwner || !bioFieldsEnabled}
+                  required={sizeRequired}
+                  maxLength={40}
                   className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
                 />
               </label>
@@ -1356,7 +1400,9 @@ function WantedEditForm() {
                 <input
                   inputMode="decimal"
                   value={budget}
+                  placeholder='Leave blank for "Make an Offer"'
                   onChange={(e) => setBudget(sanitizeMoneyInput(e.target.value, MAX_MONEY_INPUT_LEN))}
+                  maxLength={MAX_MONEY_INPUT_LEN}
                   disabled={saving || !isOwner}
                   className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
                 />
@@ -1366,17 +1412,27 @@ function WantedEditForm() {
                 <div className="mb-1 text-xs font-semibold text-slate-700">Quantity</div>
                 <input
                   type="number"
-                  value={quantity}
+                  value={quantityInput}
                   onChange={(e) => {
                     const raw = e.target.value;
-                    const n = raw === "" ? NaN : Number.parseInt(raw, 10);
-                    if (!Number.isFinite(n)) return;
-                    setQuantity(n);
+                    // Allow empty while typing
+                    if (raw === "") {
+                      setQuantityInput("");
+                      return;
+                    }
+                    // Only allow digits
+                    if (!/^\d+$/.test(raw)) return;
+                    setQuantityInput(raw);
                   }}
                   min={1}
                   step={1}
                   inputMode="numeric"
-                  onBlur={() => setQuantity((q) => (Number.isFinite(q) ? Math.max(1, Math.floor(q)) : 1))}
+                  onBlur={() => {
+                    const n = Number.parseInt(quantityInput, 10);
+                    const finalValue = Number.isFinite(n) && n >= 1 ? n : 1;
+                    setQuantityInput(String(finalValue));
+                    setQuantity(finalValue);
+                  }}
                   disabled={saving || !isOwner}
                   className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
                 />
@@ -1384,7 +1440,7 @@ function WantedEditForm() {
 
               <div className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">
-                  Price type <span className="text-red-600">*</span>
+                  Price type {priceTypeRequired ? <span className="text-red-600">*</span> : null}
                 </div>
 
                 {priceType === "custom" ? (
@@ -1401,7 +1457,7 @@ function WantedEditForm() {
                       />
                       <button
                         type="button"
-                        onClick={() => setPriceType("each")}
+                        onClick={() => setPriceType("")}
                         className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                         title="Return to dropdown options"
                         aria-label="Return to dropdown options"
@@ -1417,14 +1473,17 @@ function WantedEditForm() {
                 ) : (
                   <select
                     value={priceType}
-                    onChange={(e) => setPriceType(e.target.value as PriceType)}
+                    onChange={(e) => setPriceType(e.target.value as PriceType | "")}
                     disabled={saving || !isOwner}
                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
-                    required
+                    required={priceTypeRequired}
                   >
                     <option value="each">Each</option>
                     <option value="all">All</option>
                     <option value="custom">Custom</option>
+                    <option value="" disabled hidden>
+                      Select...
+                    </option>
                   </select>
                 )}
               </div>
@@ -1438,6 +1497,8 @@ function WantedEditForm() {
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  minLength={6}
+                  maxLength={30}
                   disabled={saving || !isOwner}
                   className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
                 />
@@ -1457,6 +1518,9 @@ function WantedEditForm() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={saving || !isOwner}
+                required
+                minLength={1}
+                maxLength={MAX_DESC_BODY_LEN}
                 className="min-h-[160px] w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
               />
             </label>

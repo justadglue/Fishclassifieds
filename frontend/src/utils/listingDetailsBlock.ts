@@ -1,8 +1,9 @@
-export type PriceType = "each" | "all" | "custom";
+export type PriceType = "each" | "all" | "custom" | "free" | "offer";
 
 export type ListingSaleDetails = {
   quantity: number; // integer >= 1
-  priceType: PriceType;
+  // Allow "" in the UI as an explicit "not selected yet" state.
+  priceType: PriceType | "";
   customPriceText: string; // only meaningful when priceType === "custom"
   willingToShip: boolean;
 };
@@ -28,7 +29,14 @@ function cleanInlineText(s: unknown, maxLen: number) {
 
 export function buildSaleDetailsPrefix(input: Partial<ListingSaleDetails>): string {
   const quantity = clampInt(Number(input.quantity ?? 1), 1, 9999);
-  const priceType: PriceType = input.priceType === "all" || input.priceType === "custom" ? input.priceType : "each";
+  const priceType =
+    input.priceType === "each" ||
+    input.priceType === "all" ||
+    input.priceType === "custom" ||
+    input.priceType === "free" ||
+    input.priceType === "offer"
+      ? input.priceType
+      : "";
   const customPriceText = priceType === "custom" ? cleanInlineText(input.customPriceText, MAX_CUSTOM_PRICE_TEXT_LEN) : "";
   const willingToShip = Boolean(input.willingToShip);
 
@@ -36,6 +44,7 @@ export function buildSaleDetailsPrefix(input: Partial<ListingSaleDetails>): stri
   return [
     START,
     `quantity=${quantity}`,
+    // Always include the key so the backend can detect explicit non-selection ("").
     `priceType=${priceType}`,
     ...(priceType === "custom" && customPriceText ? [`customPriceText=${customPriceText}`] : []),
     `willingToShip=${willingToShip ? 1 : 0}`,
@@ -72,7 +81,8 @@ export function decodeSaleDetailsFromDescription(description: string): {
   const after = raw.slice(afterEnd);
 
   let quantity = 1;
-  let priceType: PriceType = "each";
+  let priceType: PriceType | "" = "each";
+  let sawPriceTypeKey = false;
   let customPriceText = "";
   let willingToShip = false;
 
@@ -85,12 +95,18 @@ export function decodeSaleDetailsFromDescription(description: string): {
     const v = t.slice(eq + 1).trim();
 
     if (k === "quantity") quantity = clampInt(Number(v), 1, 9999);
-    else if (k === "priceType" && (v === "each" || v === "all" || v === "custom")) priceType = v;
+    else if (k === "priceType") {
+      sawPriceTypeKey = true;
+      if (v === "each" || v === "all" || v === "custom" || v === "free" || v === "offer") priceType = v;
+      else priceType = "";
+    }
     else if (k === "customPriceText") customPriceText = cleanInlineText(v, MAX_CUSTOM_PRICE_TEXT_LEN);
     else if (k === "willingToShip") willingToShip = v === "1" || v.toLowerCase() === "true";
   }
 
   if (priceType !== "custom") customPriceText = "";
+  // Back-compat: older prefixes might omit the key entirely.
+  if (!sawPriceTypeKey) priceType = "each";
 
   // Remove leading blank lines after the prefix.
   const body = after.replace(/^\s*\n/, "").replace(/^\s*\n/, "").trim();
@@ -103,7 +119,8 @@ export function decodeSaleDetailsFromDescription(description: string): {
 }
 
 export type WantedPriceDetails = {
-  priceType: PriceType;
+  // Allow "" in the UI as an explicit "not selected yet" state.
+  priceType: PriceType | "";
   customPriceText: string; // only meaningful when priceType === "custom"
 };
 
@@ -111,7 +128,8 @@ const WANTED_START = "[[FC_WANTED_DETAILS]]";
 const WANTED_END = "[[/FC_WANTED_DETAILS]]";
 
 export function buildWantedDetailsPrefix(input: Partial<WantedPriceDetails>): string {
-  const priceType: PriceType = input.priceType === "all" || input.priceType === "custom" ? input.priceType : "each";
+  const priceType =
+    input.priceType === "each" || input.priceType === "all" || input.priceType === "custom" ? input.priceType : "";
   const customPriceText = priceType === "custom" ? cleanInlineText(input.customPriceText, MAX_CUSTOM_PRICE_TEXT_LEN) : "";
 
   // Keep this compact: it counts towards the server-side description max length.
@@ -151,7 +169,8 @@ export function decodeWantedDetailsFromDescription(description: string): {
   const block = raw.slice(startIdx, afterEnd);
   const after = raw.slice(afterEnd);
 
-  let priceType: PriceType = "each";
+  let priceType: PriceType | "" = "each";
+  let sawPriceTypeKey = false;
   let customPriceText = "";
 
   for (const line of block.split("\n")) {
@@ -162,11 +181,16 @@ export function decodeWantedDetailsFromDescription(description: string): {
     const k = t.slice(0, eq).trim();
     const v = t.slice(eq + 1).trim();
 
-    if (k === "priceType" && (v === "each" || v === "all" || v === "custom")) priceType = v;
+    if (k === "priceType") {
+      sawPriceTypeKey = true;
+      if (v === "each" || v === "all" || v === "custom") priceType = v;
+      else priceType = "";
+    }
     else if (k === "customPriceText") customPriceText = cleanInlineText(v, MAX_CUSTOM_PRICE_TEXT_LEN);
   }
 
   if (priceType !== "custom") customPriceText = "";
+  if (!sawPriceTypeKey) priceType = "each";
 
   // Remove leading blank lines after the prefix.
   const body = after.replace(/^\s*\n/, "").replace(/^\s*\n/, "").trim();

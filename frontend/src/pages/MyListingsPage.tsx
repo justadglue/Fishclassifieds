@@ -32,6 +32,7 @@ import {
 import Header from "../components/Header";
 import { useAuth } from "../auth";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
+import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
 
 function centsToDollars(cents: number) {
   const s = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -910,6 +911,13 @@ export default function MyListingsPage() {
                     const l = row.sale!;
                     const assets = resolveAssets(l.images ?? []);
                     const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+                    const saleDetails = decodeSaleDetailsFromDescription(l.description).details;
+                    const salePriceText =
+                      saleDetails.priceType === "free"
+                        ? "Free"
+                        : saleDetails.priceType === "offer"
+                          ? "Make an Offer"
+                          : centsToDollars(l.priceCents);
                     const openHref = l.status === "draft" ? `/post/sale?draft=${encodeURIComponent(l.id)}` : `/listing/sale/${l.id}`;
                     const isDraft = l.status === "draft";
 
@@ -962,7 +970,7 @@ export default function MyListingsPage() {
                           </td>
 
                           <td className="px-4 py-4 align-top text-right">
-                            <div className="text-sm font-extrabold text-slate-900">{centsToDollars(l.priceCents)}</div>
+                            <div className="text-sm font-extrabold text-slate-900">{salePriceText}</div>
                           </td>
 
                           <td className="px-4 py-4 align-top text-right">

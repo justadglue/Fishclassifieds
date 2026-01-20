@@ -17,9 +17,6 @@ frontend/dist/
 backend/data/app.db*
 backend/data/uploads/
 
-# Logs
-**/*.log
-
 # OS cruft
 .DS_Store
 Thumbs.db

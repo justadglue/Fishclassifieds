@@ -393,7 +393,7 @@ export default function BrowseListings() {
             bioFieldsDisabled={bioFieldsDisabled}
           />
 
-          <section>
+          <section className="md:min-h-[calc(100vh-6rem)]">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-2">

@@ -30,6 +30,35 @@ const db = openDb();
 
 app.set("trust proxy", 1);
 
+// View tracking dedupe: prevent double-counting views within a 3-second window from the same client (fixes React StrictMode double-mount in dev).
+// Map<"listingId:clientKey", timestamp>
+const viewTrackingCache = new Map<string, number>();
+const VIEW_DEDUPE_WINDOW_MS = 3000;
+
+function shouldIncrementView(listingId: string, req: express.Request): boolean {
+  // Use session ID (if logged in) or IP as client key
+  const clientKey = req.user?.id ? `user:${req.user.id}` : `ip:${req.ip}`;
+  const cacheKey = `${listingId}:${clientKey}`;
+  const now = Date.now();
+  const lastView = viewTrackingCache.get(cacheKey);
+
+  if (lastView && now - lastView < VIEW_DEDUPE_WINDOW_MS) {
+    return false; // Skip increment (duplicate within window)
+  }
+
+  viewTrackingCache.set(cacheKey, now);
+
+  // Cleanup: periodically remove stale entries (older than 2x the window)
+  if (viewTrackingCache.size > 10000) {
+    const staleThreshold = now - VIEW_DEDUPE_WINDOW_MS * 2;
+    for (const [key, ts] of viewTrackingCache.entries()) {
+      if (ts < staleThreshold) viewTrackingCache.delete(key);
+    }
+  }
+
+  return true;
+}
+
 app.use(
   cors({
     origin: config.corsOrigin,
@@ -1235,7 +1264,7 @@ app.get("/api/listings/:id", optionalAuth, (req, res) => {
   if (!canView) return res.status(404).json({ error: "Not found" });
 
   // Track views for public (non-owner) listing detail views.
-  if (!isOwner && !isAdmin && isPublic) {
+  if (!isOwner && !isAdmin && isPublic && shouldIncrementView(id, req)) {
     db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ? AND listing_type = 0`).run(id);
     row = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
   }
@@ -1681,7 +1710,7 @@ AND l.listing_type = 1
   const canView = isOwner || isPublic || (isAdmin && status === "pending");
   if (!canView) return res.status(404).json({ error: "Not found" });
   // Track views for public (non-owner) wanted detail views.
-  if (!isOwner && !isAdmin && isPublic) {
+  if (!isOwner && !isAdmin && isPublic && shouldIncrementView(id, req)) {
     db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ? AND listing_type = 1`).run(id);
     row = db
       .prepare(

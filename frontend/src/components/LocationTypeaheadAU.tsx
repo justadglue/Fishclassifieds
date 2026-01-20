@@ -172,9 +172,18 @@ export function LocationTypeaheadAU(props: {
                 placeholder={placeholder}
                 onFocus={() => setOpen(true)}
                 onChange={(e) => {
-                    setQuery(e.target.value);
+                    const next = e.target.value;
+                    setQuery(next);
                     setOpen(true);
                     setActiveIndex(-1);
+
+                    // If the user clears the input, treat it as clearing the selected value
+                    // so URL-backed filters (browse) update immediately.
+                    if (norm(next).length === 0) {
+                        setOpen(false);
+                        setActiveIndex(-1);
+                        onChange("");
+                    }
                 }}
                 onKeyDown={(e) => {
                     if (!open) return;

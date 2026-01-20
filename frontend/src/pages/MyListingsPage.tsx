@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   MoveDown,
@@ -380,6 +380,8 @@ export default function MyListingsPage() {
   const [sp, setSp] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
 
+  const [includeResolved, setIncludeResolved] = useState(false);
+
   const viewType =
     sp.get("type") === "wanted"
       ? ("wanted" as const)
@@ -397,6 +399,28 @@ export default function MyListingsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const expandedIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    expandedIdRef.current = expandedId;
+  }, [expandedId]);
+
+  // Collapse only on full click (not pointerdown) and only when clicking outside any row.
+  // This ensures selection + expansion happen together on click, not split across mouse-down/up.
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      const cur = expandedIdRef.current;
+      if (!cur) return;
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      // Clicking anywhere inside any row (summary or expanded actions) should not auto-collapse.
+      const anyRowKey = t.closest(`[data-row-key]`)?.getAttribute("data-row-key") ?? null;
+      if (anyRowKey) return;
+      setExpandedId(null);
+    }
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, []);
 
   useEffect(() => {
     if (authLoading) return;
@@ -474,7 +498,45 @@ export default function MyListingsPage() {
     };
   }, [user, viewType]); // intentionally does not depend on `sort` (keeps ordering stable until refresh or explicit sort click)
 
+  function rowsForOrdering(nextViewType: "all" | "sale" | "wanted" | "drafts", nextIncludeResolved: boolean): MixedRow[] {
+    const hideResolved = <T extends { status: string }>(arr: T[]) => arr.filter((x) => x.status !== "sold" && x.status !== "closed");
+
+    const allowResolved = nextIncludeResolved;
+    const saleBase = allowResolved ? items : hideResolved(items);
+    const wantedBase = allowResolved ? wantedItems : hideResolved(wantedItems);
+
+    // Keep these consistent with the server/UI expectations:
+    // - Sale/Wanted tabs exclude drafts
+    // - Drafts tab includes only drafts
+    if (nextViewType === "sale") {
+      const sale = saleBase.filter((l) => l.status !== "draft");
+      return sale.map((l, idx) => ({ kind: "sale" as const, key: `sale:${l.id}`, idx, sale: l }));
+    }
+    if (nextViewType === "wanted") {
+      const wanted = wantedBase.filter((w) => w.status !== "draft");
+      return wanted.map((w, idx) => ({ kind: "wanted" as const, key: `wanted:${w.id}`, idx: 10_000 + idx, wanted: w }));
+    }
+    if (nextViewType === "drafts") {
+      const sale = items.filter((l) => l.status === "draft");
+      const wanted = wantedItems.filter((w) => w.status === "draft");
+      return [
+        ...sale.map((l, idx) => ({ kind: "sale" as const, key: `sale:${l.id}`, idx, sale: l })),
+        ...wanted.map((w, idx) => ({ kind: "wanted" as const, key: `wanted:${w.id}`, idx: 10_000 + idx, wanted: w })),
+      ];
+    }
+
+    // all
+    return [
+      ...saleBase.map((l, idx) => ({ kind: "sale" as const, key: `sale:${l.id}`, idx, sale: l })),
+      ...wantedBase.map((w, idx) => ({ kind: "wanted" as const, key: `wanted:${w.id}`, idx: 10_000 + idx, wanted: w })),
+    ];
+  }
+
   function setViewType(next: "all" | "sale" | "wanted" | "drafts") {
+    // Immediately recompute ordering for the new view so the UI updates without waiting for refetch.
+    // This does NOT run when rows change (pause/resume/etc.), preserving the "don't auto-reorder on local updates" behavior.
+    setRowOrder(sortMixedRows(rowsForOrdering(next, includeResolved), sort.key, sort.dir, nowMs).map((r) => r.key));
+
     const nextSp = new URLSearchParams(sp);
     if (next === "wanted") nextSp.set("type", "wanted");
     else if (next === "sale") nextSp.set("type", "sale");
@@ -608,8 +670,8 @@ export default function MyListingsPage() {
     nav(`/edit/sale/${encodeURIComponent(id)}?relist=1`);
   }
 
-  function toggleExpanded(id: string) {
-    setExpandedId((prev) => (prev === id ? null : id));
+  function expandRow(id: string) {
+    setExpandedId(id);
   }
 
   const defaultDirByKey: Record<SortKey, SortDir> = {
@@ -634,14 +696,19 @@ export default function MyListingsPage() {
 
   const mixedRows = useMemo(() => {
     const out: MixedRow[] = [];
+    const allowResolved = includeResolved;
+    const hideResolved = <T extends { status: string }>(arr: T[]) => arr.filter((x) => x.status !== "sold" && x.status !== "closed");
+
     if (viewType === "sale" || viewType === "all" || viewType === "drafts") {
-      items.forEach((l, idx) => out.push({ kind: "sale", key: `sale:${l.id}`, idx, sale: l }));
+      const saleItems = allowResolved ? items : hideResolved(items);
+      saleItems.forEach((l, idx) => out.push({ kind: "sale", key: `sale:${l.id}`, idx, sale: l }));
     }
     if (viewType === "wanted" || viewType === "all" || viewType === "drafts") {
-      wantedItems.forEach((w, idx) => out.push({ kind: "wanted", key: `wanted:${w.id}`, idx: 10_000 + idx, wanted: w }));
+      const wItems = allowResolved ? wantedItems : hideResolved(wantedItems);
+      wItems.forEach((w, idx) => out.push({ kind: "wanted", key: `wanted:${w.id}`, idx: 10_000 + idx, wanted: w }));
     }
     return out;
-  }, [items, wantedItems, viewType]);
+  }, [items, wantedItems, viewType, includeResolved]);
 
   const displayRows = useMemo(() => {
     const map = new Map(mixedRows.map((r) => [r.key, r] as const));
@@ -694,51 +761,68 @@ export default function MyListingsPage() {
               {viewType === "drafts" ? "Draft listings saved to your account." : "Listings linked to your account."}
             </div>
           </div>
-          <div className="flex overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <button
-              type="button"
-              onClick={() => setViewType("all")}
-              className={[
-                "px-4 py-2 text-sm font-bold",
-                viewType === "all" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
-              ].join(" ")}
-              aria-pressed={viewType === "all"}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewType("sale")}
-              className={[
-                "px-4 py-2 text-sm font-bold",
-                viewType === "sale" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
-              ].join(" ")}
-              aria-pressed={viewType === "sale"}
-            >
-              For sale
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewType("wanted")}
-              className={[
-                "px-4 py-2 text-sm font-bold",
-                viewType === "wanted" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
-              ].join(" ")}
-              aria-pressed={viewType === "wanted"}
-            >
-              Wanted
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewType("drafts")}
-              className={[
-                "px-4 py-2 text-sm font-bold",
-                viewType === "drafts" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
-              ].join(" ")}
-              aria-pressed={viewType === "drafts"}
-            >
-              Drafts
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <button
+                type="button"
+                onClick={() => setViewType("all")}
+                className={[
+                  "px-4 py-2 text-sm font-bold",
+                  viewType === "all" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+                ].join(" ")}
+                aria-pressed={viewType === "all"}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewType("sale")}
+                className={[
+                  "px-4 py-2 text-sm font-bold",
+                  viewType === "sale" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+                ].join(" ")}
+                aria-pressed={viewType === "sale"}
+              >
+                For sale
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewType("wanted")}
+                className={[
+                  "px-4 py-2 text-sm font-bold",
+                  viewType === "wanted" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+                ].join(" ")}
+                aria-pressed={viewType === "wanted"}
+              >
+                Wanted
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewType("drafts")}
+                className={[
+                  "px-4 py-2 text-sm font-bold",
+                  viewType === "drafts" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+                ].join(" ")}
+                aria-pressed={viewType === "drafts"}
+              >
+                Drafts
+              </button>
+            </div>
+
+            <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 select-none">
+              <input
+                type="checkbox"
+                checked={includeResolved}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setIncludeResolved(next);
+                  // Recompute ordering immediately for the newly-filtered set.
+                  setRowOrder(sortMixedRows(rowsForOrdering(viewType, next), sort.key, sort.dir, nowMs).map((r) => r.key));
+                }}
+                className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
+              />
+              Include sold/closed
+            </label>
           </div>
         </div>
 
@@ -837,7 +921,11 @@ export default function MyListingsPage() {
 
                     return (
                       <tbody key={row.key} className="group">
-                        <tr className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")} onClick={() => toggleExpanded(row.key)}>
+                        <tr
+                          className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")}
+                          data-row-key={row.key}
+                          onClick={() => expandRow(row.key)}
+                        >
                           <td className="px-4 py-4 align-top text-left">
                             <div className="flex min-h-20 items-center gap-3">
                               <Link
@@ -923,7 +1011,8 @@ export default function MyListingsPage() {
                               className="flex justify-center"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                toggleExpanded(row.key);
+                                if (isExpanded) setExpandedId(null);
+                                else expandRow(row.key);
                               }}
                             >
                               <ActionButton label={isExpanded ? "Hide" : "Actions"} title={isExpanded ? "Hide actions" : "Show actions"} />
@@ -932,9 +1021,13 @@ export default function MyListingsPage() {
                         </tr>
 
                         {isExpanded && (
-                          <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(row.key)}>
-                            <td colSpan={9} className="px-4 pb-4 pt-0">
-                              <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <tr className="transition-colors group-hover:bg-slate-50/70" data-row-key={row.key}>
+                            <td colSpan={9} className="px-4 pb-4 pt-0" data-row-key={row.key} onClick={(e) => e.stopPropagation()}>
+                              <div
+                                className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2"
+                                data-row-key={row.key}
+                                onClick={(e) => e.stopPropagation()}
+                              >
                                 {isDraft ? (
                                   <ActionLink to={openHref} label="Resume draft" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
                                 ) : !isSold ? (
@@ -1006,7 +1099,11 @@ export default function MyListingsPage() {
 
                   return (
                     <tbody key={row.key} className="group">
-                      <tr className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")} onClick={() => toggleExpanded(row.key)}>
+                      <tr
+                        className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")}
+                        data-row-key={row.key}
+                        onClick={() => expandRow(row.key)}
+                      >
                         <td className="px-4 py-4 align-top text-left">
                           <div className="flex min-h-20 items-center gap-3">
                             <Link
@@ -1092,7 +1189,8 @@ export default function MyListingsPage() {
                             className="flex justify-center"
                             onClick={(e) => {
                               e.stopPropagation();
-                              toggleExpanded(row.key);
+                              if (isExpanded) setExpandedId(null);
+                              else expandRow(row.key);
                             }}
                           >
                             <ActionButton label={isExpanded ? "Hide" : "Actions"} title={isExpanded ? "Hide actions" : "Show actions"} />
@@ -1101,9 +1199,13 @@ export default function MyListingsPage() {
                       </tr>
 
                       {isExpanded && (
-                        <tr className="cursor-pointer transition-colors group-hover:bg-slate-50/70" onClick={() => toggleExpanded(row.key)}>
-                          <td colSpan={9} className="px-4 pb-4 pt-0">
-                            <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <tr className="transition-colors group-hover:bg-slate-50/70" data-row-key={row.key}>
+                          <td colSpan={9} className="px-4 pb-4 pt-0" data-row-key={row.key} onClick={(e) => e.stopPropagation()}>
+                            <div
+                              className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2"
+                              data-row-key={row.key}
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               {isDraft ? (
                                 <ActionLink to={openHref} label="Resume draft" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
                               ) : (

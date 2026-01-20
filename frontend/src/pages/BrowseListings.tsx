@@ -360,7 +360,7 @@ export default function BrowseListings() {
   return (
     <div className="min-h-full">
       <Header maxWidth="6xl" />
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      <main className="mx-auto max-w-6xl px-4 py-6" style={{ overflowAnchor: "none" }}>
         <div ref={topRef} />
         <div className="grid gap-6 md:grid-cols-[280px_1fr]">
           <BrowseFilters

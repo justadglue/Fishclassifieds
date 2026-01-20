@@ -6,6 +6,17 @@ body,
   height: 100%;
 }
 
+/* Prevent horizontal layout shift when content height toggles scrollbar visibility (notably on Windows). */
+html {
+  scrollbar-gutter: stable;
+}
+
+@supports not (scrollbar-gutter: stable) {
+  html {
+    overflow-y: scroll;
+  }
+}
+
 body {
   margin: 0;
   background: #f8fafc; /* slate-50 */

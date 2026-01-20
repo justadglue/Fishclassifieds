@@ -1,7 +1,18 @@
+import { type ReactNode } from "react";
 import type { Category, ListingSex, WaterType } from "../api";
 import { LocationTypeaheadAU } from "./LocationTypeaheadAU";
 
 export type BrowseType = "sale" | "wanted";
+
+function Field(props: { label: string; children: ReactNode }) {
+    const { label, children } = props;
+    return (
+        <label className="block">
+            <div className="mb-1 text-xs font-semibold text-slate-700">{label}</div>
+            {children}
+        </label>
+    );
+}
 
 export default function BrowseFilters(props: {
     browseType: BrowseType;
@@ -71,8 +82,48 @@ export default function BrowseFilters(props: {
         bioFieldsDisabled,
     } = props;
 
+    const isSale = browseType === "sale";
+    const sexOptions = isSale ? listingSexes : wantedSexOptions;
+
+    const moneyRow = isSale ? (
+        <div className="grid grid-cols-2 gap-3">
+            <Field label="Min price ($)">
+                <input
+                    value={minDollars}
+                    onChange={(e) => setMinDollars(e.target.value)}
+                    inputMode="decimal"
+                    placeholder="0"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                />
+            </Field>
+            <Field label="Max price ($)">
+                <input
+                    value={maxDollars}
+                    onChange={(e) => setMaxDollars(e.target.value)}
+                    inputMode="decimal"
+                    placeholder="200"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                />
+            </Field>
+        </div>
+    ) : (
+        <Field label="Min budget ($)">
+            <input
+                value={budgetDollars}
+                onChange={(e) => setBudgetDollars(e.target.value)}
+                inputMode="decimal"
+                placeholder="200"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+            />
+        </Field>
+    );
+
     return (
-        <aside className="rounded-2xl border border-slate-200 bg-white p-4 md:sticky md:top-24 md:self-start md:max-h-[calc(100vh-7rem)] md:overflow-auto">
+        <aside
+            className="rounded-2xl border border-slate-200 bg-white p-4 md:sticky md:top-24 md:self-start md:max-h-[calc(100vh-7rem)] md:overflow-auto"
+            // Keep inner scrollbar from changing layout width when content height differs between Sale/Wanted.
+            style={{ scrollbarGutter: "stable" }}
+        >
             <div className="flex items-center justify-between">
                 <div className="text-sm font-bold text-slate-900">Filters</div>
                 <button type="button" onClick={clearFilters} className="text-xs font-semibold text-slate-600 hover:text-slate-900">
@@ -81,8 +132,7 @@ export default function BrowseFilters(props: {
             </div>
 
             <div className="mt-4 space-y-3">
-                <label className="block">
-                    <div className="mb-1 text-xs font-semibold text-slate-700">Listing type</div>
+                <Field label="Listing type">
                     <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white">
                         <button
                             type="button"
@@ -107,14 +157,13 @@ export default function BrowseFilters(props: {
                             Wanted
                         </button>
                     </div>
-                </label>
+                </Field>
 
-                <label className="block">
-                    <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
+                <Field label="Location">
                     <LocationTypeaheadAU value={location} onChange={setLocation} placeholder="Start typing your area…" />
-                </label>
+                </Field>
 
-                {browseType === "sale" && (
+                {isSale && (
                     <label className="flex items-center gap-2">
                         <input
                             type="checkbox"
@@ -126,8 +175,7 @@ export default function BrowseFilters(props: {
                     </label>
                 )}
 
-                <label className="block">
-                    <div className="mb-1 text-xs font-semibold text-slate-700">Category</div>
+                <Field label="Category">
                     <select
                         value={category}
                         onChange={(e) => setCategory(e.target.value)}
@@ -139,10 +187,9 @@ export default function BrowseFilters(props: {
                             </option>
                         ))}
                     </select>
-                </label>
+                </Field>
 
-                <label className="block">
-                    <div className="mb-1 text-xs font-semibold text-slate-700">Water type</div>
+                <Field label="Water type">
                     <select
                         value={waterType}
                         onChange={(e) => setWaterType(e.target.value)}
@@ -156,10 +203,9 @@ export default function BrowseFilters(props: {
                             </option>
                         ))}
                     </select>
-                </label>
+                </Field>
 
-                <label className="block">
-                    <div className="mb-1 text-xs font-semibold text-slate-700">Species</div>
+                <Field label="Species">
                     <select
                         value={species}
                         onChange={(e) => setSpecies(e.target.value)}
@@ -172,46 +218,11 @@ export default function BrowseFilters(props: {
                             </option>
                         ))}
                     </select>
-                </label>
+                </Field>
 
-                {browseType === "sale" ? (
-                    <div className="grid grid-cols-2 gap-3">
-                        <label className="block">
-                            <div className="mb-1 text-xs font-semibold text-slate-700">Min price ($)</div>
-                            <input
-                                value={minDollars}
-                                onChange={(e) => setMinDollars(e.target.value)}
-                                inputMode="decimal"
-                                placeholder="0"
-                                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                            />
-                        </label>
-                        <label className="block">
-                            <div className="mb-1 text-xs font-semibold text-slate-700">Max price ($)</div>
-                            <input
-                                value={maxDollars}
-                                onChange={(e) => setMaxDollars(e.target.value)}
-                                inputMode="decimal"
-                                placeholder="200"
-                                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                            />
-                        </label>
-                    </div>
-                ) : (
-                    <label className="block">
-                        <div className="mb-1 text-xs font-semibold text-slate-700">Min budget ($)</div>
-                        <input
-                            value={budgetDollars}
-                            onChange={(e) => setBudgetDollars(e.target.value)}
-                            inputMode="decimal"
-                            placeholder="200"
-                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                        />
-                    </label>
-                )}
+                {moneyRow}
 
-                <label className="block">
-                    <div className="mb-1 text-xs font-semibold text-slate-700">Sex</div>
+                <Field label="Sex">
                     <select
                         value={sex}
                         onChange={(e) => setSex(e.target.value)}
@@ -219,13 +230,13 @@ export default function BrowseFilters(props: {
                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
                     >
                         <option value="">Any</option>
-                        {(browseType === "wanted" ? wantedSexOptions : listingSexes).map((s) => (
+                        {sexOptions.map((s) => (
                             <option key={s} value={s}>
                                 {s}
                             </option>
                         ))}
                     </select>
-                </label>
+                </Field>
             </div>
         </aside>
     );

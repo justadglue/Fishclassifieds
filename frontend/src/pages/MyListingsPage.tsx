@@ -757,9 +757,6 @@ export default function MyListingsPage() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-xl font-extrabold text-slate-900">{viewType === "drafts" ? "My drafts" : "My listings"}</h1>
-            <div className="mt-1 text-sm text-slate-600">
-              {viewType === "drafts" ? "Draft listings saved to your account." : "Listings linked to your account."}
-            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex overflow-hidden rounded-2xl border border-slate-200 bg-white">

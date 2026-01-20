@@ -196,6 +196,118 @@ export function resolveAssets(images: Array<string | ImageAsset> | null | undefi
   });
 }
 
+// --- Admin API ---
+export type AdminApprovalItem = {
+  kind: "sale" | "wanted";
+  id: string;
+  title: string;
+  category: string;
+  location: string;
+  wantedStatus: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user: { id: number; username: string; email: string };
+};
+
+export function adminFetchApprovals(params?: { kind?: "all" | "sale" | "wanted" }) {
+  const qs = new URLSearchParams();
+  if (params?.kind) qs.set("kind", params.kind);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<{ items: AdminApprovalItem[] }>(`/api/admin/approvals${suffix}`);
+}
+
+export function adminApprove(kind: "sale" | "wanted", id: string) {
+  return apiFetch<{ ok: true }>(`/api/admin/approvals/${kind}/${id}/approve`, { method: "POST" });
+}
+
+export function adminReject(kind: "sale" | "wanted", id: string, note?: string) {
+  return apiFetch<{ ok: true }>(`/api/admin/approvals/${kind}/${id}/reject`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ note: note ?? null }),
+  });
+}
+
+export type AdminReport = {
+  id: string;
+  status: "open" | "resolved";
+  targetKind: "sale" | "wanted";
+  targetId: string;
+  reason: string;
+  details: string;
+  createdAt: string;
+  updatedAt: string;
+  reporter: { userId: number; username: string; email: string };
+  resolvedByUserId: number | null;
+  resolvedNote: string | null;
+};
+
+export function adminFetchReports(params?: { status?: "open" | "resolved" }) {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<{ items: AdminReport[] }>(`/api/admin/reports${suffix}`);
+}
+
+export function adminResolveReport(id: string, note?: string) {
+  return apiFetch<{ ok: true }>(`/api/admin/reports/${id}/resolve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ note: note ?? null }),
+  });
+}
+
+export type AdminUser = {
+  id: number;
+  email: string;
+  username: string;
+  isAdmin: boolean;
+  isSuperadmin: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function adminFetchUsers(params?: { query?: string; limit?: number; offset?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.query) qs.set("query", params.query);
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<{ items: AdminUser[]; total: number; limit: number; offset: number }>(`/api/admin/users${suffix}`);
+}
+
+export function adminSetAdmin(userId: number, isAdmin: boolean) {
+  return apiFetch<{ ok: true }>(`/api/admin/users/${userId}/set-admin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ isAdmin }),
+  });
+}
+
+export function adminSetSuperadmin(userId: number, isSuperadmin: boolean) {
+  return apiFetch<{ ok: true }>(`/api/admin/users/${userId}/set-superadmin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ isSuperadmin }),
+  });
+}
+
+// --- Public reports ---
+export type CreateReportInput = {
+  targetKind: "sale" | "wanted";
+  targetId: string;
+  reason: string;
+  details?: string | null;
+};
+
+export function createReport(input: CreateReportInput) {
+  return apiFetch<{ id: string }>(`/api/reports`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
 export async function fetchMyListings(params?: { limit?: number; offset?: number; includeDeleted?: boolean }) {
   const qs = new URLSearchParams();
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
@@ -502,7 +614,7 @@ export async function uploadImage(file: File): Promise<ImageAsset> {
 export const MAX_UPLOAD_IMAGE_BYTES = 6 * 1024 * 1024; // 6MB
 export const MAX_UPLOAD_IMAGE_MB = 6;
 
-export type AuthUser = { id: number; email: string; username: string };
+export type AuthUser = { id: number; email: string; username: string; isAdmin: boolean; isSuperadmin: boolean };
 
 export async function authRegister(input: {
   email: string;

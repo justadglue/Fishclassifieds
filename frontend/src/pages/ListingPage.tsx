@@ -2,12 +2,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { Flag } from "lucide-react";
-import { fetchListing, fetchWantedPost, getListingOptionsCached, resolveAssets, type Listing, type WantedPost } from "../api";
+import { createReport, fetchListing, fetchWantedPost, getListingOptionsCached, resolveAssets, type Listing, type WantedPost } from "../api";
 import Header from "../components/Header";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 import { decodeSaleDetailsFromDescription, decodeWantedDetailsFromDescription } from "../utils/listingDetailsBlock";
 import ShippingInfoButton from "../components/ShippingInfoButton";
 import { browsePath, parseListingKind, type ListingKind } from "../utils/listingRoutes";
+import { useAuth } from "../auth";
 
 function centsToDollars(cents: number) {
   const s = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -55,6 +56,15 @@ export default function ListingPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [phoneRevealed, setPhoneRevealed] = useState(false);
+  const { user } = useAuth();
+
+  // Report modal
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("Scam / suspicious");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportErr, setReportErr] = useState<string | null>(null);
+  const [reportOk, setReportOk] = useState(false);
 
   // Lightbox
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -269,6 +279,95 @@ export default function ListingPage() {
 
         {item && (
           <>
+            {reportOpen ? (
+              <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true">
+                <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-extrabold text-slate-900">Report listing</div>
+                      <div className="mt-1 text-sm text-slate-600">
+                        {user ? "Your report will be sent to admins for review." : "You need to sign in to submit a report."}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReportOpen(false)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                    >
+                      Close
+                    </button>
+                  </div>
+
+                  {reportErr && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{reportErr}</div>}
+                  {reportOk && (
+                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                      Report submitted. Thank you.
+                    </div>
+                  )}
+
+                  <div className="mt-4 grid gap-3">
+                    <label className="block">
+                      <div className="mb-1 text-xs font-semibold text-slate-700">Reason</div>
+                      <select
+                        value={reportReason}
+                        onChange={(e) => setReportReason(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-slate-400"
+                      >
+                        <option>Scam / suspicious</option>
+                        <option>Prohibited item</option>
+                        <option>Harassment</option>
+                        <option>Spam</option>
+                        <option>Incorrect category</option>
+                        <option>Other</option>
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <div className="mb-1 text-xs font-semibold text-slate-700">Details (optional)</div>
+                      <textarea
+                        value={reportDetails}
+                        onChange={(e) => setReportDetails(e.target.value)}
+                        rows={4}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                        placeholder="Add any relevant details…"
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      disabled={!user || reportLoading || reportOk}
+                      onClick={async () => {
+                        if (!id) return;
+                        if (!user) {
+                          setReportErr("Please sign in to submit a report.");
+                          return;
+                        }
+                        if (reportLoading) return;
+                        setReportLoading(true);
+                        setReportErr(null);
+                        try {
+                          await createReport({
+                            targetKind: kind === "wanted" ? "wanted" : "sale",
+                            targetId: id,
+                            reason: reportReason,
+                            details: reportDetails.trim() ? reportDetails.trim() : null,
+                          });
+                          setReportOk(true);
+                        } catch (e: any) {
+                          setReportErr(e?.message ?? "Failed to submit report");
+                        } finally {
+                          setReportLoading(false);
+                        }
+                      }}
+                      className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-extrabold text-red-800 hover:bg-red-100 disabled:opacity-60"
+                    >
+                      {reportLoading ? "Submitting…" : reportOk ? "Submitted" : "Submit report"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_360px]">
               {/* Left column: gallery + description */}
               <div className="space-y-5">
@@ -287,6 +386,11 @@ export default function ListingPage() {
                     </div>
                     <button
                       type="button"
+                      onClick={() => {
+                        setReportErr(null);
+                        setReportOk(false);
+                        setReportOpen(true);
+                      }}
                       className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-red-400"
                       title="Report this ad"
                     >

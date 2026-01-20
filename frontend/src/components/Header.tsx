@@ -132,6 +132,12 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
           </Link>
         ) : null}
 
+        {user && (user.isAdmin || user.isSuperadmin) ? (
+          <Link to="/admin" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+            Admin dashboard
+          </Link>
+        ) : null}
+
         {/* Top-right search: icon-only until clicked */}
         <div className="relative" ref={searchRef}>
           {!searchOpen ? (
@@ -235,6 +241,17 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
                     >
                       My listings
                     </Link>
+
+                    {user && (user.isAdmin || user.isSuperadmin) ? (
+                      <Link
+                        to="/admin"
+                        onClick={() => setOpen(false)}
+                        className="mt-1 block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                        role="menuitem"
+                      >
+                        Admin dashboard
+                      </Link>
+                    ) : null}
 
                     <Link
                       to="/profile"

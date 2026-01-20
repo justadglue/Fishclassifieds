@@ -16,6 +16,12 @@ import FaqPage from "./pages/FaqPage.tsx";
 import ContactPage from "./pages/ContactPage.tsx";
 import TermsPage from "./pages/TermsPage.tsx";
 import PrivacyPage from "./pages/PrivacyPage.tsx";
+import AdminRoute from "./admin/AdminRoute";
+import AdminLayout from "./admin/AdminLayout";
+import AdminDashboardPage from "./admin/pages/AdminDashboardPage";
+import AdminApprovalsPage from "./admin/pages/AdminApprovalsPage";
+import AdminReportsPage from "./admin/pages/AdminReportsPage";
+import AdminUsersPage from "./admin/pages/AdminUsersPage";
 
 function ScrollToTopOnRouteChange() {
   const { pathname, hash } = useLocation();
@@ -56,6 +62,20 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignUpPage />} />
         <Route path="/auth" element={<AuthGatePage />} />
+
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminLayout />
+            </AdminRoute>
+          }
+        >
+          <Route index element={<AdminDashboardPage />} />
+          <Route path="approvals" element={<AdminApprovalsPage />} />
+          <Route path="reports" element={<AdminReportsPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
+        </Route>
       </Routes>
     </>
   );

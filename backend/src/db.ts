@@ -53,6 +53,8 @@ export type UserRow = {
   first_name: string;
   last_name: string;
   password_hash: string;
+  is_admin?: number;
+  is_superadmin?: number;
   created_at: string;
   updated_at: string;
 };
@@ -81,6 +83,8 @@ CREATE TABLE IF NOT EXISTS users(
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
+  is_admin INTEGER NOT NULL DEFAULT 0,
+  is_superadmin INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -132,6 +136,41 @@ CREATE TABLE IF NOT EXISTS deleted_accounts(
 CREATE INDEX IF NOT EXISTS idx_deleted_accounts_deleted_at ON deleted_accounts(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_deleted_accounts_email_hash ON deleted_accounts(email_hash);
 CREATE INDEX IF NOT EXISTS idx_deleted_accounts_username_hash ON deleted_accounts(username_hash);
+
+-- User reports (admin moderation inbox)
+CREATE TABLE IF NOT EXISTS reports(
+  id TEXT PRIMARY KEY,
+  reporter_user_id INTEGER NOT NULL,
+  target_kind TEXT NOT NULL, -- 'sale' | 'wanted'
+  target_id TEXT NOT NULL,   -- listings.id
+  reason TEXT NOT NULL,
+  details TEXT,
+  status TEXT NOT NULL DEFAULT 'open', -- 'open' | 'resolved'
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  resolved_by_user_id INTEGER,
+  resolved_note TEXT,
+  FOREIGN KEY(reporter_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY(resolved_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_reports_status_created_at ON reports(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(target_kind, target_id);
+CREATE INDEX IF NOT EXISTS idx_reports_reporter_user_id ON reports(reporter_user_id);
+
+-- Admin audit log (recommended for accountability)
+CREATE TABLE IF NOT EXISTS admin_audit(
+  id TEXT PRIMARY KEY,
+  actor_user_id INTEGER NOT NULL,
+  action TEXT NOT NULL,
+  target_kind TEXT NOT NULL,
+  target_id TEXT NOT NULL,
+  meta_json TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(actor_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_created_at ON admin_audit(created_at);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_actor ON admin_audit(actor_user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit(target_kind, target_id, created_at);
 
 -- Unified listings table. listing_type=0 is sale, listing_type=1 is wanted.
 CREATE TABLE IF NOT EXISTS listings(
@@ -199,6 +238,19 @@ CREATE INDEX IF NOT EXISTS idx_listing_images_listing_id ON listing_images(listi
 `);
 }
 
+function assertUsersSchema(db: Database.Database) {
+  const cols = db.prepare(`PRAGMA table_info(users)`).all() as Array<{ name: string }>;
+  const names = new Set(cols.map((c) => String((c as any).name)));
+  const required = ["is_admin", "is_superadmin"] as const;
+  for (const col of required) {
+    if (!names.has(col)) {
+      throw new Error(
+        `DB schema missing required column '${col}' on table 'users'. ` + `Run: npm --prefix backend run db:migration`
+      );
+    }
+  }
+}
+
 function assertListingsSchema(db: Database.Database) {
   // We intentionally do NOT auto-migrate in runtime. If the DB file predates a schema change,
   // fail fast with a clear message so the operator can run the migration script.
@@ -224,7 +276,8 @@ export function openDb() {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   createSchema(db);
-   assertListingsSchema(db);
+  assertUsersSchema(db);
+  assertListingsSchema(db);
   _db = db;
   return db;
 }

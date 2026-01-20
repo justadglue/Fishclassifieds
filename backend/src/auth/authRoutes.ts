@@ -145,7 +145,13 @@ VALUES(?,?,?,?,?,?,NULL,?,?)
   setAuthCookies(res, accessToken, refreshToken);
 
   return res.json({
-    user: { id: row.id, email: row.email, username: row.username },
+    user: {
+      id: row.id,
+      email: row.email,
+      username: row.username,
+      isAdmin: Boolean(Number(row.is_admin ?? 0)),
+      isSuperadmin: Boolean(Number(row.is_superadmin ?? 0)),
+    },
   });
 });
 
@@ -199,7 +205,7 @@ router.post("/refresh", (req: Request, res: Response) => {
   }
 
   const user = db
-    .prepare(`SELECT id,email,username FROM users WHERE id = ?`)
+    .prepare(`SELECT id,email,username,is_admin,is_superadmin FROM users WHERE id = ?`)
     .get(Number(payload.sub)) as any | undefined;
 
   if (!user) {
@@ -224,7 +230,13 @@ WHERE id = ?
   setAuthCookies(res, newAccess, newRefresh);
 
   return res.json({
-    user: { id: user.id, email: user.email, username: user.username },
+    user: {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      isAdmin: Boolean(Number(user.is_admin ?? 0)),
+      isSuperadmin: Boolean(Number(user.is_superadmin ?? 0)),
+    },
   });
 });
 

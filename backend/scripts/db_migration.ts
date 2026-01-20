@@ -65,6 +65,49 @@ CREATE INDEX IF NOT EXISTS idx_listing_images_listing_id ON listing_images(listi
 `);
 }
 
+function ensureReportsTable(db: Database.Database) {
+  if (hasTable(db, "reports")) return;
+  db.exec(`
+CREATE TABLE IF NOT EXISTS reports(
+  id TEXT PRIMARY KEY,
+  reporter_user_id INTEGER NOT NULL,
+  target_kind TEXT NOT NULL,
+  target_id TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  details TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  resolved_by_user_id INTEGER,
+  resolved_note TEXT,
+  FOREIGN KEY(reporter_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY(resolved_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_reports_status_created_at ON reports(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(target_kind, target_id);
+CREATE INDEX IF NOT EXISTS idx_reports_reporter_user_id ON reports(reporter_user_id);
+`);
+}
+
+function ensureAdminAuditTable(db: Database.Database) {
+  if (hasTable(db, "admin_audit")) return;
+  db.exec(`
+CREATE TABLE IF NOT EXISTS admin_audit(
+  id TEXT PRIMARY KEY,
+  actor_user_id INTEGER NOT NULL,
+  action TEXT NOT NULL,
+  target_kind TEXT NOT NULL,
+  target_id TEXT NOT NULL,
+  meta_json TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(actor_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_created_at ON admin_audit(created_at);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_actor ON admin_audit(actor_user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit(target_kind, target_id, created_at);
+`);
+}
+
 function extractWaterTypeFromDescription(desc: string): string | null {
   const m = String(desc ?? "").match(/^water type\s*:\s*(.+)\s*$/im);
   if (!m) return null;
@@ -117,6 +160,8 @@ CREATE TABLE IF NOT EXISTS users_new(
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
+  is_admin INTEGER NOT NULL DEFAULT 0,
+  is_superadmin INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -124,9 +169,13 @@ CREATE TABLE IF NOT EXISTS users_new(
 
       const firstExpr = hasFirst ? "first_name" : "''";
       const lastExpr = hasLast ? "last_name" : "''";
+      const hasIsAdmin = hasColumn(db, "users", "is_admin");
+      const hasIsSuperadmin = hasColumn(db, "users", "is_superadmin");
+      const isAdminExpr = hasIsAdmin ? "COALESCE(is_admin, 0)" : "0";
+      const isSuperExpr = hasIsSuperadmin ? "COALESCE(is_superadmin, 0)" : "0";
 
       db.exec(`
-INSERT INTO users_new(id,email,username,first_name,last_name,password_hash,created_at,updated_at)
+INSERT INTO users_new(id,email,username,first_name,last_name,password_hash,is_admin,is_superadmin,created_at,updated_at)
 SELECT
   id,
   email,
@@ -134,6 +183,8 @@ SELECT
   COALESCE(NULLIF(trim(${firstExpr}), ''), 'Unknown'),
   COALESCE(NULLIF(trim(${lastExpr}), ''), 'Unknown'),
   password_hash,
+  ${isAdminExpr},
+  ${isSuperExpr},
   created_at,
   updated_at
 FROM users;
@@ -152,8 +203,24 @@ FROM users;
     if (!hasFirst || !hasLast) migrations.push("Added users.first_name / users.last_name (required)");
     if (hasDisplay) migrations.push("Removed legacy users display-name column");
     if ((hasFirst && !firstNotNull) || (hasLast && !lastNotNull)) migrations.push("Enforced NOT NULL on users.first_name / users.last_name");
+    migrations.push("Ensured users.is_admin / users.is_superadmin columns exist (users table rebuild)");
   } else {
     migrations.push("users schema already includes required first_name/last_name and no legacy display-name column");
+  }
+
+  // Add admin privilege columns if missing (for DBs that didn't require rebuild).
+  if (!hasColumn(db, "users", "is_admin")) {
+    db.exec(`ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0;`);
+    migrations.push("Added users.is_admin");
+  } else {
+    migrations.push("users.is_admin already exists");
+  }
+
+  if (!hasColumn(db, "users", "is_superadmin")) {
+    db.exec(`ALTER TABLE users ADD COLUMN is_superadmin INTEGER NOT NULL DEFAULT 0;`);
+    migrations.push("Added users.is_superadmin");
+  } else {
+    migrations.push("users.is_superadmin already exists");
   }
 
   // Ensure deleted_accounts has no display_name_hash column.
@@ -408,6 +475,8 @@ AND contact IS NOT NULL;
 
   // Ensure listing_images exists before we potentially backfill from legacy image_url.
   ensureListingImagesTable(db);
+  ensureReportsTable(db);
+  ensureAdminAuditTable(db);
 
   // Drop legacy columns on listings (owner_token, image_url, and older wanted budget columns) by rebuilding the table.
   const hasOwnerToken = hasColumn(db, "listings", "owner_token");

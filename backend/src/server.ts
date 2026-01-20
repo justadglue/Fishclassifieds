@@ -19,6 +19,7 @@ import { clearAuthCookies } from "./auth/cookies.js";
 import { nowIso as nowIsoSecurity } from "./security.js";
 import { BIO_FIELDS_REQUIRED_CATEGORIES, LISTING_CATEGORIES, LISTING_SEXES, OTHER_CATEGORY, WATER_TYPES } from "./listingOptions.js";
 import argon2 from "argon2";
+import adminRoutes from "./admin/adminRoutes.js";
 
 assertConfig();
 
@@ -237,7 +238,8 @@ function assertListingOwner(req: express.Request, res: express.Response, row: an
 
 const StatusSchema = z.enum(["draft", "pending", "active", "paused", "expired", "deleted"]);
 const ResolutionSchema = z.enum(["none", "sold"]);
-const PUBLIC_LIFECYCLE: ListingStatus[] = ["active", "pending"];
+// Public visibility: pending posts are hidden until approved.
+const PUBLIC_LIFECYCLE: ListingStatus[] = ["active"];
 
 function addDaysIso(isoNow: string, days: number) {
   const d = new Date(isoNow);
@@ -409,9 +411,53 @@ const UpdateWantedSchema = z.object({
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.get("/api/me", requireAuth, (req, res) => {
   return res.json({ user: req.user });
+});
+
+const ReportSchema = z.object({
+  targetKind: z.enum(["sale", "wanted"]),
+  targetId: z.string().min(1).max(80),
+  reason: z.string().min(2).max(80),
+  details: z.string().max(1200).optional().nullable(),
+});
+
+app.post("/api/reports", requireAuth, (req, res) => {
+  const parsed = ReportSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+
+  const { targetKind, targetId, reason, details } = parsed.data;
+  const lt = targetKind === "sale" ? 0 : 1;
+  const user = req.user!;
+  const now = nowIsoSecurity();
+
+  // Validate target exists and matches kind.
+  const row = db
+    .prepare(
+      `
+SELECT id,status
+FROM listings
+WHERE id = ?
+AND listing_type = ?
+AND status <> 'deleted'
+`
+    )
+    .get(String(targetId), lt) as any | undefined;
+
+  if (!row) return res.status(404).json({ error: "Target not found" });
+
+  const id = crypto.randomUUID();
+  db.prepare(
+    `
+INSERT INTO reports(
+  id,reporter_user_id,target_kind,target_id,reason,details,status,created_at,updated_at,resolved_by_user_id,resolved_note
+) VALUES(?,?,?,?,?,?,'open',?, ?,NULL,NULL)
+`
+  ).run(id, user.id, targetKind, targetId, reason, details ?? null, now, now);
+
+  return res.status(201).json({ id });
 });
 
 const ProfileSchema = z.object({
@@ -874,7 +920,7 @@ SELECT COUNT(*) as c
 FROM listings l
 WHERE l.featured = 1
 AND (l.featured_until IS NULL OR l.featured_until > ?)
-AND l.status IN('active','pending')
+AND l.status IN('active')
 AND (
   (l.listing_type = 0 AND l.resolution = 'none')
   OR
@@ -893,7 +939,7 @@ FROM listings l
 JOIN users u ON u.id = l.user_id
 WHERE l.featured = 1
 AND (l.featured_until IS NULL OR l.featured_until > ?)
-AND l.status IN('active','pending')
+AND l.status IN('active')
 AND (
   (l.listing_type = 0 AND l.resolution = 'none')
   OR
@@ -935,7 +981,7 @@ app.get("/api/listings", (req, res) => {
   const where: string[] = [];
   const params: any[] = [];
   where.push(`listing_type = 0`);
-  where.push(`status IN('active','pending')`);
+  where.push(`status IN('active')`);
   where.push(`resolution = 'none'`);
 
   if (featured === "1") {
@@ -1242,7 +1288,7 @@ app.get("/api/wanted", (req, res) => {
   const where: string[] = [];
   const params: any[] = [];
   where.push(`l.listing_type = 1`);
-  where.push(`l.status IN('active','pending')`);
+  where.push(`l.status IN('active')`);
   // Default: only open posts are visible publicly. Allow explicit filtering by status for dev/admin use.
   if (statusFilter) where.push(`l.wanted_status = ?`), params.push(statusFilter);
   else where.push(`l.wanted_status = 'open'`);
@@ -1402,7 +1448,9 @@ app.post("/api/wanted", requireAuth, (req, res) => {
   const now = nowIso();
   const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
   const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
+  const requireApproval = String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
   const user = req.user!;
+  const status: ListingStatus = requireApproval ? "pending" : "active";
 
   db.prepare(
     `
@@ -1433,7 +1481,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     "open",
     location,
     phone,
-    "active",
+    status,
     expiresAt,
     "none",
     null,

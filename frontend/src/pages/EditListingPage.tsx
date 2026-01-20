@@ -499,8 +499,6 @@ function SaleEditForm() {
 
         {err && !orig && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
-        {loading && !orig && <div className="mt-4 text-sm text-slate-600">Loading...</div>}
-
         {orig && (
           <form onSubmit={onSave} noValidate className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
             {/* Listing state (only for normal edit, not relist) */}

@@ -827,7 +827,6 @@ export default function MyListingsPage() {
         </div>
 
         {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
-        {loading && <div className="mt-4 text-sm text-slate-600">Loading...</div>}
 
         {!loading && viewType === "sale" && items.length === 0 && (
           <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">

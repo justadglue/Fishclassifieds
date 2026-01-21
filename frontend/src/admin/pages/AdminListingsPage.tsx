@@ -372,6 +372,7 @@ export default function AdminListingsPage() {
     const stickyScrollRef = useRef<HTMLDivElement | null>(null);
     const [showStickyX, setShowStickyX] = useState(false);
     const [stickyGeom, setStickyGeom] = useState<{ left: number; width: number; scrollWidth: number } | null>(null);
+    const stickyRecomputeRef = useRef<null | (() => void)>(null);
 
     const [visibleCols, setVisibleCols] = useState<Record<ColKey, boolean>>(() => {
         try {
@@ -583,6 +584,9 @@ export default function AdminListingsPage() {
             });
         }
 
+        // Expose a way for other effects (e.g. filter changes) to trigger a recompute.
+        stickyRecomputeRef.current = schedule;
+
         recompute();
         window.addEventListener("scroll", schedule, { passive: true });
         window.addEventListener("resize", schedule, { passive: true });
@@ -593,8 +597,16 @@ export default function AdminListingsPage() {
             window.removeEventListener("resize", schedule as any);
             mainEl.removeEventListener("scroll", schedule as any);
             if (raf) window.cancelAnimationFrame(raf);
+            if (stickyRecomputeRef.current === schedule) stickyRecomputeRef.current = null;
         };
     }, [tableWidthPx, visibleCols]);
+
+    // Filters / pagination / expansion can change the table's height (and whether the bottom is visible),
+    // but they don't necessarily trigger scroll/resize events. Nudge the sticky scrollbar to recompute.
+    useEffect(() => {
+        stickyRecomputeRef.current?.();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [q, userQ, kind, status, featuredOnly, includeDeleted, offset, limit, items.length, expandedId, colsOpen, tableWidthPx, visibleCols]);
 
     // Keep the floating horizontal scrollbar in sync with the actual table scroller.
     // Note: keep the element mounted so refs exist and listeners attach reliably.

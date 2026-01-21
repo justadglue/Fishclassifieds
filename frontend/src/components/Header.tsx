@@ -10,6 +10,9 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
   const nav = useNavigate();
   const maxWidth = props.maxWidth ?? "6xl";
 
+  const NOTIF_INITIAL = 5;
+  const NOTIF_PAGE = 6;
+
   const [open, setOpen] = useState(false);
   const menuAnchorRef = useRef<HTMLDivElement | null>(null);
   const menuPanelRef = useRef<HTMLDivElement | null>(null);
@@ -26,6 +29,8 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
   const [notifItems, setNotifItems] = useState<NotificationItem[]>([]);
   const [notifUnread, setNotifUnread] = useState(0);
   const [notifLoading, setNotifLoading] = useState(false);
+  const [notifLimit, setNotifLimit] = useState(NOTIF_INITIAL);
+  const [notifHasMore, setNotifHasMore] = useState(false);
 
   function closeSearch() {
     setSearchOpen(false);
@@ -145,12 +150,15 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
     window.setTimeout(() => searchInputRef.current?.focus(), 0);
   }, [searchOpen]);
 
-  async function refreshNotifications() {
+  async function refreshNotifications(limitOverride?: number) {
     if (!user) return;
+    const desiredLimit = limitOverride ?? notifLimit;
     setNotifLoading(true);
     try {
-      const res = await fetchNotifications({ limit: 20, offset: 0 });
-      setNotifItems(res.items);
+      // Fetch one extra so we can reliably show/hide the "See previous" button.
+      const res = await fetchNotifications({ limit: desiredLimit + 1, offset: 0 });
+      setNotifItems(res.items.slice(0, desiredLimit));
+      setNotifHasMore(res.items.length > desiredLimit);
       setNotifUnread(res.unreadCount);
     } catch {
       // ignore
@@ -164,17 +172,33 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
       setNotifUnread(0);
       setNotifItems([]);
       setNotifOpen(false);
+      setNotifLimit(NOTIF_INITIAL);
+      setNotifHasMore(false);
       return;
     }
-    refreshNotifications();
-    const t = window.setInterval(() => refreshNotifications(), 30_000);
-    return () => window.clearInterval(t);
+
+    // Default to showing only the newest notifications.
+    setNotifLimit(NOTIF_INITIAL);
+    refreshNotifications(NOTIF_INITIAL);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   useEffect(() => {
+    if (!user) return;
+    const t = window.setInterval(() => {
+      // If the dropdown is open, keep the user's expanded view fresh.
+      // If closed, keep the polling light (newest only).
+      refreshNotifications(notifOpen ? notifLimit : NOTIF_INITIAL);
+    }, 30_000);
+    return () => window.clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, notifOpen, notifLimit]);
+
+  useEffect(() => {
     if (!notifOpen) return;
-    refreshNotifications();
+    // Reset to newest-only each time the dropdown opens.
+    setNotifLimit(NOTIF_INITIAL);
+    refreshNotifications(NOTIF_INITIAL);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notifOpen]);
 
@@ -381,6 +405,20 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
                           </button>
                         );
                       })}
+
+                      {!notifLoading && notifItems.length > 0 && notifHasMore ? (
+                        <button
+                          type="button"
+                          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                          onClick={async () => {
+                            const nextLimit = notifLimit + NOTIF_PAGE;
+                            setNotifLimit(nextLimit);
+                            await refreshNotifications(nextLimit);
+                          }}
+                        >
+                          See previous
+                        </button>
+                      ) : null}
                     </div>
                   </div>,
                   document.body

@@ -395,10 +395,20 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
                             }}
                           >
                             <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-extrabold text-slate-900">{n.title}</div>
-                                {n.body ? <div className="mt-0.5 line-clamp-2 text-xs font-semibold text-slate-600">{n.body}</div> : null}
-                                {navTo ? <div className="mt-1 text-[11px] font-bold text-slate-700 underline underline-offset-4">{navTo.label}</div> : null}
+                              <div className="flex min-w-0 items-start gap-3">
+                                {n.imageUrl ? (
+                                  <img
+                                    src={n.imageUrl}
+                                    alt=""
+                                    loading="lazy"
+                                    className="h-10 w-10 shrink-0 rounded-xl border border-slate-200 bg-slate-50 object-cover"
+                                  />
+                                ) : null}
+                                <div className="min-w-0">
+                                  <div className="truncate text-sm font-extrabold text-slate-900">{n.title}</div>
+                                  {n.body ? <div className="mt-0.5 line-clamp-2 text-xs font-semibold text-slate-600">{n.body}</div> : null}
+                                  {navTo ? <div className="mt-1 text-[11px] font-bold text-slate-700 underline underline-offset-4">{navTo.label}</div> : null}
+                                </div>
                               </div>
                               {!n.isRead ? <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-red-600" aria-hidden="true" /> : null}
                             </div>

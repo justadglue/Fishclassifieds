@@ -751,18 +751,75 @@ LIMIT ? OFFSET ?
     )
     .all(userId, limit, offset) as any[];
 
+  function extractListingIdFromMeta(meta: any): string | null {
+    const listingId = meta?.listingId;
+    if (typeof listingId === "string" && listingId.trim()) return listingId.trim();
+    const targetKind = meta?.targetKind;
+    const targetId = meta?.targetId;
+    if ((targetKind === "sale" || targetKind === "wanted") && typeof targetId === "string" && targetId.trim()) return targetId.trim();
+    return null;
+  }
+
+  // If any notifications reference listings, attach a thumbnail URL (best-effort).
+  const listingIds = new Set<string>();
+  const metaByNotifId = new Map<string, any>();
+  for (const r of rows) {
+    const metaStr = r.meta_json != null ? String(r.meta_json) : null;
+    if (!metaStr) continue;
+    try {
+      const meta = JSON.parse(metaStr);
+      const notifId = String(r.id);
+      metaByNotifId.set(notifId, meta);
+      const listingId = extractListingIdFromMeta(meta);
+      if (listingId) listingIds.add(listingId);
+    } catch {
+      // ignore malformed meta_json
+    }
+  }
+
+  const imageUrlByListingId = new Map<string, string>();
+  if (listingIds.size > 0) {
+    const ids = Array.from(listingIds);
+    const placeholders = ids.map(() => "?").join(",");
+    const imgRows = db
+      .prepare(
+        `
+SELECT listing_id,
+       COALESCE(thumb_url, medium_url, url) AS image_url
+FROM listing_images
+WHERE listing_id IN (${placeholders})
+ORDER BY sort_order ASC
+`
+      )
+      .all(...ids) as any[];
+    for (const ir of imgRows) {
+      const lid = String(ir.listing_id ?? "").trim();
+      const img = ir.image_url != null ? String(ir.image_url) : "";
+      if (!lid || !img) continue;
+      if (!imageUrlByListingId.has(lid)) imageUrlByListingId.set(lid, img);
+    }
+  }
+
   return res.json({
     unreadCount,
-    items: rows.map((r) => ({
-      id: String(r.id),
-      kind: String(r.kind ?? ""),
-      title: String(r.title ?? ""),
-      body: r.body != null ? String(r.body) : null,
-      metaJson: r.meta_json != null ? String(r.meta_json) : null,
-      isRead: Boolean(Number(r.is_read ?? 0)),
-      createdAt: String(r.created_at ?? ""),
-      readAt: r.read_at != null ? String(r.read_at) : null,
-    })),
+    items: rows.map((r) => {
+      const id = String(r.id);
+      const metaJson = r.meta_json != null ? String(r.meta_json) : null;
+      const meta = metaByNotifId.get(id) ?? null;
+      const listingId = meta ? extractListingIdFromMeta(meta) : null;
+      const imageUrl = listingId ? imageUrlByListingId.get(listingId) ?? null : null;
+      return {
+        id,
+        kind: String(r.kind ?? ""),
+        title: String(r.title ?? ""),
+        body: r.body != null ? String(r.body) : null,
+        metaJson,
+        imageUrl,
+        isRead: Boolean(Number(r.is_read ?? 0)),
+        createdAt: String(r.created_at ?? ""),
+        readAt: r.read_at != null ? String(r.read_at) : null,
+      };
+    }),
     limit,
     offset,
   });

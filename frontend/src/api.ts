@@ -352,6 +352,7 @@ export type NotificationItem = {
   title: string;
   body: string | null;
   metaJson: string | null;
+  imageUrl?: string | null;
   isRead: boolean;
   createdAt: string;
   readAt: string | null;

@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import type Database from "better-sqlite3";
 import { verifyAccessToken } from "./jwt.js";
+import { clearAccessCookie, clearAuthCookies } from "./cookies.js";
 import { nowIso } from "../security.js";
 
 declare global {
@@ -27,8 +28,30 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     const payload = verifyAccessToken(token);
     const userId = Number(payload.sub);
     if (!Number.isFinite(userId)) return res.status(401).json({ error: "Invalid access token" });
+    const sid = (payload as any)?.sid;
+    if (!sid || typeof sid !== "string") {
+      // Older tokens may not have a session id. Force refresh flow by rejecting the access token,
+      // but keep the refresh cookie intact.
+      clearAccessCookie(res);
+      return res.status(401).json({ error: "Invalid access token" });
+    }
 
     const db = getDb(req);
+    const session = db.prepare(`SELECT id,user_id,expires_at,revoked_at FROM sessions WHERE id = ?`).get(sid) as any | undefined;
+    if (!session || Number(session.user_id) !== userId) {
+      clearAccessCookie(res);
+      return res.status(401).json({ error: "Session not found" });
+    }
+    if (session.revoked_at) {
+      clearAuthCookies(res);
+      return res.status(401).json({ error: "Session revoked" });
+    }
+    const expiresAtMs = Date.parse(String(session.expires_at ?? ""));
+    if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) {
+      clearAuthCookies(res);
+      return res.status(401).json({ error: "Session expired" });
+    }
+
     const row = db
       .prepare(
         `

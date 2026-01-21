@@ -173,7 +173,7 @@ VALUES(?,?,?,?,?,?,NULL,?,?)
     getIp(req)
   );
 
-  const accessToken = signAccessToken({ sub: String(row.id), email: row.email });
+  const accessToken = signAccessToken({ sub: String(row.id), email: row.email, sid: sessionId });
   setAuthCookies(res, accessToken, refreshToken);
 
   return res.json({
@@ -258,7 +258,7 @@ WHERE id = ?
 `
   ).run(newHash, nowIso(), newExpiresAt, session.id);
 
-  const newAccess = signAccessToken({ sub: String(user.id), email: user.email });
+  const newAccess = signAccessToken({ sub: String(user.id), email: user.email, sid: session.id });
   setAuthCookies(res, newAccess, newRefresh);
 
   return res.json({

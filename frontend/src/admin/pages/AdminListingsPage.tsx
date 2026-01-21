@@ -699,7 +699,7 @@ export default function AdminListingsPage() {
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <div className="text-sm font-bold text-slate-900">All listings</div>
-                    <div className="mt-1 text-sm text-slate-600">God’s-eye view across the entire site (sale + wanted).</div>
+                    <div className="mt-1 text-sm text-slate-600">God’s-eye view across the entire site.</div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="text-xs font-semibold text-slate-600">Type</div>

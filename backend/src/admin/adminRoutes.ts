@@ -273,12 +273,12 @@ LIMIT ? OFFSET ?
       r.user_id == null
         ? null
         : {
-            id: Number(r.user_id),
-            username: r.user_username ? String(r.user_username) : null,
-            email: r.user_email ? String(r.user_email) : null,
-            firstName: r.user_first_name ? String(r.user_first_name) : "",
-            lastName: r.user_last_name ? String(r.user_last_name) : "",
-          },
+          id: Number(r.user_id),
+          username: r.user_username ? String(r.user_username) : null,
+          email: r.user_email ? String(r.user_email) : null,
+          firstName: r.user_first_name ? String(r.user_first_name) : "",
+          lastName: r.user_last_name ? String(r.user_last_name) : "",
+        },
     status: String(r.status ?? "active"),
     title: String(r.title ?? ""),
     category: String(r.category ?? ""),

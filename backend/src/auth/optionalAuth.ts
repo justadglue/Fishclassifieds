@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import type Database from "better-sqlite3";
 import { verifyAccessToken } from "./jwt.js";
+import { clearAccessCookie, clearAuthCookies } from "./cookies.js";
 import { nowIso } from "../security.js";
 
 function getDb(req: Request): Database.Database {
@@ -11,7 +12,7 @@ function getDb(req: Request): Database.Database {
 
 // Like requireAuth, but never blocks the request.
 // If the access token is present + valid, attaches req.user.
-export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
+export function optionalAuth(req: Request, res: Response, next: NextFunction) {
   const token = req.cookies?.fc_access;
   if (!token || typeof token !== "string") return next();
 
@@ -19,8 +20,28 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
     const payload = verifyAccessToken(token);
     const userId = Number(payload.sub);
     if (!Number.isFinite(userId)) return next();
+    const sid = (payload as any)?.sid;
+    if (!sid || typeof sid !== "string") {
+      clearAccessCookie(res);
+      return next();
+    }
 
     const db = getDb(req);
+    const session = db.prepare(`SELECT id,user_id,expires_at,revoked_at FROM sessions WHERE id = ?`).get(sid) as any | undefined;
+    if (!session || Number(session.user_id) !== userId) {
+      clearAccessCookie(res);
+      return next();
+    }
+    if (session.revoked_at) {
+      clearAuthCookies(res);
+      return next();
+    }
+    const expiresAtMs = Date.parse(String(session.expires_at ?? ""));
+    if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) {
+      clearAuthCookies(res);
+      return next();
+    }
+
     const row = db
       .prepare(
         `

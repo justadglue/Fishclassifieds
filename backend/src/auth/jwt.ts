@@ -4,6 +4,7 @@ import { config } from "../config.js";
 export type AccessTokenPayload = {
   sub: string;
   email: string;
+  sid: string;
 };
 
 export type RefreshTokenPayload = {

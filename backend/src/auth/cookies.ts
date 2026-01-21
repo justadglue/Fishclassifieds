@@ -37,3 +37,10 @@ export function clearAuthCookies(res: Response) {
     path: "/api/auth",
   });
 }
+
+export function clearAccessCookie(res: Response) {
+  res.clearCookie(COOKIE_ACCESS, {
+    domain: config.cookieDomain || undefined,
+    path: "/",
+  });
+}

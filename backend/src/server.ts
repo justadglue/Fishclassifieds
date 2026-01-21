@@ -726,7 +726,16 @@ app.get("/api/notifications", requireAuth, (req, res) => {
   const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
 
-  const unreadRow = db.prepare(`SELECT COUNT(*) as c FROM notifications WHERE user_id = ? AND is_read = 0`).get(userId) as any;
+  // Report submitters shouldn't receive follow-up outcome notifications.
+  const unreadRow = db
+    .prepare(
+      `SELECT COUNT(*) as c
+       FROM notifications
+       WHERE user_id = ?
+         AND is_read = 0
+         AND kind NOT IN ('report_resolved','report_addressed')`
+    )
+    .get(userId) as any;
   const unreadCount = Number(unreadRow?.c ?? 0);
 
   const rows = db
@@ -735,6 +744,7 @@ app.get("/api/notifications", requireAuth, (req, res) => {
 SELECT id, kind, title, body, meta_json, is_read, created_at, read_at
 FROM notifications
 WHERE user_id = ?
+  AND kind NOT IN ('report_resolved','report_addressed')
 ORDER BY created_at DESC
 LIMIT ? OFFSET ?
 `

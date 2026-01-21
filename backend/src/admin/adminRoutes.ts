@@ -1066,20 +1066,6 @@ router.post("/reports/:id/resolve", (req, res) => {
   ).run(req.user!.id, parsed.data.note ?? null, now, id);
 
   audit(db, req.user!.id, "resolve_report", "report", id, { prevStatus: row.status, note: parsed.data.note ?? null });
-  const reporterUserId = row.reporter_user_id != null ? Number(row.reporter_user_id) : null;
-  if (reporterUserId != null && Number.isFinite(reporterUserId) && reporterUserId !== req.user!.id) {
-    const note = parsed.data.note ?? null;
-    const targetKind = String(row.target_kind ?? "");
-    const targetId = String(row.target_id ?? "");
-    notify(
-      db,
-      reporterUserId,
-      "report_resolved",
-      "Report resolved",
-      note ? `Your report has been resolved. Note: ${note}` : "Your report has been resolved.",
-      { reportId: id, targetKind, targetId, note }
-    );
-  }
   return res.json({ ok: true });
 });
 
@@ -1198,18 +1184,7 @@ router.post("/reports/:id/action", (req, res) => {
     target: { kind: targetKind, id: targetId, listingStatus: listing?.status ?? null, userId: targetUserId },
   });
 
-  // Notify reporter that their report was addressed.
   const reporterUserId = report.reporter_user_id != null ? Number(report.reporter_user_id) : null;
-  if (reporterUserId != null && Number.isFinite(reporterUserId) && reporterUserId !== req.user!.id) {
-    notify(
-      db,
-      reporterUserId,
-      "report_addressed",
-      "Report addressed",
-      `Your report has been addressed (action: ${action}).`,
-      { reportId: id, targetKind, targetId, action, note, suspendDays: parsed.data.suspendDays ?? null }
-    );
-  }
 
   // If the report action affected the target user/listing owner, notify them too (best-effort).
   if (targetUserId != null && Number.isFinite(targetUserId) && targetUserId !== req.user!.id && targetUserId !== reporterUserId) {

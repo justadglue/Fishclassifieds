@@ -42,20 +42,6 @@ function GroupToggle(props: {
         <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-bold text-slate-900">{label}</div>
             <div className="flex items-center gap-2">
-                <button
-                    type="button"
-                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50"
-                    onClick={() => setVisibleCols((prev) => ({ ...prev, ...Object.fromEntries(keys.map((k) => [k, true])) } as any))}
-                >
-                    Show
-                </button>
-                <button
-                    type="button"
-                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50"
-                    onClick={() => setVisibleCols((prev) => ({ ...prev, ...Object.fromEntries(keys.map((k) => [k, false])) } as any))}
-                >
-                    Hide
-                </button>
                 <input
                     ref={ref}
                     type="checkbox"
@@ -711,7 +697,7 @@ export default function AdminListingsPage() {
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <div className="text-sm font-bold text-slate-900">All listings</div>
-                    <div className="mt-1 text-sm text-slate-600">God’s-eye view across the entire site.</div>
+                    <div className="mt-1 text-sm text-slate-600">God’s-eye view across all listings.</div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="text-xs font-semibold text-slate-600">Type</div>
@@ -871,10 +857,48 @@ export default function AdminListingsPage() {
                     Search
                 </button>
 
-                <div className="ml-auto text-xs font-semibold text-slate-600">{pageText}</div>
+                <div className="ml-auto flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <div className="text-xs font-semibold text-slate-600">Per page</div>
+                        <select
+                            value={limit}
+                            onChange={(e) => {
+                                const next = Math.max(1, Math.min(200, Math.floor(Number(e.target.value))));
+                                setLimit(next);
+                                setOffset(0);
+                            }}
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-slate-400"
+                        >
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                            <option value={200}>200</option>
+                        </select>
+                    </div>
+                    <div className="text-xs font-semibold text-slate-600">{pageText}</div>
+                </div>
             </div>
 
             {err ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div> : null}
+
+            <div className="mt-4 flex items-center justify-between gap-2">
+                <button
+                    type="button"
+                    disabled={!canPrev || loading}
+                    onClick={() => load({ offset: Math.max(0, offset - limit) })}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 disabled:opacity-50"
+                >
+                    Prev
+                </button>
+                <button
+                    type="button"
+                    disabled={!canNext || loading}
+                    onClick={() => load({ offset: offset + limit })}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 disabled:opacity-50"
+                >
+                    Next
+                </button>
+            </div>
 
             <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
                 <div className="overflow-x-auto" ref={tableScrollRef}>

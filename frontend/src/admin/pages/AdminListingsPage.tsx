@@ -359,6 +359,7 @@ export default function AdminListingsPage() {
     const [showStickyX, setShowStickyX] = useState(false);
     const [stickyGeom, setStickyGeom] = useState<{ left: number; width: number; scrollWidth: number } | null>(null);
     const stickyRecomputeRef = useRef<null | (() => void)>(null);
+    const [tableViewportWidth, setTableViewportWidth] = useState<number | null>(null);
 
     const [visibleCols, setVisibleCols] = useState<Record<ColKey, boolean>>(() => {
         try {
@@ -410,6 +411,24 @@ export default function AdminListingsPage() {
     useEffect(() => {
         colsOpenRef.current = colsOpen;
     }, [colsOpen]);
+
+    // Track the visible width of the table scroller so we can center expanded-row actions
+    // within the viewport even while horizontally scrolling.
+    useEffect(() => {
+        const el = tableScrollRef.current;
+        if (!el || typeof ResizeObserver === "undefined") return;
+
+        function measure() {
+            const cur = tableScrollRef.current;
+            if (!cur) return;
+            setTableViewportWidth(cur.clientWidth);
+        }
+
+        measure();
+        const ro = new ResizeObserver(() => measure());
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
 
     // Collapse only on full click and only when clicking outside any row.
     useEffect(() => {
@@ -1077,79 +1096,88 @@ export default function AdminListingsPage() {
 
                                     {isExpanded && (
                                         <tr className="transition-colors group-hover:bg-slate-50/70" data-row-key={rowKey}>
-                                            <td colSpan={colCount} className="px-2 pb-3 pt-0" data-row-key={rowKey} onClick={(e) => e.stopPropagation()}>
-                                                <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2" data-row-key={rowKey} onClick={(e) => e.stopPropagation()}>
-                                                    <ActionLink to={openHref} label="Open listing" icon={<Star aria-hidden="true" className="h-4 w-4" />} />
-                                                    {it.user?.id != null ? (
-                                                        <ActionLink to={`/admin/users/${it.user.id}`} label="Open user" icon={<UserIcon aria-hidden="true" className="h-4 w-4" />} />
-                                                    ) : null}
+                                            <td colSpan={colCount} className="pb-3 pt-0" data-row-key={rowKey} onClick={(e) => e.stopPropagation()}>
+                                                <div
+                                                    className="sticky left-0 flex justify-center"
+                                                    style={{ width: tableViewportWidth != null ? `${tableViewportWidth}px` : "100%" }}
+                                                    data-row-key={rowKey}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <div className="px-2">
+                                                        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2">
+                                                            <ActionLink to={openHref} label="Open listing" icon={<Star aria-hidden="true" className="h-4 w-4" />} />
+                                                            {it.user?.id != null ? (
+                                                                <ActionLink to={`/admin/users/${it.user.id}`} label="Open user" icon={<UserIcon aria-hidden="true" className="h-4 w-4" />} />
+                                                            ) : null}
 
-                                                    <ActionButton
-                                                        label={toggleTitle}
-                                                        title={toggleTitle}
-                                                        disabled={!canToggle}
-                                                        onClick={async () => {
-                                                            await adminSetListingStatus(it.id, it.status === "paused" ? "active" : "paused");
-                                                            await load({ preserveOrder: true });
-                                                        }}
-                                                        icon={it.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
-                                                    />
-
-                                                    {it.status !== "deleted" ? (
-                                                        <ActionButton
-                                                            label="Delete"
-                                                            title="Delete"
-                                                            variant="danger"
-                                                            onClick={async () => {
-                                                                const ok = window.confirm("Delete this listing? It will be hidden from the site.");
-                                                                if (!ok) return;
-                                                                await adminSetListingStatus(it.id, "deleted");
-                                                                await load({ preserveOrder: true });
-                                                            }}
-                                                            icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
-                                                        />
-                                                    ) : (
-                                                        <ActionButton
-                                                            label="Restore"
-                                                            title="Restore"
-                                                            variant="primary"
-                                                            onClick={async () => {
-                                                                const ok = window.confirm("Restore this listing to active?");
-                                                                if (!ok) return;
-                                                                await adminSetListingStatus(it.id, "active");
-                                                                await load({ preserveOrder: true });
-                                                            }}
-                                                        />
-                                                    )}
-
-                                                    {isSuperadmin ? (
-                                                        isFeatured ? (
                                                             <ActionButton
-                                                                label="Unfeature"
-                                                                title="Unfeature"
-                                                                variant="feature"
+                                                                label={toggleTitle}
+                                                                title={toggleTitle}
+                                                                disabled={!canToggle}
                                                                 onClick={async () => {
-                                                                    await adminSetListingFeaturedUntil(it.id, null);
+                                                                    await adminSetListingStatus(it.id, it.status === "paused" ? "active" : "paused");
                                                                     await load({ preserveOrder: true });
                                                                 }}
-                                                                icon={<CircleCheck aria-hidden="true" className="h-4 w-4" />}
+                                                                icon={it.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
                                                             />
-                                                        ) : (
-                                                            <ActionButton
-                                                                label="Feature"
-                                                                title="Feature"
-                                                                variant="feature"
-                                                                onClick={async () => {
-                                                                    const daysRaw = window.prompt("Feature for how many days?", "7") ?? "";
-                                                                    const days = Math.max(1, Math.min(3650, Math.floor(Number(daysRaw))));
-                                                                    if (!Number.isFinite(days)) return;
-                                                                    await adminSetListingFeaturedUntil(it.id, Date.now() + days * 24 * 60 * 60 * 1000);
-                                                                    await load({ preserveOrder: true });
-                                                                }}
-                                                                icon={<Star aria-hidden="true" className="h-4 w-4" />}
-                                                            />
-                                                        )
-                                                    ) : null}
+
+                                                            {it.status !== "deleted" ? (
+                                                                <ActionButton
+                                                                    label="Delete"
+                                                                    title="Delete"
+                                                                    variant="danger"
+                                                                    onClick={async () => {
+                                                                        const ok = window.confirm("Delete this listing? It will be hidden from the site.");
+                                                                        if (!ok) return;
+                                                                        await adminSetListingStatus(it.id, "deleted");
+                                                                        await load({ preserveOrder: true });
+                                                                    }}
+                                                                    icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
+                                                                />
+                                                            ) : (
+                                                                <ActionButton
+                                                                    label="Restore"
+                                                                    title="Restore"
+                                                                    variant="primary"
+                                                                    onClick={async () => {
+                                                                        const ok = window.confirm("Restore this listing to active?");
+                                                                        if (!ok) return;
+                                                                        await adminSetListingStatus(it.id, "active");
+                                                                        await load({ preserveOrder: true });
+                                                                    }}
+                                                                />
+                                                            )}
+
+                                                            {isSuperadmin ? (
+                                                                isFeatured ? (
+                                                                    <ActionButton
+                                                                        label="Unfeature"
+                                                                        title="Unfeature"
+                                                                        variant="feature"
+                                                                        onClick={async () => {
+                                                                            await adminSetListingFeaturedUntil(it.id, null);
+                                                                            await load({ preserveOrder: true });
+                                                                        }}
+                                                                        icon={<CircleCheck aria-hidden="true" className="h-4 w-4" />}
+                                                                    />
+                                                                ) : (
+                                                                    <ActionButton
+                                                                        label="Feature"
+                                                                        title="Feature"
+                                                                        variant="feature"
+                                                                        onClick={async () => {
+                                                                            const daysRaw = window.prompt("Feature for how many days?", "7") ?? "";
+                                                                            const days = Math.max(1, Math.min(3650, Math.floor(Number(daysRaw))));
+                                                                            if (!Number.isFinite(days)) return;
+                                                                            await adminSetListingFeaturedUntil(it.id, Date.now() + days * 24 * 60 * 60 * 1000);
+                                                                            await load({ preserveOrder: true });
+                                                                        }}
+                                                                        icon={<Star aria-hidden="true" className="h-4 w-4" />}
+                                                                    />
+                                                                )
+                                                            ) : null}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </td>
                                         </tr>

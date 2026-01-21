@@ -27,7 +27,7 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction) {
     }
 
     const db = getDb(req);
-    const session = db.prepare(`SELECT id,user_id,expires_at,revoked_at FROM sessions WHERE id = ?`).get(sid) as any | undefined;
+    const session = db.prepare(`SELECT id,user_id,expires_at,revoked_at,last_used_at FROM sessions WHERE id = ?`).get(sid) as any | undefined;
     if (!session || Number(session.user_id) !== userId) {
       clearAccessCookie(res);
       return next();
@@ -40,6 +40,16 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction) {
     if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) {
       clearAuthCookies(res);
       return next();
+    }
+
+    // Best-effort bump, but less frequently than requireAuth to reduce DB writes on public endpoints.
+    try {
+      const nowMs = Date.now();
+      const lastUsedMs = Date.parse(String(session.last_used_at ?? ""));
+      const shouldBump = !Number.isFinite(lastUsedMs) || nowMs - lastUsedMs >= 15 * 60 * 1000;
+      if (shouldBump) db.prepare(`UPDATE sessions SET last_used_at = ? WHERE id = ?`).run(nowIso(), String(session.id));
+    } catch {
+      // ignore
     }
 
     const row = db
@@ -76,6 +86,7 @@ WHERE u.id = ?
       username: String(row.username),
       isAdmin: Boolean(Number(row.is_admin ?? 0)),
       isSuperadmin: Boolean(Number(row.is_superadmin ?? 0)),
+      sid,
     };
   } catch {
     // ignore (treat as unauthenticated)

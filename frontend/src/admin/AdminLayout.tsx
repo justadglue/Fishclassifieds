@@ -28,7 +28,11 @@ export default function AdminLayout() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Admin</div>
-            <h1 className="mt-1 text-2xl font-extrabold text-slate-900">Dashboard</h1>
+            <h1 className="mt-1 text-2xl font-extrabold text-slate-900">
+              <Link to="/admin" className="hover:underline hover:underline-offset-4" aria-label="Back to admin dashboard">
+                Dashboard
+              </Link>
+            </h1>
             <div className="mt-1 text-sm text-slate-600">
               Signed in as <span className="font-semibold">{user?.username}</span>
               {user?.isSuperadmin ? " (superadmin)" : user?.isAdmin ? " (admin)" : ""}

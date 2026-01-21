@@ -6,8 +6,9 @@ import crypto from "crypto";
 import type Database from "better-sqlite3";
 import { sha256Hex, nowIso } from "../security.js";
 import { config } from "../config.js";
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from "./jwt.js";
-import { clearAuthCookies, setAuthCookies, COOKIE_REFRESH } from "./cookies.js";
+import { signAccessToken, signRefreshToken, verifyRefreshToken, signReauthToken } from "./jwt.js";
+import { clearAuthCookies, setAuthCookies, setReauthCookie, COOKIE_REFRESH } from "./cookies.js";
+import { requireAuth } from "./requireAuth.js";
 
 const router = Router();
 
@@ -25,6 +26,10 @@ const RegisterSchema = z.object({
 
 const LoginSchema = z.object({
   email: z.string().email().max(320),
+  password: z.string().min(1).max(200),
+});
+
+const ReauthSchema = z.object({
   password: z.string().min(1).max(200),
 });
 
@@ -270,6 +275,23 @@ WHERE id = ?
       isSuperadmin: Boolean(Number(user.is_superadmin ?? 0)),
     },
   });
+});
+
+router.post("/reauth", requireAuth, async (req: Request, res: Response) => {
+  const parsed = ReauthSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+
+  const db = getDb(req);
+  const row = db.prepare(`SELECT id,password_hash FROM users WHERE id = ?`).get(req.user!.id) as any | undefined;
+  if (!row) return res.status(401).json({ error: "User not found" });
+
+  const ok = await argon2.verify(String(row.password_hash ?? ""), parsed.data.password);
+  if (!ok) return res.status(401).json({ error: "Invalid password" });
+
+  const ttlSeconds = 10 * 60;
+  const token = signReauthToken({ sub: String(req.user!.id), sid: String(req.user!.sid) }, ttlSeconds);
+  setReauthCookie(res, token, ttlSeconds);
+  return res.json({ ok: true, expiresInSec: ttlSeconds });
 });
 
 router.post("/logout", (req: Request, res: Response) => {

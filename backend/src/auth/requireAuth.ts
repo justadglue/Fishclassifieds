@@ -7,7 +7,7 @@ import { nowIso } from "../security.js";
 declare global {
   namespace Express {
     interface Request {
-      user?: { id: number; email: string; username: string; isAdmin: boolean; isSuperadmin: boolean };
+      user?: { id: number; email: string; username: string; isAdmin: boolean; isSuperadmin: boolean; sid: string };
     }
   }
 }
@@ -37,7 +37,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     }
 
     const db = getDb(req);
-    const session = db.prepare(`SELECT id,user_id,expires_at,revoked_at FROM sessions WHERE id = ?`).get(sid) as any | undefined;
+    const session = db.prepare(`SELECT id,user_id,expires_at,revoked_at,last_used_at FROM sessions WHERE id = ?`).get(sid) as any | undefined;
     if (!session || Number(session.user_id) !== userId) {
       clearAccessCookie(res);
       return res.status(401).json({ error: "Session not found" });
@@ -50,6 +50,16 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) {
       clearAuthCookies(res);
       return res.status(401).json({ error: "Session expired" });
+    }
+
+    // Best-effort: bump last_used_at occasionally so admins can see "Last active".
+    try {
+      const nowMs = Date.now();
+      const lastUsedMs = Date.parse(String(session.last_used_at ?? ""));
+      const shouldBump = !Number.isFinite(lastUsedMs) || nowMs - lastUsedMs >= 5 * 60 * 1000;
+      if (shouldBump) db.prepare(`UPDATE sessions SET last_used_at = ? WHERE id = ?`).run(nowIso(), String(session.id));
+    } catch {
+      // ignore
     }
 
     const row = db
@@ -85,6 +95,7 @@ WHERE u.id = ?
       username: String(row.username),
       isAdmin: Boolean(Number(row.is_admin ?? 0)),
       isSuperadmin: Boolean(Number(row.is_superadmin ?? 0)),
+      sid,
     };
 
     return next();

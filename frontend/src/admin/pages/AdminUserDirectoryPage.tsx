@@ -9,6 +9,28 @@ function fmtUntil(ms: number | null) {
   return d.toLocaleString();
 }
 
+function fmtIso(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const t = Date.parse(String(iso));
+  if (!Number.isFinite(t)) return String(iso);
+  return new Date(t).toLocaleString();
+}
+
+function fmtAgo(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const t = Date.parse(String(iso));
+  if (!Number.isFinite(t)) return "—";
+  const diffMs = Math.max(0, Date.now() - t);
+  const s = Math.floor(diffMs / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
 export default function AdminUserDirectoryPage() {
   const [q, setQ] = useState("");
   const [items, setItems] = useState<AdminUserDirectoryItem[]>([]);
@@ -18,9 +40,12 @@ export default function AdminUserDirectoryPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  async function load(next?: { offset?: number }) {
-    setLoading(true);
-    setErr(null);
+  async function load(next?: { offset?: number; silent?: boolean }) {
+    const silent = Boolean(next?.silent);
+    if (!silent) {
+      setLoading(true);
+      setErr(null);
+    }
     try {
       const res = await adminFetchUserDirectory({ query: q.trim() ? q.trim() : undefined, limit, offset: next?.offset ?? offset });
       setItems(res.items);
@@ -28,9 +53,9 @@ export default function AdminUserDirectoryPage() {
       setLimit(res.limit);
       setOffset(res.offset);
     } catch (e: any) {
-      setErr(e?.message ?? "Failed to load users");
+      if (!silent) setErr(e?.message ?? "Failed to load users");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -92,8 +117,9 @@ export default function AdminUserDirectoryPage() {
       {err ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div> : null}
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="grid grid-cols-[1fr_180px_110px_140px] gap-3 border-b border-slate-200 p-4 text-xs font-bold text-slate-600">
+        <div className="grid grid-cols-[1fr_200px_180px_110px_140px] gap-3 border-b border-slate-200 p-4 text-xs font-bold text-slate-600">
           <div>User</div>
+          <div>Last active</div>
           <div>Moderation</div>
           <div>Admin</div>
           <div>Superadmin</div>
@@ -111,12 +137,15 @@ export default function AdminUserDirectoryPage() {
                     ? `Suspended until ${fmtUntil(u.moderation.suspendedUntil)}`
                     : "Suspended";
             return (
-              <div key={u.id} className="grid grid-cols-[1fr_180px_110px_140px] gap-3 p-4">
+              <div key={u.id} className="grid grid-cols-[1fr_200px_180px_110px_140px] gap-3 p-4">
                 <div className="min-w-0">
                   <Link to={`/admin/users/${u.id}`} className="truncate text-sm font-extrabold text-slate-900 underline underline-offset-4">
                     {u.username}
                   </Link>
                   <div className="truncate text-xs font-semibold text-slate-600">{u.email}</div>
+                </div>
+                <div className="text-sm font-semibold text-slate-700" title={fmtIso(u.lastActiveAt)}>
+                  {fmtAgo(u.lastActiveAt)}
                 </div>
                 <div className="text-sm font-semibold text-slate-700">{modText}</div>
                 <div className="text-sm font-semibold text-slate-700">{u.isAdmin ? "On" : "Off"}</div>

@@ -96,7 +96,8 @@ function isAuthEndpoint(path: string) {
     path === "/api/auth/refresh" ||
     path === "/api/auth/login" ||
     path === "/api/auth/register" ||
-    path === "/api/auth/logout"
+    path === "/api/auth/logout" ||
+    path === "/api/auth/reauth"
   );
 }
 
@@ -285,6 +286,7 @@ export type AdminUser = {
   isSuperadmin: boolean;
   createdAt: string;
   updatedAt: string;
+  lastActiveAt: string | null;
 };
 
 export type AdminUserDirectoryItem = AdminUser & {
@@ -932,6 +934,14 @@ export async function authMe() {
 
 export async function authRefresh() {
   return apiFetch<{ user: AuthUser }>(`/api/auth/refresh`, { method: "POST" });
+}
+
+export async function authReauth(password: string) {
+  return apiFetch<{ ok: true; expiresInSec: number }>(`/api/auth/reauth`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
 }
 
 export type UserProfile = {

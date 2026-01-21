@@ -29,17 +29,20 @@ export default function AdminUserDetailPage() {
     return Number.isFinite(n) ? n : null;
   }, [id]);
 
-  async function load() {
+  async function load(opts?: { silent?: boolean }) {
     if (userId == null) return;
-    setLoading(true);
-    setErr(null);
+    const silent = Boolean(opts?.silent);
+    if (!silent) {
+      setLoading(true);
+      setErr(null);
+    }
     try {
       const res = await adminGetUser(userId);
       setData(res);
     } catch (e: any) {
-      setErr(e?.message ?? "Failed to load user");
+      if (!silent) setErr(e?.message ?? "Failed to load user");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -125,6 +128,9 @@ export default function AdminUserDetailPage() {
               </div>
               <div>
                 <span className="font-bold">Updated:</span> {fmtIso(u!.updatedAt)}
+              </div>
+              <div>
+                <span className="font-bold">Last active:</span> {fmtIso(u!.lastActiveAt)}
               </div>
               <div className="mt-2 text-xs font-semibold text-slate-600">
                 Listings: {data.stats.listings.total} (active {data.stats.listings.active}, pending {data.stats.listings.pending}, deleted {data.stats.listings.deleted}) •

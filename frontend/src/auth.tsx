@@ -89,6 +89,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Lightweight heartbeat while signed in.
+  // This keeps the session's last_used_at moving even when the user is mostly idle,
+  // so the admin "Last active" field updates without requiring a logout/login.
+  useEffect(() => {
+    if (!user) return;
+    const t = window.setInterval(() => {
+      authMe().catch(() => {
+        // ignore; global auth failure handler will clear user if refresh fails
+      });
+    }, 2 * 60_000);
+    return () => window.clearInterval(t);
+  }, [user?.id]);
+
   const value = useMemo<AuthState>(
     () => ({
       user,

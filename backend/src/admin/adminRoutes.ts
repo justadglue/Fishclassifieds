@@ -8,6 +8,7 @@ import path from "path";
 import { nowIso } from "../security.js";
 import { requireAuth } from "../auth/requireAuth.js";
 import { requireAdmin, requireSuperadmin } from "./requireAdmin.js";
+import { requireReauth } from "./requireReauth.js";
 
 const router = Router();
 
@@ -487,10 +488,16 @@ ${whereSql}
       `
 SELECT u.id,u.email,u.username,u.is_admin,u.is_superadmin,u.created_at,u.updated_at,
        p.avatar_url as avatar_url,
-       m.status as mod_status, m.reason as mod_reason, m.suspended_until as mod_suspended_until, m.updated_at as mod_updated_at
+       m.status as mod_status, m.reason as mod_reason, m.suspended_until as mod_suspended_until, m.updated_at as mod_updated_at,
+       s.last_active_at as last_active_at
 FROM users u
 LEFT JOIN user_profiles p ON p.user_id = u.id
 LEFT JOIN user_moderation m ON m.user_id = u.id
+LEFT JOIN (
+  SELECT user_id, MAX(last_used_at) as last_active_at
+  FROM sessions
+  GROUP BY user_id
+) s ON s.user_id = u.id
 ${whereSql}
 ORDER BY u.id DESC
 LIMIT ? OFFSET ?
@@ -507,6 +514,7 @@ LIMIT ? OFFSET ?
       isSuperadmin: Boolean(Number(u.is_superadmin ?? 0)),
       createdAt: String(u.created_at ?? ""),
       updatedAt: String(u.updated_at ?? ""),
+      lastActiveAt: u.last_active_at ? String(u.last_active_at) : null,
       avatarUrl: u.avatar_url ? String(u.avatar_url) : null,
       moderation: {
         status: u.mod_status ? String(u.mod_status) : "active",
@@ -571,6 +579,8 @@ WHERE user_id = ?
     )
     .get(userId) as any;
 
+  const lastActiveRow = db.prepare(`SELECT MAX(last_used_at) as last_active_at FROM sessions WHERE user_id = ?`).get(userId) as any;
+
   return res.json({
     user: {
       id: Number(row.id),
@@ -582,6 +592,7 @@ WHERE user_id = ?
       isSuperadmin: Boolean(Number(row.is_superadmin ?? 0)),
       createdAt: String(row.created_at ?? ""),
       updatedAt: String(row.updated_at ?? ""),
+      lastActiveAt: lastActiveRow?.last_active_at ? String(lastActiveRow.last_active_at) : null,
     },
     profile: {
       avatarUrl: row.avatar_url ? String(row.avatar_url) : null,
@@ -1266,10 +1277,16 @@ router.get("/users", requireSuperadmin, (req, res) => {
   const rows = db
     .prepare(
       `
-SELECT id,email,username,is_admin,is_superadmin,created_at,updated_at
-FROM users
+SELECT u.id,u.email,u.username,u.is_admin,u.is_superadmin,u.created_at,u.updated_at,
+       s.last_active_at as last_active_at
+FROM users u
+LEFT JOIN (
+  SELECT user_id, MAX(last_used_at) as last_active_at
+  FROM sessions
+  GROUP BY user_id
+) s ON s.user_id = u.id
 ${whereSql}
-ORDER BY id DESC
+ORDER BY u.id DESC
 LIMIT ? OFFSET ?
 `
     )
@@ -1284,6 +1301,7 @@ LIMIT ? OFFSET ?
       isSuperadmin: Boolean(Number(u.is_superadmin ?? 0)),
       createdAt: String(u.created_at ?? ""),
       updatedAt: String(u.updated_at ?? ""),
+      lastActiveAt: u.last_active_at ? String(u.last_active_at) : null,
     })),
     total,
     limit,
@@ -1292,7 +1310,7 @@ LIMIT ? OFFSET ?
 });
 
 const SetAdminSchema = z.object({ isAdmin: z.boolean() });
-router.post("/users/:id/set-admin", requireSuperadmin, (req, res) => {
+router.post("/users/:id/set-admin", requireSuperadmin, requireReauth, (req, res) => {
   const userId = Number(req.params.id);
   if (!Number.isFinite(userId)) return res.status(400).json({ error: "Invalid user id" });
   const parsed = SetAdminSchema.safeParse(req.body ?? {});
@@ -1308,7 +1326,7 @@ router.post("/users/:id/set-admin", requireSuperadmin, (req, res) => {
 });
 
 const SetSuperSchema = z.object({ isSuperadmin: z.boolean() });
-router.post("/users/:id/set-superadmin", requireSuperadmin, (req, res) => {
+router.post("/users/:id/set-superadmin", requireSuperadmin, requireReauth, (req, res) => {
   const userId = Number(req.params.id);
   if (!Number.isFinite(userId)) return res.status(400).json({ error: "Invalid user id" });
   const parsed = SetSuperSchema.safeParse(req.body ?? {});

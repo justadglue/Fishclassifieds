@@ -12,6 +12,11 @@ export type RefreshTokenPayload = {
   sid: string;
 };
 
+export type ReauthTokenPayload = {
+  sub: string;
+  sid: string;
+};
+
 export function signAccessToken(payload: AccessTokenPayload): string {
   return jwt.sign(payload, config.jwtAccessSecret, {
     expiresIn: config.jwtAccessTtlSeconds,
@@ -40,4 +45,19 @@ export function verifyRefreshToken(token: string): RefreshTokenPayload {
     issuer: "fishclassifieds",
     audience: "fishclassifieds-web",
   }) as RefreshTokenPayload;
+}
+
+export function signReauthToken(payload: ReauthTokenPayload, ttlSeconds: number): string {
+  return jwt.sign(payload, config.jwtAccessSecret, {
+    expiresIn: Math.max(30, Math.floor(ttlSeconds)),
+    issuer: "fishclassifieds",
+    audience: "fishclassifieds-web",
+  });
+}
+
+export function verifyReauthToken(token: string): ReauthTokenPayload {
+  return jwt.verify(token, config.jwtAccessSecret, {
+    issuer: "fishclassifieds",
+    audience: "fishclassifieds-web",
+  }) as ReauthTokenPayload;
 }

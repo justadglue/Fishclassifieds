@@ -41,6 +41,35 @@ function notify(db: Database.Database, toUserId: number, kind: string, title: st
   }
 }
 
+function listingStatusTitle(status: string) {
+  switch (status) {
+    case "active":
+      return "Listing active";
+    case "paused":
+      return "Listing paused";
+    case "sold":
+      return "Listing sold";
+    case "closed":
+      return "Listing closed";
+    case "expired":
+      return "Listing expired";
+    case "deleted":
+      return "Listing deleted";
+    case "pending":
+      return "Listing pending";
+    case "draft":
+      return "Listing draft";
+    default:
+      return "Listing updated";
+  }
+}
+
+function withListingTitle(prefix: string, title: string) {
+  const t = String(title ?? "").trim();
+  if (!t) return prefix;
+  return `${prefix} — ${t}`;
+}
+
 router.use(requireAuth);
 router.use(requireAdmin);
 
@@ -372,12 +401,14 @@ router.post("/listings/:id/set-status", (req, res) => {
   audit(db, req.user!.id, "set_listing_status", "listing", id, { prevStatus, nextStatus });
   if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
     const title = String(row.title ?? "").trim() || "your listing";
+    const notifTitle = withListingTitle(listingStatusTitle(nextStatus), title);
+    const body = prevStatus === nextStatus ? `Status: ${nextStatus}.` : `Status changed from ${prevStatus} to ${nextStatus}.`;
     notify(
       db,
       ownerUserId,
       "listing_status_changed",
-      "Listing status updated",
-      `An admin set "${title}" to ${nextStatus}.`,
+      notifTitle,
+      body,
       { listingId: id, listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale", prevStatus, nextStatus }
     );
   }
@@ -409,12 +440,13 @@ router.post("/listings/:id/set-featured", requireSuperadmin, (req, res) => {
   audit(db, req.user!.id, "set_listing_featured", "listing", id, { prevFeaturedUntil: prev, nextFeaturedUntil: next });
   if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
     const title = String(row.title ?? "").trim() || "your listing";
-    const msg = next == null ? `An admin removed featured status from "${title}".` : `An admin featured "${title}".`;
+    const notifTitle = withListingTitle(next == null ? "Featured removed" : "Featured enabled", title);
+    const msg = next == null ? "Featured removed." : "Featured enabled.";
     notify(
       db,
       ownerUserId,
       "listing_featured_changed",
-      "Listing featured status updated",
+      notifTitle,
       msg,
       { listingId: id, listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale", prevFeaturedUntil: prev, nextFeaturedUntil: next }
     );
@@ -939,7 +971,7 @@ AND listing_type = ?
   const ownerUserId = row.user_id != null ? Number(row.user_id) : null;
   if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
     const title = String(row.title ?? "").trim() || "your listing";
-    notify(db, ownerUserId, "listing_approved", "Listing approved", `Your listing "${title}" has been approved and is now live.`, { listingId: id, listingType: kind });
+    notify(db, ownerUserId, "listing_approved", withListingTitle("Listing approved", title), "Now live.", { listingId: id, listingType: kind });
   }
   return res.json({ ok: true });
 });
@@ -969,8 +1001,8 @@ router.post("/approvals/:kind/:id/reject", (req, res) => {
       db,
       ownerUserId,
       "listing_rejected",
-      "Listing rejected",
-      note ? `Your listing "${title}" was rejected. Note: ${note}` : `Your listing "${title}" was rejected.`,
+      withListingTitle("Listing rejected", title),
+      note ? `Note: ${note}` : "Rejected.",
       { listingId: id, listingType: kind, note }
     );
   }
@@ -1188,18 +1220,24 @@ router.post("/reports/:id/action", (req, res) => {
 
   // If the report action affected the target user/listing owner, notify them too (best-effort).
   if (targetUserId != null && Number.isFinite(targetUserId) && targetUserId !== req.user!.id && targetUserId !== reporterUserId) {
-    const title = listing?.title ? String(listing.title) : "a listing";
+    const listingTitle = listing?.title ? String(listing.title) : "a listing";
+    const notifTitle =
+      action === "hide_listing"
+        ? withListingTitle("Listing removed", listingTitle)
+        : action === "suspend_user"
+          ? withListingTitle("Account suspended", listingTitle)
+          : action === "ban_user"
+            ? withListingTitle("Account banned", listingTitle)
+            : withListingTitle("Report reviewed", listingTitle);
     const body =
       action === "hide_listing"
-        ? `An admin removed "${title}" in response to a report.`
-        : action === "warn_user"
-          ? `An admin reviewed a report related to "${title}".`
-          : action === "suspend_user"
-            ? `Your account was suspended in response to a report related to "${title}".`
-            : action === "ban_user"
-              ? `Your account was banned in response to a report related to "${title}".`
-              : `An admin reviewed a report related to "${title}".`;
-    notify(db, targetUserId, "report_moderation", "Report review", body, { reportId: id, targetKind, targetId, action, note });
+        ? "This listing is no longer visible."
+        : action === "suspend_user"
+          ? "Your account was suspended."
+          : action === "ban_user"
+            ? "Your account was banned."
+            : "A report related to this listing was reviewed.";
+    notify(db, targetUserId, "report_moderation", notifTitle, body, { reportId: id, targetKind, targetId, action, note });
   }
 
   return res.json({ ok: true });

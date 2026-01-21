@@ -3,7 +3,6 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { openDb, type ListingRow, type ListingStatus } from "./db.js";
 import crypto from "crypto";
@@ -74,14 +73,88 @@ app.use(
   })
 );
 
-app.use(
-  rateLimit({
-    windowMs: 60_000,
-    max: 240,
-    standardHeaders: true,
-    legacyHeaders: false,
-  })
-);
+// --- Runtime site settings (cached) ---
+type SiteSettings = {
+  requireApproval: boolean;
+  listingTtlDays: number;
+  rateLimitWindowMs: number;
+  rateLimitMax: number;
+  featuredMaxDays: number;
+};
+
+const settingsCache: { fetchedAtMs: number; data: SiteSettings } = {
+  fetchedAtMs: 0,
+  data: {
+    requireApproval: false,
+    listingTtlDays: 30,
+    rateLimitWindowMs: 60_000,
+    rateLimitMax: 240,
+    featuredMaxDays: 365,
+  },
+};
+
+function parseJsonValue(raw: any) {
+  if (raw == null) return null;
+  try {
+    return JSON.parse(String(raw));
+  } catch {
+    return null;
+  }
+}
+
+function loadSiteSettingsFromDb(): SiteSettings {
+  const rows = db.prepare(`SELECT key,value_json FROM site_settings`).all() as any[];
+  const map = new Map<string, any>();
+  for (const r of rows) map.set(String(r.key), parseJsonValue(r.value_json));
+
+  const asBool = (v: any, fallback: boolean) => (typeof v === "boolean" ? v : fallback);
+  const asNum = (v: any, fallback: number, min: number, max: number) =>
+    Number.isFinite(Number(v)) ? Math.max(min, Math.min(max, Math.floor(Number(v)))) : fallback;
+
+  return {
+    requireApproval: asBool(map.get("requireApproval"), false),
+    listingTtlDays: asNum(map.get("listingTtlDays"), 30, 1, 365),
+    rateLimitWindowMs: asNum(map.get("rateLimitWindowMs"), 60_000, 5_000, 5 * 60_000),
+    rateLimitMax: asNum(map.get("rateLimitMax"), 240, 10, 10_000),
+    featuredMaxDays: asNum(map.get("featuredMaxDays"), 365, 1, 3650),
+  };
+}
+
+function getSiteSettings(): SiteSettings {
+  const now = Date.now();
+  // Fast TTL cache to avoid querying on every request.
+  if (now - settingsCache.fetchedAtMs < 1000) return settingsCache.data;
+  try {
+    settingsCache.data = loadSiteSettingsFromDb();
+    settingsCache.fetchedAtMs = now;
+  } catch {
+    // ignore: keep last known settings
+    settingsCache.fetchedAtMs = now;
+  }
+  return settingsCache.data;
+}
+
+(app as any).locals.invalidateSettingsCache = () => {
+  settingsCache.fetchedAtMs = 0;
+};
+
+// --- Dynamic rate limiting (settings-driven) ---
+const rl = new Map<string, { count: number; resetAt: number }>();
+app.use((req, res, next) => {
+  const s = getSiteSettings();
+  const windowMs = s.rateLimitWindowMs;
+  const max = s.rateLimitMax;
+  const key = req.ip || "unknown";
+  const now = Date.now();
+  const prev = rl.get(key);
+  if (!prev || now >= prev.resetAt) {
+    rl.set(key, { count: 1, resetAt: now + windowMs });
+    return next();
+  }
+  prev.count += 1;
+  if (prev.count > max) return res.status(429).json({ error: "Too many requests" });
+  return next();
+});
 
 app.use(express.json());
 app.use(cookieParser());
@@ -857,11 +930,11 @@ app.post("/api/listings", requireAuth, (req, res) => {
 
   const id = crypto.randomUUID();
   const now = nowIso();
-  const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
-  const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
+  const ttlDays = getSiteSettings().listingTtlDays;
+  const expiresAt = addDaysIso(now, ttlDays);
   const user = req.user!;
   const forceApprovalForNonAdmins = !user.isAdmin && !user.isSuperadmin;
-  const requireApproval = forceApprovalForNonAdmins || String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
+  const requireApproval = forceApprovalForNonAdmins || getSiteSettings().requireApproval;
 
   const requestedStatus = (parsed.data as any).status as ListingStatus | undefined;
 
@@ -1437,6 +1510,11 @@ VALUES(?,?,?,?,?,?)`
       map.featured = 0;
       map.featured_until = null;
     } else {
+      const maxDays = getSiteSettings().featuredMaxDays;
+      const maxUntil = Date.now() + maxDays * 24 * 60 * 60 * 1000;
+      if (p.featuredUntil > maxUntil) {
+        return res.status(400).json({ error: `featuredUntil exceeds max of ${maxDays} days` });
+      }
       map.featured = 1;
       map.featured_until = p.featuredUntil;
     }
@@ -1768,8 +1846,8 @@ app.post("/api/wanted", requireAuth, (req, res) => {
 
     const id = crypto.randomUUID();
     const now = nowIso();
-    const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
-    const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
+    const ttlDays = getSiteSettings().listingTtlDays;
+    const expiresAt = addDaysIso(now, ttlDays);
     const user = req.user!;
 
     db.prepare(
@@ -1857,11 +1935,11 @@ AND l.listing_type = 1
 
   const id = crypto.randomUUID();
   const now = nowIso();
-  const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
-  const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
+  const ttlDays = getSiteSettings().listingTtlDays;
+  const expiresAt = addDaysIso(now, ttlDays);
   const user = req.user!;
   const forceApprovalForNonAdmins = !user.isAdmin && !user.isSuperadmin;
-  const requireApproval = forceApprovalForNonAdmins || String(process.env.REQUIRE_APPROVAL ?? "").trim() === "1";
+  const requireApproval = forceApprovalForNonAdmins || getSiteSettings().requireApproval;
   const status: ListingStatus = requireApproval ? "pending" : "active";
   const publishedAt = status === "active" ? now : null;
 
@@ -2075,6 +2153,11 @@ AND l.listing_type = 1
       map.featured = 0;
       map.featured_until = null;
     } else {
+      const maxDays = getSiteSettings().featuredMaxDays;
+      const maxUntil = Date.now() + maxDays * 24 * 60 * 60 * 1000;
+      if (p.featuredUntil > maxUntil) {
+        return res.status(400).json({ error: `featuredUntil exceeds max of ${maxDays} days` });
+      }
       map.featured = 1;
       map.featured_until = p.featuredUntil;
     }
@@ -2300,8 +2383,8 @@ app.post("/api/wanted/:id/relist", requireAuth, (req, res) => {
   if (status !== "expired") return res.status(400).json({ error: "Only expired wanted posts can be relisted" });
 
   const now = nowIso();
-  const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
-  const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
+  const ttlDays = getSiteSettings().listingTtlDays;
+  const expiresAt = addDaysIso(now, ttlDays);
   db.prepare(`UPDATE listings SET expires_at=?,updated_at=? WHERE id = ? AND listing_type = 1`).run(expiresAt, now, id);
   setWantedStatus(id, "active");
 
@@ -2462,8 +2545,8 @@ app.post("/api/listings/:id/relist", requireAuth, (req, res) => {
   const phone = String((row as any).phone ?? "").trim();
   if (!phone) return res.status(400).json({ error: "Listing is missing required phone number" });
 
-  const ttlDays = Number(process.env.LISTING_TTL_DAYS ?? "30");
-  const expiresAt = addDaysIso(now, Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : 30);
+  const ttlDays = getSiteSettings().listingTtlDays;
+  const expiresAt = addDaysIso(now, ttlDays);
 
   const copyImages = db
     .prepare(

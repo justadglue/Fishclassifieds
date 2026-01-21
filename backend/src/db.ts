@@ -120,6 +120,29 @@ CREATE TABLE IF NOT EXISTS user_profiles(
 
 CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
 
+-- User moderation state (admin controls). One row per user.
+CREATE TABLE IF NOT EXISTS user_moderation(
+  user_id INTEGER PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'active', -- 'active' | 'suspended' | 'banned'
+  reason TEXT,
+  suspended_until INTEGER, -- epoch ms, nullable
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_user_moderation_status ON user_moderation(status);
+CREATE INDEX IF NOT EXISTS idx_user_moderation_suspended_until ON user_moderation(suspended_until);
+
+-- Site-wide settings (editable in admin). Values stored as JSON strings.
+CREATE TABLE IF NOT EXISTS site_settings(
+  key TEXT PRIMARY KEY,
+  value_json TEXT,
+  updated_at TEXT NOT NULL,
+  updated_by_user_id INTEGER,
+  FOREIGN KEY(updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_site_settings_updated_at ON site_settings(updated_at);
+
 -- Minimal tombstone for deleted accounts (no plaintext PII; only hashes)
 CREATE TABLE IF NOT EXISTS deleted_accounts(
   id INTEGER PRIMARY KEY AUTOINCREMENT,

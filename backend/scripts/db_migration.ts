@@ -108,6 +108,37 @@ CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit(target_kind, ta
 `);
 }
 
+function ensureUserModerationTable(db: Database.Database) {
+  if (hasTable(db, "user_moderation")) return;
+  db.exec(`
+CREATE TABLE IF NOT EXISTS user_moderation(
+  user_id INTEGER PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'active',
+  reason TEXT,
+  suspended_until INTEGER,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_user_moderation_status ON user_moderation(status);
+CREATE INDEX IF NOT EXISTS idx_user_moderation_suspended_until ON user_moderation(suspended_until);
+`);
+}
+
+function ensureSiteSettingsTable(db: Database.Database) {
+  if (hasTable(db, "site_settings")) return;
+  db.exec(`
+CREATE TABLE IF NOT EXISTS site_settings(
+  key TEXT PRIMARY KEY,
+  value_json TEXT,
+  updated_at TEXT NOT NULL,
+  updated_by_user_id INTEGER,
+  FOREIGN KEY(updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_site_settings_updated_at ON site_settings(updated_at);
+`);
+}
+
 function extractWaterTypeFromDescription(desc: string): string | null {
   const m = String(desc ?? "").match(/^water type\s*:\s*(.+)\s*$/im);
   if (!m) return null;
@@ -497,6 +528,8 @@ AND contact IS NOT NULL;
   ensureListingImagesTable(db);
   ensureReportsTable(db);
   ensureAdminAuditTable(db);
+  ensureUserModerationTable(db);
+  ensureSiteSettingsTable(db);
 
   // Drop legacy columns on listings (owner_token, image_url, older wanted budget columns, and now removed status columns) by rebuilding the table.
   const hasOwnerToken = hasColumn(db, "listings", "owner_token");

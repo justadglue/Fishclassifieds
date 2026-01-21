@@ -201,6 +201,24 @@ export type AdminApprovalItem = {
   user: { id: number; username: string; email: string };
 };
 
+export type AdminStats = {
+  windowDays: number;
+  approvals: { pendingTotal: number; pendingSale: number; pendingWanted: number };
+  reports: { open: number };
+  listings: { total: number; activeTotal: number; activeSale: number; activeWanted: number };
+  users: { total: number; newLastWindow: number };
+  views: { total: number };
+  db: { path: string; sizeBytes: number | null };
+  server: { uptimeSec: number; nowIso: string };
+};
+
+export function adminFetchStats(params?: { days?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.days !== undefined) qs.set("days", String(params.days));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<AdminStats>(`/api/admin/stats${suffix}`);
+}
+
 export function adminFetchApprovals(params?: { kind?: "all" | "sale" | "wanted" }) {
   const qs = new URLSearchParams();
   if (params?.kind) qs.set("kind", params.kind);
@@ -249,6 +267,16 @@ export function adminResolveReport(id: string, note?: string) {
   });
 }
 
+export type AdminReportAction = "resolve_only" | "hide_listing" | "warn_user" | "suspend_user" | "ban_user";
+
+export function adminReportAction(id: string, input: { action: AdminReportAction; note?: string | null; suspendDays?: number | null }) {
+  return apiFetch<{ ok: true }>(`/api/admin/reports/${encodeURIComponent(id)}/action`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: input.action, note: input.note ?? null, suspendDays: input.suspendDays ?? null }),
+  });
+}
+
 export type AdminUser = {
   id: number;
   email: string;
@@ -258,6 +286,169 @@ export type AdminUser = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type AdminUserDirectoryItem = AdminUser & {
+  avatarUrl: string | null;
+  moderation: { status: "active" | "suspended" | "banned"; reason: string | null; suspendedUntil: number | null; updatedAt: string | null };
+};
+
+export function adminFetchUserDirectory(params?: { query?: string; limit?: number; offset?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.query) qs.set("query", params.query);
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<{ items: AdminUserDirectoryItem[]; total: number; limit: number; offset: number }>(`/api/admin/users-directory${suffix}`);
+}
+
+export type AdminUserDetail = {
+  user: AdminUser & { firstName: string; lastName: string };
+  profile: { avatarUrl: string | null; location: string | null; phone: string | null; website: string | null; bio: string | null; createdAt: string | null; updatedAt: string | null };
+  moderation: { status: "active" | "suspended" | "banned"; reason: string | null; suspendedUntil: number | null; createdAt: string | null; updatedAt: string | null };
+  stats: {
+    listings: { total: number; active: number; pending: number; deleted: number; saleTotal: number; wantedTotal: number };
+    reports: { reportedByUser: number };
+    sessions: { total: number; active: number };
+  };
+};
+
+export function adminGetUser(id: number) {
+  return apiFetch<AdminUserDetail>(`/api/admin/users/${encodeURIComponent(String(id))}`);
+}
+
+export function adminSetUserModeration(id: number, input: { status: "active" | "suspended" | "banned"; reason?: string | null; suspendedUntil?: number | null }) {
+  return apiFetch<{ ok: true }>(`/api/admin/users/${encodeURIComponent(String(id))}/moderation`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export function adminRevokeUserSessions(id: number) {
+  return apiFetch<{ ok: true }>(`/api/admin/users/${encodeURIComponent(String(id))}/revoke-sessions`, { method: "POST" });
+}
+
+export function adminDeleteUserAccount(id: number, reason?: string) {
+  return apiFetch<{ ok: true }>(`/api/admin/users/${encodeURIComponent(String(id))}/delete-account`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason: reason ?? null }),
+  });
+}
+
+export type AdminAuditItem = {
+  id: string;
+  actor: { userId: number; username: string | null; email: string | null };
+  action: string;
+  targetKind: string;
+  targetId: string;
+  metaJson: string | null;
+  createdAt: string;
+};
+
+export function adminFetchAudit(params?: { actorUserId?: number; action?: string; targetKind?: string; targetId?: string; limit?: number; offset?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.actorUserId !== undefined) qs.set("actorUserId", String(params.actorUserId));
+  if (params?.action) qs.set("action", params.action);
+  if (params?.targetKind) qs.set("targetKind", params.targetKind);
+  if (params?.targetId) qs.set("targetId", params.targetId);
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<{ items: AdminAuditItem[]; total: number; limit: number; offset: number }>(`/api/admin/audit${suffix}`);
+}
+
+export type AdminSiteSettings = {
+  requireApproval: boolean;
+  listingTtlDays: number;
+  rateLimitWindowMs: number;
+  rateLimitMax: number;
+  featuredMaxDays: number;
+};
+
+export function adminGetSettings() {
+  return apiFetch<{ settings: AdminSiteSettings }>(`/api/admin/settings`);
+}
+
+export function adminUpdateSettings(input: Partial<AdminSiteSettings>) {
+  return apiFetch<{ ok: true }>(`/api/admin/settings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export type AdminListingListItem = {
+  kind: "sale" | "wanted";
+  id: string;
+  heroUrl?: string | null;
+  user: { id: number; username: string | null; email: string | null; firstName: string; lastName: string } | null;
+  status: ListingStatus;
+  title: string;
+  category: Category;
+  species: string | null;
+  sex: string;
+  waterType: string | null;
+  size: string;
+  shippingOffered: boolean;
+  quantity: number;
+  priceCents: number;
+  budgetCents: number | null;
+  location: string;
+  phone: string;
+  views: number;
+  featuredUntil: number | null;
+  publishedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+};
+
+export function adminFetchListings(params?: {
+  q?: string;
+  user?: string;
+  kind?: "all" | "sale" | "wanted";
+  status?: "all" | ListingStatus;
+  featured?: boolean;
+  includeDeleted?: boolean;
+  limit?: number;
+  offset?: number;
+}) {
+  const qs = new URLSearchParams();
+  if (params?.q) qs.set("q", params.q);
+  if (params?.user) qs.set("user", params.user);
+  if (params?.kind) qs.set("kind", params.kind);
+  if (params?.status) qs.set("status", params.status);
+  if (params?.featured) qs.set("featured", "1");
+  if (params?.includeDeleted) qs.set("includeDeleted", "1");
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<{ items: AdminListingListItem[]; total: number; limit: number; offset: number }>(`/api/admin/listings${suffix}`);
+}
+
+export function adminGetListing(id: string) {
+  return apiFetch<{ item: AdminListingListItem & { description: string; images: Array<{ id: string; url: string; thumbUrl: string | null; mediumUrl: string | null; sortOrder: number }> } }>(
+    `/api/admin/listings/${encodeURIComponent(id)}`
+  );
+}
+
+export function adminSetListingStatus(id: string, status: ListingStatus) {
+  return apiFetch<{ ok: true }>(`/api/admin/listings/${encodeURIComponent(id)}/set-status`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+}
+
+export function adminSetListingFeaturedUntil(id: string, featuredUntil: number | null) {
+  return apiFetch<{ ok: true }>(`/api/admin/listings/${encodeURIComponent(id)}/set-featured`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ featuredUntil }),
+  });
+}
 
 export function adminFetchUsers(params?: { query?: string; limit?: number; offset?: number }) {
   const qs = new URLSearchParams();

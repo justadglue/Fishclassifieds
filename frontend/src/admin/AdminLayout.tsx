@@ -35,9 +35,13 @@ export default function AdminLayout() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <TabLink to="/admin/listings" label="Listings" />
             <TabLink to="/admin/approvals" label="Approvals" />
             <TabLink to="/admin/reports" label="Reports" />
+            <TabLink to="/admin/audit" label="Audit" />
+            {user?.isSuperadmin ? <TabLink to="/admin/settings" label="Settings" /> : null}
             <TabLink to="/admin/users" label="Users" />
+            {user?.isSuperadmin ? <TabLink to="/admin/users/privileges" label="Privileges" /> : null}
           </div>
         </div>
 

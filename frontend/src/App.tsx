@@ -22,6 +22,11 @@ import AdminDashboardPage from "./admin/pages/AdminDashboardPage";
 import AdminApprovalsPage from "./admin/pages/AdminApprovalsPage";
 import AdminReportsPage from "./admin/pages/AdminReportsPage";
 import AdminUsersPage from "./admin/pages/AdminUsersPage";
+import AdminUserDetailPage from "./admin/pages/AdminUserDetailPage";
+import AdminUserPrivilegesPage from "./admin/pages/AdminUserPrivilegesPage";
+import AdminAuditPage from "./admin/pages/AdminAuditPage";
+import AdminSettingsPage from "./admin/pages/AdminSettingsPage";
+import AdminListingsPage from "./admin/pages/AdminListingsPage";
 
 function ScrollToTopOnRouteChange() {
   const { pathname, hash } = useLocation();
@@ -72,9 +77,14 @@ export default function App() {
           }
         >
           <Route index element={<AdminDashboardPage />} />
+          <Route path="listings" element={<AdminListingsPage />} />
           <Route path="approvals" element={<AdminApprovalsPage />} />
           <Route path="reports" element={<AdminReportsPage />} />
+          <Route path="audit" element={<AdminAuditPage />} />
+          <Route path="settings" element={<AdminSettingsPage />} />
           <Route path="users" element={<AdminUsersPage />} />
+          <Route path="users/:id" element={<AdminUserDetailPage />} />
+          <Route path="users/privileges" element={<AdminUserPrivilegesPage />} />
         </Route>
       </Routes>
     </>

@@ -68,6 +68,38 @@ function isAdminViewContext(req: express.Request, isAdminUser: boolean): boolean
   return h === "admin";
 }
 
+function isOwnerPubliclyVisible(userId: number | null | undefined): boolean {
+  // Public pages should not show listings for suspended/banned (active) or deleted users.
+  if (userId == null || !Number.isFinite(Number(userId))) return false;
+  try {
+    const row = db
+      .prepare(
+        `
+SELECT u.id,
+       m.status as mod_status,
+       m.suspended_until as mod_suspended_until
+FROM users u
+LEFT JOIN user_moderation m ON m.user_id = u.id
+WHERE u.id = ?
+`
+      )
+      .get(Number(userId)) as any | undefined;
+    if (!row) return false; // deleted user
+
+    const modStatus = row.mod_status ? String(row.mod_status) : "active";
+    const suspendedUntil = row.mod_suspended_until != null ? Number(row.mod_suspended_until) : null;
+    if (modStatus === "banned") return false;
+    if (modStatus === "suspended") {
+      // If no until, treat as indefinite (hide).
+      if (suspendedUntil == null || suspendedUntil > Date.now()) return false;
+      // Expired suspension is treated as visible; auth middleware will auto-clear on next authenticated request.
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 app.use(
   cors({
     origin: config.corsOrigin,
@@ -686,6 +718,64 @@ app.get("/api/profile", requireAuth, (req, res) => {
   });
 });
 
+// --- Notifications (user inbox) ---
+app.get("/api/notifications", requireAuth, (req, res) => {
+  const userId = req.user!.id;
+  const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(100, Math.floor(limitRaw!))) : 30;
+  const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
+  const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
+
+  const unreadRow = db.prepare(`SELECT COUNT(*) as c FROM notifications WHERE user_id = ? AND is_read = 0`).get(userId) as any;
+  const unreadCount = Number(unreadRow?.c ?? 0);
+
+  const rows = db
+    .prepare(
+      `
+SELECT id, kind, title, body, meta_json, is_read, created_at, read_at
+FROM notifications
+WHERE user_id = ?
+ORDER BY created_at DESC
+LIMIT ? OFFSET ?
+`
+    )
+    .all(userId, limit, offset) as any[];
+
+  return res.json({
+    unreadCount,
+    items: rows.map((r) => ({
+      id: String(r.id),
+      kind: String(r.kind ?? ""),
+      title: String(r.title ?? ""),
+      body: r.body != null ? String(r.body) : null,
+      metaJson: r.meta_json != null ? String(r.meta_json) : null,
+      isRead: Boolean(Number(r.is_read ?? 0)),
+      createdAt: String(r.created_at ?? ""),
+      readAt: r.read_at != null ? String(r.read_at) : null,
+    })),
+    limit,
+    offset,
+  });
+});
+
+app.post("/api/notifications/:id/read", requireAuth, (req, res) => {
+  const userId = req.user!.id;
+  const id = String(req.params.id ?? "").trim();
+  if (!id) return res.status(400).json({ error: "Missing id" });
+  const now = nowIsoSecurity();
+  const info = db
+    .prepare(`UPDATE notifications SET is_read = 1, read_at = COALESCE(read_at, ?) WHERE id = ? AND user_id = ?`)
+    .run(now, id, userId) as any;
+  return res.json({ ok: true, changes: Number(info?.changes ?? 0) });
+});
+
+app.post("/api/notifications/read-all", requireAuth, (req, res) => {
+  const userId = req.user!.id;
+  const now = nowIsoSecurity();
+  const info = db.prepare(`UPDATE notifications SET is_read = 1, read_at = COALESCE(read_at, ?) WHERE user_id = ? AND is_read = 0`).run(now, userId) as any;
+  return res.json({ ok: true, changes: Number(info?.changes ?? 0) });
+});
+
 app.put("/api/profile", requireAuth, (req, res) => {
   const user = req.user!;
   const parsed = ProfileSchema.safeParse(req.body);
@@ -1201,12 +1291,15 @@ app.get("/api/featured", (req, res) => {
       `
 SELECT COUNT(*) as c
 FROM listings l
+JOIN users u ON u.id = l.user_id
+LEFT JOIN user_moderation m ON m.user_id = u.id
 WHERE l.featured_until IS NOT NULL
 AND l.featured_until > ?
 AND l.status IN('active')
+AND (m.status IS NULL OR m.status = 'active' OR (m.status = 'suspended' AND m.suspended_until IS NOT NULL AND m.suspended_until <= ?))
 `
     )
-    .get(nowMs) as any;
+    .get(nowMs, nowMs) as any;
   const total = Number(totalRow?.c ?? 0);
 
   const rows = db
@@ -1215,14 +1308,16 @@ AND l.status IN('active')
 SELECT l.*, u.username as user_username
 FROM listings l
 JOIN users u ON u.id = l.user_id
+LEFT JOIN user_moderation m ON m.user_id = u.id
 WHERE l.featured_until IS NOT NULL
 AND l.featured_until > ?
 AND l.status IN('active')
+AND (m.status IS NULL OR m.status = 'active' OR (m.status = 'suspended' AND m.suspended_until IS NOT NULL AND m.suspended_until <= ?))
 ORDER BY COALESCE(l.published_at, l.created_at) DESC, l.id DESC
 LIMIT ? OFFSET ?
 `
     )
-    .all(nowMs, limit, offset) as any[];
+    .all(nowMs, nowMs, limit, offset) as any[];
 
   const items = rows.map((r) => {
     const lt = Number((r as any).listing_type ?? 0);
@@ -1253,68 +1348,84 @@ app.get("/api/listings", (req, res) => {
 
   const where: string[] = [];
   const params: any[] = [];
-  where.push(`listing_type = 0`);
-  where.push(`status IN('active')`);
+  where.push(`l.listing_type = 0`);
+  where.push(`l.status IN('active')`);
+  // Hide listings for banned/suspended (active) or deleted users on all public endpoints.
+  where.push(`(m.status IS NULL OR m.status = 'active' OR (m.status = 'suspended' AND m.suspended_until IS NOT NULL AND m.suspended_until <= ?))`);
+  params.push(Date.now());
   // NOTE: Public visibility is controlled by `status`.
 
   if (featured === "1") {
     // Only show currently-featured items to the public “featured carousel”.
-    where.push(`featured_until IS NOT NULL`);
-    where.push(`featured_until > ?`);
+    where.push(`l.featured_until IS NOT NULL`);
+    where.push(`l.featured_until > ?`);
     params.push(Date.now());
   }
 
   if (q) {
-    where.push("(lower(title)LIKE ? OR lower(description)LIKE ? OR lower(location)LIKE ? OR lower(species)LIKE ?)");
+    where.push("(lower(l.title)LIKE ? OR lower(l.description)LIKE ? OR lower(l.location)LIKE ? OR lower(l.species)LIKE ?)");
     const pat = `%${q}%`;
     params.push(pat, pat, pat, pat);
   }
   if (species) {
-    where.push("lower(species)= ?");
+    where.push("lower(l.species)= ?");
     params.push(species);
   }
   if (category) {
-    where.push("category = ?");
+    where.push("l.category = ?");
     params.push(category);
   }
   if (location) {
-    where.push("lower(location)LIKE ?");
+    where.push("lower(l.location)LIKE ?");
     params.push(`%${location}%`);
   }
   if (waterType) {
-    where.push("lower(water_type)= ?");
+    where.push("lower(l.water_type)= ?");
     params.push(waterType);
   }
   if (sex) {
-    where.push("sex = ?");
+    where.push("l.sex = ?");
     params.push(sex);
   }
   if (ship) {
-    where.push("shipping_offered = 1");
+    where.push("l.shipping_offered = 1");
   }
   if (size) {
-    where.push("lower(size)LIKE ?");
+    where.push("lower(l.size)LIKE ?");
     params.push(`%${size}%`);
   }
   if (Number.isFinite(min)) {
-    where.push("price_cents >= ?");
+    where.push("l.price_cents >= ?");
     params.push(min);
   }
   if (Number.isFinite(max)) {
-    where.push("price_cents <= ?");
+    where.push("l.price_cents <= ?");
     params.push(max);
   }
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-  const totalRow = db.prepare(`SELECT COUNT(*)as c FROM listings ${whereSql}`).get(...params) as any;
+  const totalRow = db
+    .prepare(
+      `
+SELECT COUNT(*) as c
+FROM listings l
+JOIN users u ON u.id = l.user_id
+LEFT JOIN user_moderation m ON m.user_id = u.id
+${whereSql}
+`
+    )
+    .get(...params) as any;
   const total = Number(totalRow?.c ?? 0);
 
-  let orderBy = "COALESCE(published_at, created_at) DESC,id DESC";
-  if (sort === "price_asc") orderBy = "price_cents ASC,COALESCE(published_at, created_at) DESC,id DESC";
-  if (sort === "price_desc") orderBy = "price_cents DESC,COALESCE(published_at, created_at) DESC,id DESC";
+  let orderBy = "COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
+  if (sort === "price_asc") orderBy = "l.price_cents ASC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
+  if (sort === "price_desc") orderBy = "l.price_cents DESC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
 
   const sql = `
-SELECT * FROM listings
+SELECT l.*
+FROM listings l
+JOIN users u ON u.id = l.user_id
+LEFT JOIN user_moderation m ON m.user_id = u.id
 ${whereSql}
 ORDER BY ${orderBy}
 LIMIT ? OFFSET ?
@@ -1345,6 +1456,11 @@ app.get("/api/listings/:id", optionalAuth, (req, res) => {
   const isPublic = PUBLIC_LIFECYCLE.includes(status);
   const canView = isOwner || isPublic || (isAdmin && status === "pending");
   if (!canView) return res.status(404).json({ error: "Not found" });
+
+  // Hide listings from the public if the owner is suspended/banned or deleted.
+  if (!isOwner && !isAdmin && isPublic && !isOwnerPubliclyVisible((row as any).user_id)) {
+    return res.status(404).json({ error: "Not found" });
+  }
 
   // Track views for public (non-owner) listing detail views.
   if (!isOwner && isPublic && !isAdminViewContext(req, isAdmin) && shouldIncrementView(id, req)) {
@@ -1685,6 +1801,9 @@ app.get("/api/wanted", (req, res) => {
   const params: any[] = [];
   where.push(`l.listing_type = 1`);
   where.push(`l.status IN('active')`);
+  // Hide wanted posts for banned/suspended (active) or deleted users on all public endpoints.
+  where.push(`(m.status IS NULL OR m.status = 'active' OR (m.status = 'suspended' AND m.suspended_until IS NOT NULL AND m.suspended_until <= ?))`);
+  params.push(Date.now());
   // NOTE: Public visibility is controlled by `status`.
 
   if (q) {
@@ -1739,6 +1858,8 @@ app.get("/api/wanted", (req, res) => {
       `
 SELECT COUNT(*)as c
 FROM listings l
+JOIN users u ON u.id = l.user_id
+LEFT JOIN user_moderation m ON m.user_id = u.id
 ${whereSql}
 `
     )
@@ -1757,6 +1878,7 @@ ${whereSql}
 SELECT l.*, u.username as user_username
 FROM listings l
 JOIN users u ON u.id = l.user_id
+LEFT JOIN user_moderation m ON m.user_id = u.id
 ${whereSql}
 ORDER BY ${orderBy}
 LIMIT ? OFFSET ?
@@ -1797,6 +1919,12 @@ AND l.listing_type = 1
   const isPublic = PUBLIC_LIFECYCLE.includes(status);
   const canView = isOwner || isPublic || (isAdmin && status === "pending");
   if (!canView) return res.status(404).json({ error: "Not found" });
+
+  // Hide wanted posts from the public if the owner is suspended/banned or deleted.
+  if (!isOwner && !isAdmin && isPublic && !isOwnerPubliclyVisible((row as any).user_id)) {
+    return res.status(404).json({ error: "Not found" });
+  }
+
   // Track views for public (non-owner) wanted detail views.
   if (!isOwner && isPublic && !isAdminViewContext(req, isAdmin) && shouldIncrementView(id, req)) {
     db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ? AND listing_type = 1`).run(id);

@@ -346,6 +346,33 @@ export type AdminAuditItem = {
   createdAt: string;
 };
 
+export type NotificationItem = {
+  id: string;
+  kind: string;
+  title: string;
+  body: string | null;
+  metaJson: string | null;
+  isRead: boolean;
+  createdAt: string;
+  readAt: string | null;
+};
+
+export function fetchNotifications(params?: { limit?: number; offset?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<{ unreadCount: number; items: NotificationItem[]; limit: number; offset: number }>(`/api/notifications${suffix}`);
+}
+
+export function markNotificationRead(id: string) {
+  return apiFetch<{ ok: true; changes: number }>(`/api/notifications/${encodeURIComponent(id)}/read`, { method: "POST" });
+}
+
+export function markAllNotificationsRead() {
+  return apiFetch<{ ok: true; changes: number }>(`/api/notifications/read-all`, { method: "POST" });
+}
+
 export function adminFetchAudit(params?: { actorUserId?: number; action?: string; targetKind?: string; targetId?: string; limit?: number; offset?: number }) {
   const qs = new URLSearchParams();
   if (params?.actorUserId !== undefined) qs.set("actorUserId", String(params.actorUserId));
@@ -824,11 +851,74 @@ export async function authRegister(input: {
 }
 
 export async function authLogin(input: { email: string; password: string }) {
-  return apiFetch<{ user: AuthUser }>(`/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  try {
+    return await apiFetch<{ user: AuthUser }>(`/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  } catch (e: any) {
+    // Improve user-facing messaging for moderation blocks ONLY (banned/suspended).
+    // Do not rewrite other errors.
+    const status =
+      e instanceof ApiError
+        ? e.status
+        : e && typeof e === "object" && "status" in e
+          ? Number((e as any).status)
+          : null;
+    const bodyTextRaw =
+      e instanceof ApiError
+        ? e.bodyText
+        : e && typeof e === "object" && "bodyText" in e
+          ? String((e as any).bodyText ?? "")
+          : "";
+    const msg = String(e?.message ?? "");
+
+    if (status === 403) {
+      let parsed: any = null;
+      // 1) Prefer real response body text (ApiError.bodyText)
+      try {
+        if (bodyTextRaw) parsed = JSON.parse(bodyTextRaw);
+      } catch {
+        // ignore
+      }
+      // 2) Fallback: sometimes callers surface ApiError.message: "API 403:{json}"
+      if (!parsed && msg.startsWith("API 403:")) {
+        try {
+          parsed = JSON.parse(msg.slice("API 403:".length).trim());
+        } catch {
+          // ignore
+        }
+      }
+
+      const code = parsed ? String(parsed.code ?? "") : "";
+      if (code === "ACCOUNT_BANNED" || code === "ACCOUNT_SUSPENDED") {
+        const reason = parsed?.reason != null ? String(parsed.reason) : null;
+        const suspendedUntil = parsed?.suspendedUntil != null ? Number(parsed.suspendedUntil) : null;
+
+        if (code === "ACCOUNT_BANNED") {
+          const lines = [
+            "Your account has been banned.",
+            `Reason: ${reason ? reason : "Not provided"}`,
+            "If you believe this is a mistake, please contact support.",
+          ];
+          throw new Error(lines.join("\n"));
+        }
+
+        const untilStr =
+          suspendedUntil != null && Number.isFinite(suspendedUntil) ? new Date(suspendedUntil).toLocaleString() : null;
+        const lines = [
+          "Your account has been suspended.",
+          `Until: ${untilStr ? untilStr : "Further notice"}`,
+          `Reason: ${reason ? reason : "Not provided"}`,
+          "If you believe this is a mistake, please contact support.",
+        ];
+        throw new Error(lines.join("\n"));
+      }
+    }
+
+    throw e;
+  }
 }
 
 export async function authLogout() {

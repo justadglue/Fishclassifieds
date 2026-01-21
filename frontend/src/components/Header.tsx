@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
-import { User, Search, X } from "lucide-react";
+import { User, Search, X, Bell } from "lucide-react";
 import { createPortal } from "react-dom";
+import { fetchNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "../api";
 
 export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
   const { user, loading, logout } = useAuth();
@@ -17,6 +18,14 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifAnchorRef = useRef<HTMLDivElement | null>(null);
+  const notifPanelRef = useRef<HTMLDivElement | null>(null);
+  const [notifPos, setNotifPos] = useState<{ top: number; left: number } | null>(null);
+  const [notifItems, setNotifItems] = useState<NotificationItem[]>([]);
+  const [notifUnread, setNotifUnread] = useState(0);
+  const [notifLoading, setNotifLoading] = useState(false);
 
   function closeSearch() {
     setSearchOpen(false);
@@ -37,6 +46,20 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
     return { top, left };
   }
 
+  function computeNotifPos() {
+    const anchor = notifAnchorRef.current;
+    if (!anchor) return null;
+
+    const rect = anchor.getBoundingClientRect();
+    const MENU_W = 320; // w-80
+    const GAP = 8; // mt-2
+    const PADDING = 8;
+
+    const top = rect.bottom + GAP;
+    const left = Math.min(window.innerWidth - MENU_W - PADDING, Math.max(PADDING, rect.right - MENU_W));
+    return { top, left };
+  }
+
   const accountLabel = useMemo(() => {
     const u = user?.username?.trim();
     if (u) return u;
@@ -45,7 +68,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
 
   useEffect(() => {
     function onDocMouseDown(e: MouseEvent) {
-      if (!open && !searchOpen) return;
+      if (!open && !searchOpen && !notifOpen) return;
       const target = e.target;
       if (!(target instanceof Node)) return;
 
@@ -56,6 +79,13 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
         if (!inside) setOpen(false);
       }
 
+      if (notifOpen) {
+        const anchor = notifAnchorRef.current;
+        const panel = notifPanelRef.current;
+        const inside = (!!anchor && anchor.contains(target)) || (!!panel && panel.contains(target));
+        if (!inside) setNotifOpen(false);
+      }
+
       if (searchOpen) {
         const el = searchRef.current;
         if (el && !el.contains(target)) closeSearch();
@@ -64,6 +94,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
       if (open) setOpen(false);
+      if (notifOpen) setNotifOpen(false);
       if (searchOpen) closeSearch();
     }
     document.addEventListener("mousedown", onDocMouseDown);
@@ -72,7 +103,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
       document.removeEventListener("mousedown", onDocMouseDown);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, searchOpen]);
+  }, [open, searchOpen, notifOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -93,9 +124,76 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
   }, [open]);
 
   useEffect(() => {
+    if (!notifOpen) return;
+
+    function positionMenu() {
+      const pos = computeNotifPos();
+      if (pos) setNotifPos(pos);
+    }
+
+    positionMenu();
+    window.addEventListener("resize", positionMenu);
+    window.addEventListener("scroll", positionMenu, { passive: true });
+    return () => {
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", positionMenu);
+    };
+  }, [notifOpen]);
+
+  useEffect(() => {
     if (!searchOpen) return;
     window.setTimeout(() => searchInputRef.current?.focus(), 0);
   }, [searchOpen]);
+
+  async function refreshNotifications() {
+    if (!user) return;
+    setNotifLoading(true);
+    try {
+      const res = await fetchNotifications({ limit: 20, offset: 0 });
+      setNotifItems(res.items);
+      setNotifUnread(res.unreadCount);
+    } catch {
+      // ignore
+    } finally {
+      setNotifLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!user) {
+      setNotifUnread(0);
+      setNotifItems([]);
+      setNotifOpen(false);
+      return;
+    }
+    refreshNotifications();
+    const t = window.setInterval(() => refreshNotifications(), 30_000);
+    return () => window.clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    refreshNotifications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifOpen]);
+
+  function extractNavFromNotification(n: NotificationItem): { href: string; label: string } | null {
+    try {
+      const meta = n.metaJson ? JSON.parse(n.metaJson) : null;
+      const listingId = meta?.listingId ?? meta?.targetId ?? null;
+      const listingType = meta?.listingType ?? meta?.targetKind ?? null;
+      if (listingId && (listingType === "sale" || listingType === "wanted")) {
+        return { href: `/listing/${listingType}/${listingId}`, label: "Open listing" };
+      }
+      if (meta?.targetKind && meta?.targetId && (meta.targetKind === "sale" || meta.targetKind === "wanted")) {
+        return { href: `/listing/${meta.targetKind}/${meta.targetId}`, label: "Open listing" };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
 
   async function doLogout() {
     setOpen(false);
@@ -193,30 +291,127 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
         {loading ? (
           <div className="text-sm font-semibold text-slate-500">Checking session…</div>
         ) : user ? (
-          <div className="relative" ref={menuAnchorRef}>
-            <button
-              type="button"
-              onClick={() => {
-                setOpen((v) => {
-                  const next = !v;
-                  if (next) {
-                    const pos = computeMenuPos();
-                    if (pos) setMenuPos(pos);
-                  } else {
-                    setMenuPos(null);
-                  }
-                  return next;
-                });
-              }}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 focus:outline-none"
-              aria-haspopup="menu"
-              aria-expanded={open}
-              aria-label={`Account menu for ${accountLabel}`}
-              title={accountLabel}
-            >
-              <User aria-hidden="true" className="h-5 w-5" />
-              <span className="sr-only">{accountLabel}</span>
-            </button>
+          <div className="flex items-center gap-2">
+            {/* Notifications */}
+            <div className="relative" ref={notifAnchorRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setNotifOpen((v) => {
+                    const next = !v;
+                    if (next) {
+                      const pos = computeNotifPos();
+                      if (pos) setNotifPos(pos);
+                    } else {
+                      setNotifPos(null);
+                    }
+                    return next;
+                  });
+                }}
+                className="relative inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 focus:outline-none"
+                aria-label="Notifications"
+                title="Notifications"
+              >
+                <Bell aria-hidden="true" className="h-5 w-5" />
+                {notifUnread > 0 ? (
+                  <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-extrabold leading-none text-white">
+                    {notifUnread > 99 ? "99+" : notifUnread}
+                  </span>
+                ) : null}
+              </button>
+
+              {notifOpen &&
+                typeof document !== "undefined" &&
+                createPortal(
+                  <div
+                    ref={notifPanelRef}
+                    className="fixed z-50 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+                    style={notifPos ? { top: notifPos.top, left: notifPos.left } : undefined}
+                    role="dialog"
+                    aria-label="Notifications"
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                      <div className="text-sm font-extrabold text-slate-900">Notifications</div>
+                      <button
+                        type="button"
+                        className="text-xs font-bold text-slate-700 hover:text-slate-900"
+                        disabled={notifUnread === 0}
+                        onClick={async () => {
+                          await markAllNotificationsRead();
+                          await refreshNotifications();
+                        }}
+                      >
+                        Mark all read
+                      </button>
+                    </div>
+
+                    <div className="max-h-[70vh] overflow-auto p-2">
+                      {notifLoading ? <div className="px-3 py-2 text-sm font-semibold text-slate-600">Loading…</div> : null}
+                      {!notifLoading && notifItems.length === 0 ? (
+                        <div className="px-3 py-6 text-center text-sm font-semibold text-slate-600">No notifications yet.</div>
+                      ) : null}
+
+                      {notifItems.map((n) => {
+                        const navTo = extractNavFromNotification(n);
+                        return (
+                          <button
+                            key={n.id}
+                            type="button"
+                            className={[
+                              "w-full rounded-xl px-3 py-2 text-left hover:bg-slate-50",
+                              n.isRead ? "" : "bg-slate-50/60",
+                            ].join(" ")}
+                            onClick={async () => {
+                              if (!n.isRead) {
+                                await markNotificationRead(n.id);
+                              }
+                              setNotifOpen(false);
+                              if (navTo) nav(navTo.href);
+                              await refreshNotifications();
+                            }}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-extrabold text-slate-900">{n.title}</div>
+                                {n.body ? <div className="mt-0.5 line-clamp-2 text-xs font-semibold text-slate-600">{n.body}</div> : null}
+                                {navTo ? <div className="mt-1 text-[11px] font-bold text-slate-700 underline underline-offset-4">{navTo.label}</div> : null}
+                              </div>
+                              {!n.isRead ? <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-red-600" aria-hidden="true" /> : null}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>,
+                  document.body
+                )}
+            </div>
+
+            {/* Account */}
+            <div className="relative" ref={menuAnchorRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen((v) => {
+                    const next = !v;
+                    if (next) {
+                      const pos = computeMenuPos();
+                      if (pos) setMenuPos(pos);
+                    } else {
+                      setMenuPos(null);
+                    }
+                    return next;
+                  });
+                }}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 focus:outline-none"
+                aria-haspopup="menu"
+                aria-expanded={open}
+                aria-label={`Account menu for ${accountLabel}`}
+                title={accountLabel}
+              >
+                <User aria-hidden="true" className="h-5 w-5" />
+                <span className="sr-only">{accountLabel}</span>
+              </button>
 
             {open &&
               typeof document !== "undefined" &&
@@ -274,6 +469,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
                 </div>,
                 document.body
               )}
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-2">

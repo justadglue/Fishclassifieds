@@ -192,6 +192,22 @@ CREATE INDEX IF NOT EXISTS idx_admin_audit_created_at ON admin_audit(created_at)
 CREATE INDEX IF NOT EXISTS idx_admin_audit_actor ON admin_audit(actor_user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit(target_kind, target_id, created_at);
 
+-- User notifications (created by system/admin actions)
+CREATE TABLE IF NOT EXISTS notifications(
+  id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT,
+  meta_json TEXT,
+  is_read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  read_at TEXT,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created_at ON notifications(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_is_read ON notifications(user_id, is_read, created_at);
+
 -- Unified listings table. listing_type=0 is sale, listing_type=1 is wanted.
 CREATE TABLE IF NOT EXISTS listings(
   id TEXT PRIMARY KEY,

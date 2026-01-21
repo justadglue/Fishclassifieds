@@ -120,6 +120,38 @@ router.post("/login", async (req: Request, res: Response) => {
   const ok = await argon2.verify(row.password_hash, password);
   if (!ok) return res.status(401).json({ error: "Invalid email or password" });
 
+  // Block login for banned/suspended users with a clear message + reason.
+  // (This is more user-friendly than failing later on authenticated endpoints.)
+  const mod = db
+    .prepare(`SELECT status, reason, suspended_until FROM user_moderation WHERE user_id = ?`)
+    .get(Number(row.id)) as any | undefined;
+
+  const modStatus = mod?.status ? String(mod.status) : "active";
+  const modReason = mod?.reason != null ? String(mod.reason) : null;
+  const suspendedUntil = mod?.suspended_until != null ? Number(mod.suspended_until) : null;
+
+  if (modStatus === "banned") {
+    return res.status(403).json({ error: "Account banned", code: "ACCOUNT_BANNED", reason: modReason });
+  }
+
+  if (modStatus === "suspended") {
+    // If no until is provided, treat as indefinite suspension.
+    if (suspendedUntil == null || suspendedUntil > Date.now()) {
+      return res.status(403).json({
+        error: "Account suspended",
+        code: "ACCOUNT_SUSPENDED",
+        reason: modReason,
+        suspendedUntil,
+      });
+    }
+    // Auto-clear expired suspensions.
+    try {
+      db.prepare(`UPDATE user_moderation SET status='active', reason=NULL, suspended_until=NULL, updated_at=? WHERE user_id = ?`).run(nowIso(), Number(row.id));
+    } catch {
+      // ignore
+    }
+  }
+
   const sessionId = crypto.randomUUID();
   const refreshToken = signRefreshToken({ sub: String(row.id), sid: sessionId });
   const refreshHash = sha256Hex(refreshToken);

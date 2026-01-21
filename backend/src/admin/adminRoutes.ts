@@ -29,6 +29,18 @@ function audit(db: Database.Database, actorUserId: number, action: string, targe
   }
 }
 
+function notify(db: Database.Database, toUserId: number, kind: string, title: string, body: string | null, meta: any) {
+  try {
+    const id = crypto.randomUUID();
+    db.prepare(
+      `INSERT INTO notifications(id,user_id,kind,title,body,meta_json,is_read,created_at)
+       VALUES(?,?,?,?,?,?,0,?)`
+    ).run(id, toUserId, kind, title, body, meta == null ? null : JSON.stringify(meta), nowIso());
+  } catch {
+    // Best-effort; ignore.
+  }
+}
+
 router.use(requireAuth);
 router.use(requireAdmin);
 
@@ -339,9 +351,10 @@ router.post("/listings/:id/set-status", (req, res) => {
   const parsed = AdminSetStatusSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
 
-  const row = db.prepare(`SELECT id,status,listing_type FROM listings WHERE id = ?`).get(id) as any | undefined;
+  const row = db.prepare(`SELECT id,user_id,title,status,listing_type FROM listings WHERE id = ?`).get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
 
+  const ownerUserId = row.user_id != null ? Number(row.user_id) : null;
   const prevStatus = String(row.status ?? "active");
   const nextStatus = String(parsed.data.status);
   const now = nowIso();
@@ -357,6 +370,17 @@ router.post("/listings/:id/set-status", (req, res) => {
   }
 
   audit(db, req.user!.id, "set_listing_status", "listing", id, { prevStatus, nextStatus });
+  if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
+    const title = String(row.title ?? "").trim() || "your listing";
+    notify(
+      db,
+      ownerUserId,
+      "listing_status_changed",
+      "Listing status updated",
+      `An admin set "${title}" to ${nextStatus}.`,
+      { listingId: id, listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale", prevStatus, nextStatus }
+    );
+  }
   return res.json({ ok: true });
 });
 
@@ -368,9 +392,10 @@ router.post("/listings/:id/set-featured", requireSuperadmin, (req, res) => {
   const parsed = AdminSetFeaturedSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
 
-  const row = db.prepare(`SELECT id,featured_until,status FROM listings WHERE id = ?`).get(id) as any | undefined;
+  const row = db.prepare(`SELECT id,user_id,title,featured_until,status,listing_type FROM listings WHERE id = ?`).get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
 
+  const ownerUserId = row.user_id != null ? Number(row.user_id) : null;
   const prev = row.featured_until != null ? Number(row.featured_until) : null;
   const next = parsed.data.featuredUntil;
   const now = nowIso();
@@ -382,6 +407,18 @@ router.post("/listings/:id/set-featured", requireSuperadmin, (req, res) => {
   }
 
   audit(db, req.user!.id, "set_listing_featured", "listing", id, { prevFeaturedUntil: prev, nextFeaturedUntil: next });
+  if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
+    const title = String(row.title ?? "").trim() || "your listing";
+    const msg = next == null ? `An admin removed featured status from "${title}".` : `An admin featured "${title}".`;
+    notify(
+      db,
+      ownerUserId,
+      "listing_featured_changed",
+      "Listing featured status updated",
+      msg,
+      { listingId: id, listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale", prevFeaturedUntil: prev, nextFeaturedUntil: next }
+    );
+  }
   return res.json({ ok: true });
 });
 
@@ -884,7 +921,7 @@ router.post("/approvals/:kind/:id/approve", (req, res) => {
 
   const db = getDb(req);
   const lt = kind === "sale" ? 0 : 1;
-  const row = db.prepare(`SELECT id,status FROM listings WHERE id = ? AND listing_type = ?`).get(id, lt) as any | undefined;
+  const row = db.prepare(`SELECT id,user_id,title,status FROM listings WHERE id = ? AND listing_type = ?`).get(id, lt) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
 
   const now = nowIso();
@@ -899,6 +936,11 @@ AND listing_type = ?
 `
   ).run(now, now, id, lt);
   audit(db, req.user!.id, "approve", kind, id, { prevStatus: row.status });
+  const ownerUserId = row.user_id != null ? Number(row.user_id) : null;
+  if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
+    const title = String(row.title ?? "").trim() || "your listing";
+    notify(db, ownerUserId, "listing_approved", "Listing approved", `Your listing "${title}" has been approved and is now live.`, { listingId: id, listingType: kind });
+  }
   return res.json({ ok: true });
 });
 
@@ -913,12 +955,25 @@ router.post("/approvals/:kind/:id/reject", (req, res) => {
 
   const db = getDb(req);
   const lt = kind === "sale" ? 0 : 1;
-  const row = db.prepare(`SELECT id,status FROM listings WHERE id = ? AND listing_type = ?`).get(id, lt) as any | undefined;
+  const row = db.prepare(`SELECT id,user_id,title,status FROM listings WHERE id = ? AND listing_type = ?`).get(id, lt) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
 
   const now = nowIso();
   db.prepare(`UPDATE listings SET status = 'deleted', deleted_at = ?, updated_at = ? WHERE id = ? AND listing_type = ?`).run(now, now, id, lt);
   audit(db, req.user!.id, "reject", kind, id, { prevStatus: row.status, note: parsed.data.note ?? null });
+  const ownerUserId = row.user_id != null ? Number(row.user_id) : null;
+  if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
+    const title = String(row.title ?? "").trim() || "your listing";
+    const note = parsed.data.note ?? null;
+    notify(
+      db,
+      ownerUserId,
+      "listing_rejected",
+      "Listing rejected",
+      note ? `Your listing "${title}" was rejected. Note: ${note}` : `Your listing "${title}" was rejected.`,
+      { listingId: id, listingType: kind, note }
+    );
+  }
   return res.json({ ok: true });
 });
 
@@ -1000,7 +1055,7 @@ router.post("/reports/:id/resolve", (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
 
   const db = getDb(req);
-  const row = db.prepare(`SELECT id,status FROM reports WHERE id = ?`).get(id) as any | undefined;
+  const row = db.prepare(`SELECT id,status,reporter_user_id,target_kind,target_id FROM reports WHERE id = ?`).get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
 
   const now = nowIso();
@@ -1011,6 +1066,20 @@ router.post("/reports/:id/resolve", (req, res) => {
   ).run(req.user!.id, parsed.data.note ?? null, now, id);
 
   audit(db, req.user!.id, "resolve_report", "report", id, { prevStatus: row.status, note: parsed.data.note ?? null });
+  const reporterUserId = row.reporter_user_id != null ? Number(row.reporter_user_id) : null;
+  if (reporterUserId != null && Number.isFinite(reporterUserId) && reporterUserId !== req.user!.id) {
+    const note = parsed.data.note ?? null;
+    const targetKind = String(row.target_kind ?? "");
+    const targetId = String(row.target_id ?? "");
+    notify(
+      db,
+      reporterUserId,
+      "report_resolved",
+      "Report resolved",
+      note ? `Your report has been resolved. Note: ${note}` : "Your report has been resolved.",
+      { reportId: id, targetKind, targetId, note }
+    );
+  }
   return res.json({ ok: true });
 });
 
@@ -1039,7 +1108,7 @@ router.post("/reports/:id/action", (req, res) => {
   const targetId = String(report.target_id ?? "");
   const lt = targetKind === "wanted" ? 1 : 0;
 
-  const listing = db.prepare(`SELECT id,user_id,listing_type,status FROM listings WHERE id = ? AND listing_type = ?`).get(targetId, lt) as any | undefined;
+  const listing = db.prepare(`SELECT id,user_id,listing_type,status,title FROM listings WHERE id = ? AND listing_type = ?`).get(targetId, lt) as any | undefined;
   const targetUserId = listing?.user_id != null ? Number(listing.user_id) : null;
 
   const tx = db.transaction(() => {
@@ -1128,6 +1197,35 @@ router.post("/reports/:id/action", (req, res) => {
     suspendDays: parsed.data.suspendDays ?? null,
     target: { kind: targetKind, id: targetId, listingStatus: listing?.status ?? null, userId: targetUserId },
   });
+
+  // Notify reporter that their report was addressed.
+  const reporterUserId = report.reporter_user_id != null ? Number(report.reporter_user_id) : null;
+  if (reporterUserId != null && Number.isFinite(reporterUserId) && reporterUserId !== req.user!.id) {
+    notify(
+      db,
+      reporterUserId,
+      "report_addressed",
+      "Report addressed",
+      `Your report has been addressed (action: ${action}).`,
+      { reportId: id, targetKind, targetId, action, note, suspendDays: parsed.data.suspendDays ?? null }
+    );
+  }
+
+  // If the report action affected the target user/listing owner, notify them too (best-effort).
+  if (targetUserId != null && Number.isFinite(targetUserId) && targetUserId !== req.user!.id && targetUserId !== reporterUserId) {
+    const title = listing?.title ? String(listing.title) : "a listing";
+    const body =
+      action === "hide_listing"
+        ? `An admin removed "${title}" in response to a report.`
+        : action === "warn_user"
+          ? `An admin reviewed a report related to "${title}".`
+          : action === "suspend_user"
+            ? `Your account was suspended in response to a report related to "${title}".`
+            : action === "ban_user"
+              ? `Your account was banned in response to a report related to "${title}".`
+              : `An admin reviewed a report related to "${title}".`;
+    notify(db, targetUserId, "report_moderation", "Report review", body, { reportId: id, targetKind, targetId, action, note });
+  }
 
   return res.json({ ok: true });
 });

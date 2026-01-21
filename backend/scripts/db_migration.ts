@@ -108,6 +108,26 @@ CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit(target_kind, ta
 `);
 }
 
+function ensureNotificationsTable(db: Database.Database) {
+  if (hasTable(db, "notifications")) return;
+  db.exec(`
+CREATE TABLE IF NOT EXISTS notifications(
+  id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT,
+  meta_json TEXT,
+  is_read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  read_at TEXT,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created_at ON notifications(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_is_read ON notifications(user_id, is_read, created_at);
+`);
+}
+
 function ensureUserModerationTable(db: Database.Database) {
   if (hasTable(db, "user_moderation")) return;
   db.exec(`
@@ -528,6 +548,7 @@ AND contact IS NOT NULL;
   ensureListingImagesTable(db);
   ensureReportsTable(db);
   ensureAdminAuditTable(db);
+  ensureNotificationsTable(db);
   ensureUserModerationTable(db);
   ensureSiteSettingsTable(db);
 

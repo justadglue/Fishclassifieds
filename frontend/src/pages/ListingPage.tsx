@@ -330,7 +330,6 @@ export default function ListingPage() {
                         <option>Prohibited item</option>
                         <option>Harassment</option>
                         <option>Spam</option>
-                        <option>Incorrect category</option>
                         <option>Other</option>
                       </select>
                     </label>

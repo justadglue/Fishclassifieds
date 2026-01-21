@@ -521,7 +521,7 @@ export default function AdminListingsPage() {
             published: 140,
             created: 140,
             updated: 140,
-            expiresIn: 90,
+            expiresIn: 140,
             actions: 110,
         } as const;
 
@@ -935,7 +935,7 @@ export default function AdminListingsPage() {
                                 {visibleCols.published ? <SortTh label="Published" k="published" className="w-[140px] px-2 py-3" align="left" /> : null}
                                 {visibleCols.created ? <SortTh label="Created" k="created" className="w-[140px] px-2 py-3" align="left" /> : null}
                                 {visibleCols.updated ? <SortTh label="Updated" k="updated" className="w-[140px] px-2 py-3" align="left" /> : null}
-                                {visibleCols.expiresIn ? <SortTh label="Expiry" k="expiresIn" className="w-[90px] px-2 py-3" align="right" /> : null}
+                                {visibleCols.expiresIn ? <SortTh label="Expiry" k="expiresIn" className="w-[140px] px-2 py-3" align="left" /> : null}
                                 <th className="w-[110px] px-2 py-3 text-center whitespace-nowrap">Actions</th>
                             </tr>
                         </thead>
@@ -1073,7 +1073,7 @@ export default function AdminListingsPage() {
                                         ) : null}
 
                                         {visibleCols.expiresIn ? (
-                                            <td className="px-2 py-3 align-top text-right">
+                                            <td className="px-2 py-3 align-top text-left">
                                                 <div className="text-sm font-semibold text-slate-700" title={it.expiresAt ? new Date(it.expiresAt).toLocaleString() : ""}>
                                                     {expiresInShort(it.expiresAt)}
                                                 </div>

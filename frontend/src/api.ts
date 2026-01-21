@@ -583,8 +583,11 @@ export async function fetchWanted(params?: {
   return apiFetch<{ items: WantedPost[]; total: number; limit: number; offset: number }>(`/api/wanted${suffix}`);
 }
 
-export async function fetchWantedPost(id: string) {
-  return apiFetch<WantedPost>(`/api/wanted/${encodeURIComponent(id)}`);
+export async function fetchWantedPost(id: string, opts?: { viewContext?: "admin" | "public" }) {
+  const qs = new URLSearchParams();
+  if (opts?.viewContext) qs.set("viewContext", opts.viewContext);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<WantedPost>(`/api/wanted/${encodeURIComponent(id)}${suffix}`);
 }
 
 export async function createWantedPost(input: {
@@ -676,8 +679,11 @@ export async function deleteWantedPost(id: string) {
   return apiFetch<{ ok: true }>(`/api/wanted/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export async function fetchListing(id: string) {
-  return apiFetch<Listing>(`/api/listings/${encodeURIComponent(id)}`);
+export async function fetchListing(id: string, opts?: { viewContext?: "admin" | "public" }) {
+  const qs = new URLSearchParams();
+  if (opts?.viewContext) qs.set("viewContext", opts.viewContext);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<Listing>(`/api/listings/${encodeURIComponent(id)}${suffix}`);
 }
 
 export async function relistListing(id: string) {

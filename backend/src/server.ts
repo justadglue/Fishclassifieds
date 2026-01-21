@@ -58,6 +58,16 @@ function shouldIncrementView(listingId: string, req: express.Request): boolean {
   return true;
 }
 
+function isAdminViewContext(req: express.Request, isAdminUser: boolean): boolean {
+  // Only admins/superadmins can opt out of view tracking by using admin tooling.
+  // This prevents public users from suppressing view counts just by sharing a URL.
+  if (!isAdminUser) return false;
+  const q = String((req.query as any)?.viewContext ?? "").trim().toLowerCase();
+  if (q === "admin") return true;
+  const h = String(req.get("x-fc-view-context") ?? "").trim().toLowerCase();
+  return h === "admin";
+}
+
 app.use(
   cors({
     origin: config.corsOrigin,
@@ -1337,7 +1347,7 @@ app.get("/api/listings/:id", optionalAuth, (req, res) => {
   if (!canView) return res.status(404).json({ error: "Not found" });
 
   // Track views for public (non-owner) listing detail views.
-  if (!isOwner && !isAdmin && isPublic && shouldIncrementView(id, req)) {
+  if (!isOwner && isPublic && !isAdminViewContext(req, isAdmin) && shouldIncrementView(id, req)) {
     db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ? AND listing_type = 0`).run(id);
     row = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
   }
@@ -1788,7 +1798,7 @@ AND l.listing_type = 1
   const canView = isOwner || isPublic || (isAdmin && status === "pending");
   if (!canView) return res.status(404).json({ error: "Not found" });
   // Track views for public (non-owner) wanted detail views.
-  if (!isOwner && !isAdmin && isPublic && shouldIncrementView(id, req)) {
+  if (!isOwner && isPublic && !isAdminViewContext(req, isAdmin) && shouldIncrementView(id, req)) {
     db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ? AND listing_type = 1`).run(id);
     row = db
       .prepare(

@@ -85,7 +85,7 @@ export default function AdminApprovalsPage() {
                 </div>
                 <div className="mt-2">
                   <Link
-                    to={`/listing/${it.kind}/${it.id}`}
+                    to={`/listing/${it.kind}/${it.id}?viewContext=admin`}
                     className="text-xs font-bold text-slate-700 underline underline-offset-4 hover:text-slate-900"
                   >
                     Open listing

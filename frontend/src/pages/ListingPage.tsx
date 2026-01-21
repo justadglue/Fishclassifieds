@@ -79,11 +79,13 @@ export default function ListingPage() {
       setLoading(true);
       setErr(null);
       try {
+        const viewContext = new URLSearchParams(location.search).get("viewContext");
+        const viewCtx = viewContext === "admin" ? ("admin" as const) : undefined;
         if (kind === "wanted") {
-          const w = await fetchWantedPost(id);
+          const w = await fetchWantedPost(id, viewCtx ? { viewContext: viewCtx } : undefined);
           if (!cancelled) setData({ kind: "wanted", item: w });
         } else {
-          const l = await fetchListing(id);
+          const l = await fetchListing(id, viewCtx ? { viewContext: viewCtx } : undefined);
           if (!cancelled) setData({ kind: "sale", item: l });
         }
         if (!cancelled) {
@@ -101,7 +103,7 @@ export default function ListingPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, kind]);
+  }, [id, kind, location.search]);
 
   useEffect(() => {
     let cancelled = false;

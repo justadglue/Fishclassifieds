@@ -890,7 +890,7 @@ export default function AdminListingsPage() {
                             const rowBorder = idx === 0 ? "" : "border-t border-slate-200";
                             const isExpanded = expandedId === rowKey;
                             const hero = resolveImageUrl(it.heroUrl ?? null);
-                            const openHref = `/listing/${it.kind}/${it.id}`;
+                            const openHref = `/listing/${it.kind}/${it.id}?viewContext=admin`;
                             const isFeatured = it.featuredUntil != null && it.featuredUntil > Date.now();
                             const priceText = it.kind === "sale" ? centsToDollars(it.priceCents) : budgetLabel(it.budgetCents ?? null);
 

@@ -108,7 +108,7 @@ export default function AdminReportsPage() {
                 {r.details ? <div className="mt-2 text-sm text-slate-700">{r.details}</div> : null}
                 <div className="mt-2">
                   <Link
-                    to={`/listing/${r.targetKind}/${r.targetId}`}
+                    to={`/listing/${r.targetKind}/${r.targetId}?viewContext=admin`}
                     className="text-xs font-bold text-slate-700 underline underline-offset-4 hover:text-slate-900"
                   >
                     Open target

@@ -355,7 +355,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
                     aria-label="Notifications"
                   >
                     <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                      <div className="text-sm font-extrabold text-slate-900">Notifications</div>
+                      <div className="text-base font-black tracking-tight text-slate-900">Notifications</div>
                       <button
                         type="button"
                         className="text-xs font-bold text-slate-700 hover:text-slate-900"
@@ -405,7 +405,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
                                   />
                                 ) : null}
                                 <div className="min-w-0">
-                                  <div className="truncate text-sm font-extrabold text-slate-900">{n.title}</div>
+                                  <div className="truncate text-sm font-bold text-slate-900">{n.title}</div>
                                   {n.body ? <div className="mt-0.5 line-clamp-2 text-xs font-semibold text-slate-600">{n.body}</div> : null}
                                   {navTo ? <div className="mt-1 text-[11px] font-bold text-slate-700 underline underline-offset-4">{navTo.label}</div> : null}
                                 </div>

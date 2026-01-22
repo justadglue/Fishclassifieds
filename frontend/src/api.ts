@@ -410,7 +410,7 @@ export function markAllNotificationsRead() {
 }
 
 export function adminFetchAudit(params?: {
-  actorUserId?: number;
+  actor?: string;
   action?: string;
   targetKind?: string;
   targetId?: string;
@@ -420,7 +420,7 @@ export function adminFetchAudit(params?: {
   offset?: number;
 }) {
   const qs = new URLSearchParams();
-  if (params?.actorUserId !== undefined) qs.set("actorUserId", String(params.actorUserId));
+  if (params?.actor) qs.set("actorUserId", String(params.actor));
   if (params?.action) qs.set("action", params.action);
   if (params?.targetKind) qs.set("targetKind", params.targetKind);
   if (params?.targetId) qs.set("targetId", params.targetId);

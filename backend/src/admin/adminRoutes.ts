@@ -81,6 +81,15 @@ function sortDirSql(dir: "asc" | "desc") {
   return dir === "asc" ? "ASC" : "DESC";
 }
 
+function escapeSqlLike(raw: string) {
+  // Escape LIKE wildcards so user input behaves like a literal substring match.
+  // SQLite supports "ESCAPE '\'".
+  return String(raw ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/_/g, "\\_");
+}
+
 router.use(requireAuth);
 router.use(requireAdmin);
 
@@ -1095,6 +1104,7 @@ router.get("/audit", (req, res) => {
 
   const actorRaw = String(req.query.actorUserId ?? "").trim();
   const actorUserId = actorRaw ? Number(actorRaw) : null;
+  const actorQuery = actorRaw && !(actorUserId != null && Number.isFinite(actorUserId)) ? actorRaw : "";
   const action = String(req.query.action ?? "").trim();
   const targetKind = String(req.query.targetKind ?? "").trim();
   const targetId = String(req.query.targetId ?? "").trim();
@@ -1131,17 +1141,22 @@ router.get("/audit", (req, res) => {
     where.push(`a.actor_user_id = ?`);
     params.push(actorUserId);
   }
+  if (actorQuery) {
+    const pat = `%${escapeSqlLike(actorQuery.toLowerCase())}%`;
+    where.push(`(lower(COALESCE(u.username,'')) LIKE ? ESCAPE '\\' OR lower(COALESCE(u.email,'')) LIKE ? ESCAPE '\\')`);
+    params.push(pat, pat);
+  }
   if (action) {
-    where.push(`a.action = ?`);
-    params.push(action);
+    where.push(`lower(a.action) LIKE ? ESCAPE '\\'`);
+    params.push(`%${escapeSqlLike(action.toLowerCase())}%`);
   }
   if (targetKind) {
-    where.push(`a.target_kind = ?`);
-    params.push(targetKind);
+    where.push(`lower(a.target_kind) LIKE ? ESCAPE '\\'`);
+    params.push(`%${escapeSqlLike(targetKind.toLowerCase())}%`);
   }
   if (targetId) {
-    where.push(`a.target_id = ?`);
-    params.push(targetId);
+    where.push(`lower(a.target_id) LIKE ? ESCAPE '\\'`);
+    params.push(`%${escapeSqlLike(targetId.toLowerCase())}%`);
   }
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -1151,6 +1166,7 @@ router.get("/audit", (req, res) => {
       `
 SELECT COUNT(*) as c
 FROM admin_audit a
+LEFT JOIN users u ON u.id = a.actor_user_id
 ${whereSql}
 `
     )

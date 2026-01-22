@@ -28,9 +28,8 @@ export default function AdminAuditPage() {
     setLoading(true);
     setErr(null);
     try {
-      const actor = actorUserId.trim() ? Number(actorUserId.trim()) : undefined;
       const res = await adminFetchAudit({
-        actorUserId: Number.isFinite(actor as any) ? actor : undefined,
+        actor: actorUserId.trim() ? actorUserId.trim() : undefined,
         action: action.trim() ? action.trim() : undefined,
         targetKind: targetKind.trim() ? targetKind.trim() : undefined,
         targetId: targetId.trim() ? targetId.trim() : undefined,
@@ -61,14 +60,6 @@ export default function AdminAuditPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [limit]);
-
-  const pageText = useMemo(() => {
-    if (loading) return "Loading…";
-    if (!total) return "0";
-    const start = Math.min(total, offset + 1);
-    const end = Math.min(total, offset + items.length);
-    return `${start.toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()}`;
-  }, [items.length, loading, offset, total]);
 
   const canPrev = offset > 0;
   const canNext = offset + limit < total;
@@ -110,7 +101,7 @@ export default function AdminAuditPage() {
             e.preventDefault();
             load({ offset: 0 });
           }}
-          placeholder="Actor userId…"
+          placeholder="Actor userId / username / email…"
           className="w-36 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-slate-400"
         />
         <input

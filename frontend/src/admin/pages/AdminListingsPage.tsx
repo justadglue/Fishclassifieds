@@ -1,19 +1,42 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ArrowUpDown, CircleCheck, MoveDown, MoveUp, Pause, Play, Star, Trash2, User as UserIcon } from "lucide-react";
-import { adminFetchListings, adminSetListingFeaturedUntil, adminSetListingStatus, resolveImageUrl, type AdminListingListItem, type ListingStatus } from "../../api";
+import {
+    adminFetchListings,
+    adminSetListingFeaturedUntil,
+    adminSetListingRestrictions,
+    adminSetListingStatus,
+    resolveImageUrl,
+    type AdminListingListItem,
+    type ListingStatus,
+} from "../../api";
 import { useAuth } from "../../auth";
 import NoPhotoPlaceholder from "../../components/NoPhotoPlaceholder";
 
 type KindFilter = "all" | "sale" | "wanted";
 type StatusFilter = "all" | ListingStatus;
-type SortKey = "listing" | "price" | "views" | "status" | "published" | "created" | "updated" | "expiresIn";
+type RestrictionsFilter = "all" | "any" | "none" | "edit" | "status" | "featuring";
+type SortKey =
+    | "listing"
+    | "fullName"
+    | "username"
+    | "email"
+    | "phone"
+    | "restrictions"
+    | "price"
+    | "views"
+    | "status"
+    | "published"
+    | "created"
+    | "updated"
+    | "expiresIn";
 type SortDir = "asc" | "desc";
 type ColKey =
     | "fullName"
     | "username"
     | "email"
     | "phone"
+    | "restrictions"
     | "price"
     | "views"
     | "status"
@@ -243,6 +266,17 @@ function sortAdminRows(rows: AdminListingListItem[], sortKey: SortKey, sortDir: 
     };
 
     const getTitle = (r: AdminListingListItem) => String(r.title ?? "");
+    const getFullName = (r: AdminListingListItem) => {
+        if (!r.user) return "";
+        const fn = String(r.user.firstName ?? "").trim();
+        const ln = String(r.user.lastName ?? "").trim();
+        return `${fn} ${ln}`.trim();
+    };
+    const getUsername = (r: AdminListingListItem) => String(r.user?.username ?? "");
+    const getEmail = (r: AdminListingListItem) => String(r.user?.email ?? "");
+    const getPhone = (r: AdminListingListItem) => String(r.phone ?? "");
+    const getRestrictionsCount = (r: AdminListingListItem) =>
+        (r.ownerBlockEdit ? 1 : 0) + (r.ownerBlockPauseResume ? 1 : 0) + (r.ownerBlockStatusChanges ? 1 : 0) + (r.ownerBlockFeaturing ? 1 : 0);
     const getPriceSort = (r: AdminListingListItem): number | null => (r.kind === "sale" ? Number(r.priceCents ?? 0) : r.budgetCents ?? null);
     const getViewsSort = (r: AdminListingListItem): number | null => Number.isFinite(Number(r.views)) ? Number(r.views) : 0;
     const getCreatedMs = (r: AdminListingListItem) => parseMs(r.createdAt);
@@ -268,6 +302,24 @@ function sortAdminRows(rows: AdminListingListItem[], sortKey: SortKey, sortDir: 
             case "listing":
                 r = cmpStr(getTitle(a), getTitle(b)) * dirMul;
                 break;
+            case "fullName":
+                r = cmpStr(getFullName(a), getFullName(b)) * dirMul;
+                break;
+            case "username":
+                r = cmpStr(getUsername(a), getUsername(b)) * dirMul;
+                break;
+            case "email":
+                r = cmpStr(getEmail(a), getEmail(b)) * dirMul;
+                break;
+            case "phone":
+                r = cmpStr(getPhone(a), getPhone(b)) * dirMul;
+                break;
+            case "restrictions": {
+                const ar = getRestrictionsCount(a);
+                const br = getRestrictionsCount(b);
+                r = (ar - br) * dirMul;
+                break;
+            }
             case "price": {
                 const ar = getPriceSort(a);
                 const br = getPriceSort(b);
@@ -339,6 +391,7 @@ export default function AdminListingsPage() {
     const [status, setStatus] = useState<StatusFilter>("all");
     const [featuredOnly, setFeaturedOnly] = useState(false);
     const [includeDeleted, setIncludeDeleted] = useState(false);
+    const [restrictions, setRestrictions] = useState<RestrictionsFilter>("all");
 
     const [items, setItems] = useState<AdminListingListItem[]>([]);
     const [rowOrder, setRowOrder] = useState<string[]>([]);
@@ -350,6 +403,62 @@ export default function AdminListingsPage() {
     const [err, setErr] = useState<string | null>(null);
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const expandedIdRef = useRef<string | null>(null);
+
+    const [restrictionsDraft, setRestrictionsDraft] = useState<
+        | null
+        | {
+            listingId: string;
+            // listing actions (drafted; only enacted on Save)
+            desiredStatus: ListingStatus | null;
+            desiredFeaturedUntil: number | null | undefined;
+            blockEdit: boolean;
+            blockPauseResume: boolean;
+            blockStatusChanges: boolean;
+            blockFeaturing: boolean;
+            reason: string;
+        }
+    >(null);
+
+    const editToolsRef = useRef<HTMLDivElement | null>(null);
+
+    // Click-away should collapse the edit tools panel and discard any unsaved changes.
+    useEffect(() => {
+        if (!restrictionsDraft) return;
+        const onMouseDown = (e: MouseEvent) => {
+            const el = editToolsRef.current;
+            if (!el) return;
+            const t = e.target as Node | null;
+            if (t && el.contains(t)) return;
+            setRestrictionsDraft(null);
+        };
+        document.addEventListener("mousedown", onMouseDown, true);
+        return () => document.removeEventListener("mousedown", onMouseDown, true);
+    }, [restrictionsDraft]);
+
+    // If the row collapses or the user expands a different row, discard unsaved changes.
+    useEffect(() => {
+        const id = restrictionsDraft?.listingId;
+        if (!id) return;
+        if (!expandedId || !expandedId.endsWith(`:${id}`)) setRestrictionsDraft(null);
+    }, [expandedId, restrictionsDraft?.listingId]);
+
+    // When the backing row data refreshes after a Save, clear any "desired" values that now match the saved state.
+    // This keeps the edit panel open without leaving stale "pending" values hanging around.
+    useEffect(() => {
+        const id = restrictionsDraft?.listingId;
+        if (!id) return;
+        const it = items.find((x) => x.id === id);
+        if (!it) return;
+        setRestrictionsDraft((p) => {
+            if (!p || p.listingId !== id) return p;
+            const nextDesiredStatus = p.desiredStatus != null && p.desiredStatus === it.status ? null : p.desiredStatus;
+            const curFeaturedUntil = it.featuredUntil ?? null;
+            const nextDesiredFeaturedUntil =
+                p.desiredFeaturedUntil !== undefined && p.desiredFeaturedUntil === curFeaturedUntil ? undefined : p.desiredFeaturedUntil;
+            if (nextDesiredStatus === p.desiredStatus && nextDesiredFeaturedUntil === p.desiredFeaturedUntil) return p;
+            return { ...p, desiredStatus: nextDesiredStatus, desiredFeaturedUntil: nextDesiredFeaturedUntil };
+        });
+    }, [items, restrictionsDraft?.listingId]);
 
     const [colsOpen, setColsOpen] = useState(false);
     const colsOpenRef = useRef(false);
@@ -371,6 +480,7 @@ export default function AdminListingsPage() {
                 username: Boolean(parsed.username ?? true),
                 email: Boolean(parsed.email ?? true),
                 phone: Boolean(parsed.phone ?? true),
+                restrictions: Boolean(parsed.restrictions ?? true),
                 price: Boolean(parsed.price ?? true),
                 views: Boolean(parsed.views ?? true),
                 status: Boolean(parsed.status ?? true),
@@ -385,6 +495,7 @@ export default function AdminListingsPage() {
                 username: true,
                 email: true,
                 phone: true,
+                restrictions: true,
                 price: true,
                 views: true,
                 status: true,
@@ -462,6 +573,7 @@ export default function AdminListingsPage() {
                 status,
                 featured: featuredOnly ? true : undefined,
                 includeDeleted: includeDeleted ? true : undefined,
+                restrictions,
                 limit,
                 offset: next?.offset ?? offset,
             });
@@ -491,7 +603,7 @@ export default function AdminListingsPage() {
             cancelled = true;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [kind, status, featuredOnly, includeDeleted, limit]);
+    }, [kind, status, restrictions, featuredOnly, includeDeleted, limit]);
 
     const pageText = useMemo(() => {
         if (loading) return "Loading…";
@@ -515,6 +627,7 @@ export default function AdminListingsPage() {
             username: 140,
             email: 200,
             phone: 130,
+            restrictions: 140,
             price: 110,
             views: 90,
             status: 110,
@@ -531,6 +644,7 @@ export default function AdminListingsPage() {
             (visibleCols.username ? W.username : 0) +
             (visibleCols.email ? W.email : 0) +
             (visibleCols.phone ? W.phone : 0) +
+            (visibleCols.restrictions ? W.restrictions : 0) +
             (visibleCols.price ? W.price : 0) +
             (visibleCols.views ? W.views : 0) +
             (visibleCols.status ? W.status : 0) +
@@ -662,6 +776,11 @@ export default function AdminListingsPage() {
 
     const defaultDirByKey: Record<SortKey, SortDir> = {
         listing: "asc",
+        fullName: "asc",
+        username: "asc",
+        email: "asc",
+        phone: "asc",
+        restrictions: "desc",
         price: "asc",
         views: "desc",
         status: "asc",
@@ -753,6 +872,24 @@ export default function AdminListingsPage() {
                         <option value="deleted">Deleted</option>
                     </select>
 
+                    <div className="text-xs font-semibold text-slate-600">Restrictions</div>
+                    <select
+                        value={restrictions}
+                        onChange={(e) => {
+                            setRestrictions(e.target.value as any);
+                            resetPaging();
+                        }}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-slate-400"
+                        title="Filter by owner restrictions"
+                    >
+                        <option value="all">All</option>
+                        <option value="any">Any restrictions</option>
+                        <option value="none">No restrictions</option>
+                        <option value="edit">Edit/Resume blocked</option>
+                        <option value="status">Status changes blocked</option>
+                        <option value="featuring">Featuring blocked</option>
+                    </select>
+
                     <label className="ml-2 inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
                         <input
                             type="checkbox"
@@ -796,6 +933,12 @@ export default function AdminListingsPage() {
                                         setVisibleCols={setVisibleCols}
                                     />
                                     <GroupToggle
+                                        label="Moderation"
+                                        keys={["restrictions"]}
+                                        visibleCols={visibleCols}
+                                        setVisibleCols={setVisibleCols}
+                                    />
+                                    <GroupToggle
                                         label="Listing metadata"
                                         keys={["status", "published", "created", "updated", "expiresIn"]}
                                         visibleCols={visibleCols}
@@ -819,6 +962,7 @@ export default function AdminListingsPage() {
                                             ["username", "Username"],
                                             ["email", "Email"],
                                             ["phone", "Phone"],
+                                            ["restrictions", "Restrictions"],
                                             ["price", "Price"],
                                             ["views", "Views"],
                                             ["status", "Status"],
@@ -925,10 +1069,11 @@ export default function AdminListingsPage() {
                         <thead className="bg-slate-100/80 border-b border-slate-200 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.06)]">
                             <tr className="text-xs font-bold tracking-wider text-slate-600">
                                 <SortTh label="Listing" k="listing" className="w-[360px] px-2 py-3" align="left" />
-                                {visibleCols.fullName ? <th className="w-[160px] px-2 py-3 text-left whitespace-nowrap">Full name</th> : null}
-                                {visibleCols.username ? <th className="w-[140px] px-2 py-3 text-left whitespace-nowrap">Username</th> : null}
-                                {visibleCols.email ? <th className="w-[200px] px-2 py-3 text-left whitespace-nowrap">Email</th> : null}
-                                {visibleCols.phone ? <th className="w-[130px] px-2 py-3 text-left whitespace-nowrap">Phone</th> : null}
+                                {visibleCols.fullName ? <SortTh label="Full name" k="fullName" className="w-[160px] px-2 py-3" align="left" /> : null}
+                                {visibleCols.username ? <SortTh label="Username" k="username" className="w-[140px] px-2 py-3" align="left" /> : null}
+                                {visibleCols.email ? <SortTh label="Email" k="email" className="w-[200px] px-2 py-3" align="left" /> : null}
+                                {visibleCols.phone ? <SortTh label="Phone" k="phone" className="w-[130px] px-2 py-3" align="left" /> : null}
+                                {visibleCols.restrictions ? <SortTh label="Restrictions" k="restrictions" className="w-[140px] px-2 py-3" align="left" /> : null}
                                 {visibleCols.price ? <SortTh label="Price" k="price" className="w-[110px] px-2 py-3" align="right" /> : null}
                                 {visibleCols.views ? <SortTh label="Views" k="views" className="w-[90px] px-2 py-3" align="right" /> : null}
                                 {visibleCols.status ? <SortTh label="Status" k="status" className="w-[110px] px-2 py-3" title="Default: Status then Updated" align="left" /> : null}
@@ -946,11 +1091,15 @@ export default function AdminListingsPage() {
                             const isExpanded = expandedId === rowKey;
                             const hero = resolveImageUrl(it.heroUrl ?? null);
                             const openHref = `/listing/${it.kind}/${it.id}?viewContext=admin`;
-                            const isFeatured = it.featuredUntil != null && it.featuredUntil > Date.now();
+                            const draft = restrictionsDraft?.listingId === it.id ? restrictionsDraft : null;
+                            const effectiveStatus = (draft?.desiredStatus ?? it.status) as ListingStatus;
+                            const effectiveFeaturedUntil =
+                                draft?.desiredFeaturedUntil === undefined ? it.featuredUntil ?? null : draft.desiredFeaturedUntil;
+                            const isFeatured = effectiveFeaturedUntil != null && effectiveFeaturedUntil > Date.now();
                             const priceText = it.kind === "sale" ? centsToDollars(it.priceCents) : budgetLabel(it.budgetCents ?? null);
 
-                            const canToggle = it.status === "active" || it.status === "paused";
-                            const toggleTitle = it.status === "paused" ? "Resume" : "Pause";
+                            const canToggle = effectiveStatus === "active" || effectiveStatus === "paused";
+                            const toggleTitle = effectiveStatus === "paused" ? "Resume" : "Pause";
 
                             return (
                                 <tbody key={rowKey} className="group">
@@ -989,7 +1138,7 @@ export default function AdminListingsPage() {
                                                         </span>
                                                         <span className="truncate">{it.location}</span>
                                                     </div>
-                                                    <div className="mt-1">{renderFeaturedTextAny(it.featuredUntil ?? null)}</div>
+                                                    <div className="mt-1">{renderFeaturedTextAny(effectiveFeaturedUntil)}</div>
                                                 </div>
                                             </div>
                                         </td>
@@ -1020,6 +1169,53 @@ export default function AdminListingsPage() {
                                             </td>
                                         ) : null}
 
+                                        {visibleCols.restrictions ? (
+                                            <td className="px-2 py-3 align-top text-left">
+                                                {(() => {
+                                                    const e = Boolean(it.ownerBlockEdit);
+                                                    const r = Boolean(it.ownerBlockPauseResume);
+                                                    const s = Boolean(it.ownerBlockStatusChanges);
+                                                    const f = Boolean(it.ownerBlockFeaturing);
+                                                    const any = e || r || s || f;
+                                                    const reason = it.ownerBlockReason ? String(it.ownerBlockReason) : "";
+                                                    const title = any
+                                                        ? `Blocked: ${[e ? "Edit" : null, r ? "Pause/Resume" : null, s ? "Status" : null, f ? "Featuring" : null].filter(Boolean).join(", ")}${reason ? ` — Reason: ${reason}` : ""
+                                                        }`
+                                                        : "No owner restrictions";
+                                                    return (
+                                                        <div title={title} className="text-sm font-semibold text-slate-700">
+                                                            {any ? (
+                                                                <div className="flex flex-wrap items-center gap-1">
+                                                                    {e ? (
+                                                                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-900">
+                                                                            Edit
+                                                                        </span>
+                                                                    ) : null}
+                                                                    {r ? (
+                                                                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-900">
+                                                                            Pause/Resume
+                                                                        </span>
+                                                                    ) : null}
+                                                                    {s ? (
+                                                                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-900">
+                                                                            Status changes
+                                                                        </span>
+                                                                    ) : null}
+                                                                    {f ? (
+                                                                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-900">
+                                                                            Featuring
+                                                                        </span>
+                                                                    ) : null}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-slate-400">—</span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </td>
+                                        ) : null}
+
                                         {visibleCols.price ? (
                                             <td className="px-2 py-3 align-top text-right">
                                                 <div className="text-sm font-extrabold text-slate-900">{priceText}</div>
@@ -1034,7 +1230,7 @@ export default function AdminListingsPage() {
 
                                         {visibleCols.status ? (
                                             <td className="px-2 py-3 align-top text-left">
-                                                <StatusTextAny status={it.status} />
+                                                <StatusTextAny status={effectiveStatus} />
                                             </td>
                                         ) : null}
 
@@ -1109,74 +1305,240 @@ export default function AdminListingsPage() {
                                                             {it.user?.id != null ? (
                                                                 <ActionLink to={`/admin/users/${it.user.id}`} label="Open user" icon={<UserIcon aria-hidden="true" className="h-4 w-4" />} />
                                                             ) : null}
-
                                                             <ActionButton
-                                                                label={toggleTitle}
-                                                                title={toggleTitle}
-                                                                disabled={!canToggle}
-                                                                onClick={async () => {
-                                                                    await adminSetListingStatus(it.id, it.status === "paused" ? "active" : "paused");
-                                                                    await load({ preserveOrder: true });
+                                                                label={restrictionsDraft?.listingId === it.id ? "Hide edit tools" : "Edit tools"}
+                                                                title="Open admin-only edit & moderation tools for this listing"
+                                                                onClick={() => {
+                                                                    if (restrictionsDraft?.listingId === it.id) {
+                                                                        setRestrictionsDraft(null);
+                                                                        return;
+                                                                    }
+                                                                    setRestrictionsDraft({
+                                                                        listingId: it.id,
+                                                                        desiredStatus: null,
+                                                                        desiredFeaturedUntil: undefined,
+                                                                        blockEdit: Boolean(it.ownerBlockEdit),
+                                                                        blockPauseResume: Boolean(it.ownerBlockPauseResume),
+                                                                        blockStatusChanges: Boolean(it.ownerBlockStatusChanges),
+                                                                        blockFeaturing: Boolean(it.ownerBlockFeaturing),
+                                                                        reason: String(it.ownerBlockReason ?? ""),
+                                                                    });
                                                                 }}
-                                                                icon={it.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
                                                             />
-
-                                                            {it.status !== "deleted" ? (
-                                                                <ActionButton
-                                                                    label="Delete"
-                                                                    title="Delete"
-                                                                    variant="danger"
-                                                                    onClick={async () => {
-                                                                        const ok = window.confirm("Delete this listing? It will be hidden from the site.");
-                                                                        if (!ok) return;
-                                                                        await adminSetListingStatus(it.id, "deleted");
-                                                                        await load({ preserveOrder: true });
-                                                                    }}
-                                                                    icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
-                                                                />
-                                                            ) : (
-                                                                <ActionButton
-                                                                    label="Restore"
-                                                                    title="Restore"
-                                                                    variant="primary"
-                                                                    onClick={async () => {
-                                                                        const ok = window.confirm("Restore this listing to active?");
-                                                                        if (!ok) return;
-                                                                        await adminSetListingStatus(it.id, "active");
-                                                                        await load({ preserveOrder: true });
-                                                                    }}
-                                                                />
-                                                            )}
-
-                                                            {isSuperadmin ? (
-                                                                isFeatured ? (
-                                                                    <ActionButton
-                                                                        label="Unfeature"
-                                                                        title="Unfeature"
-                                                                        variant="feature"
-                                                                        onClick={async () => {
-                                                                            await adminSetListingFeaturedUntil(it.id, null);
-                                                                            await load({ preserveOrder: true });
-                                                                        }}
-                                                                        icon={<CircleCheck aria-hidden="true" className="h-4 w-4" />}
-                                                                    />
-                                                                ) : (
-                                                                    <ActionButton
-                                                                        label="Feature"
-                                                                        title="Feature"
-                                                                        variant="feature"
-                                                                        onClick={async () => {
-                                                                            const daysRaw = window.prompt("Feature for how many days?", "7") ?? "";
-                                                                            const days = Math.max(1, Math.min(3650, Math.floor(Number(daysRaw))));
-                                                                            if (!Number.isFinite(days)) return;
-                                                                            await adminSetListingFeaturedUntil(it.id, Date.now() + days * 24 * 60 * 60 * 1000);
-                                                                            await load({ preserveOrder: true });
-                                                                        }}
-                                                                        icon={<Star aria-hidden="true" className="h-4 w-4" />}
-                                                                    />
-                                                                )
-                                                            ) : null}
                                                         </div>
+
+                                                        {restrictionsDraft?.listingId === it.id && (
+                                                            <div ref={editToolsRef} className="mx-auto mt-3 max-w-4xl rounded-2xl border border-slate-200 bg-white p-4">
+                                                                <div className="text-sm font-extrabold text-slate-900">Edit tools</div>
+
+                                                                <div className="text-xs my-2 font-extrabold text-slate-700">Listing actions</div>
+                                                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                                    <ActionButton
+                                                                        label={toggleTitle}
+                                                                        title={toggleTitle}
+                                                                        disabled={!canToggle}
+                                                                        onClick={async () => {
+                                                                            setRestrictionsDraft((p) =>
+                                                                                p && p.listingId === it.id
+                                                                                    ? (() => {
+                                                                                        const nextStatus: ListingStatus = effectiveStatus === "paused" ? "active" : "paused";
+                                                                                        return {
+                                                                                            ...p,
+                                                                                            desiredStatus: nextStatus === it.status ? null : nextStatus,
+                                                                                            blockPauseResume: nextStatus === "paused",
+                                                                                        };
+                                                                                    })()
+                                                                                    : p
+                                                                            );
+                                                                        }}
+                                                                        icon={effectiveStatus === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
+                                                                    />
+
+                                                                    {effectiveStatus !== "deleted" ? (
+                                                                        <ActionButton
+                                                                            label="Delete"
+                                                                            title="Delete"
+                                                                            variant="danger"
+                                                                            onClick={async () => {
+                                                                                setRestrictionsDraft((p) =>
+                                                                                    p && p.listingId === it.id
+                                                                                        ? { ...p, desiredStatus: it.status === "deleted" ? null : "deleted", blockStatusChanges: true }
+                                                                                        : p
+                                                                                );
+                                                                            }}
+                                                                            icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
+                                                                        />
+                                                                    ) : (
+                                                                        <ActionButton
+                                                                            label="Restore"
+                                                                            title="Restore"
+                                                                            variant="primary"
+                                                                            onClick={async () => {
+                                                                                setRestrictionsDraft((p) =>
+                                                                                    p && p.listingId === it.id
+                                                                                        ? { ...p, desiredStatus: it.status === "active" ? null : "active", blockStatusChanges: false }
+                                                                                        : p
+                                                                                );
+                                                                            }}
+                                                                        />
+                                                                    )}
+
+                                                                    {isSuperadmin ? (
+                                                                        isFeatured ? (
+                                                                            <ActionButton
+                                                                                label="Unfeature"
+                                                                                title="Unfeature"
+                                                                                variant="feature"
+                                                                                onClick={async () => {
+                                                                                    setRestrictionsDraft((p) =>
+                                                                                        p && p.listingId === it.id
+                                                                                            ? {
+                                                                                                ...p,
+                                                                                                desiredFeaturedUntil: (it.featuredUntil ?? null) === null ? undefined : null,
+                                                                                                blockFeaturing: true,
+                                                                                            }
+                                                                                            : p
+                                                                                    );
+                                                                                }}
+                                                                                icon={<CircleCheck aria-hidden="true" className="h-4 w-4" />}
+                                                                            />
+                                                                        ) : (
+                                                                            <ActionButton
+                                                                                label="Feature"
+                                                                                title="Feature"
+                                                                                variant="feature"
+                                                                                onClick={async () => {
+                                                                                    const daysRaw = window.prompt("Feature for how many days?", "7") ?? "";
+                                                                                    const days = Math.max(1, Math.min(3650, Math.floor(Number(daysRaw))));
+                                                                                    if (!Number.isFinite(days)) return;
+                                                                                    setRestrictionsDraft((p) =>
+                                                                                        p && p.listingId === it.id
+                                                                                            ? {
+                                                                                                ...p,
+                                                                                                desiredFeaturedUntil: Date.now() + days * 24 * 60 * 60 * 1000,
+                                                                                                blockFeaturing: false,
+                                                                                            }
+                                                                                            : p
+                                                                                    );
+                                                                                }}
+                                                                                icon={<Star aria-hidden="true" className="h-4 w-4" />}
+                                                                            />
+                                                                        )
+                                                                    ) : null}
+                                                                </div>
+
+
+                                                                <div className="mt-4 text-xs font-extrabold text-slate-700">Owner restrictions</div>
+                                                                <div className="mt-1 text-xs font-semibold text-slate-600">
+                                                                    Toggle which capabilities are blocked for the listing owner. Changes are audited and the owner is notified.
+                                                                </div>
+
+                                                                <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                                                                    <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={restrictionsDraft.blockEdit}
+                                                                            onChange={(e) => setRestrictionsDraft((p) => (p ? { ...p, blockEdit: e.target.checked } : p))}
+                                                                        />
+                                                                        Block edit
+                                                                    </label>
+                                                                    <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={restrictionsDraft.blockPauseResume}
+                                                                            onChange={(e) => setRestrictionsDraft((p) => (p ? { ...p, blockPauseResume: e.target.checked } : p))}
+                                                                        />
+                                                                        Block pause/resume
+                                                                    </label>
+                                                                    <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={restrictionsDraft.blockStatusChanges}
+                                                                            onChange={(e) => setRestrictionsDraft((p) => (p ? { ...p, blockStatusChanges: e.target.checked } : p))}
+                                                                        />
+                                                                        Block status changes
+                                                                    </label>
+                                                                    <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={restrictionsDraft.blockFeaturing}
+                                                                            onChange={(e) => setRestrictionsDraft((p) => (p ? { ...p, blockFeaturing: e.target.checked } : p))}
+                                                                        />
+                                                                        Block featuring
+                                                                    </label>
+                                                                </div>
+
+                                                                <div className="mt-3">
+                                                                    <div className="mb-1 text-xs font-bold text-slate-700">Reason (optional)</div>
+                                                                    <input
+                                                                        value={restrictionsDraft.reason}
+                                                                        onChange={(e) => setRestrictionsDraft((p) => (p ? { ...p, reason: e.target.value } : p))}
+                                                                        placeholder="Visible to owner"
+                                                                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-slate-400"
+                                                                    />
+                                                                </div>
+
+                                                                <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                                                                    <ActionButton
+                                                                        label="Cancel"
+                                                                        title="Cancel"
+                                                                        onClick={() => setRestrictionsDraft(null)}
+                                                                    />
+                                                                    <ActionButton
+                                                                        label="Save"
+                                                                        title="Save"
+                                                                        variant="primary"
+                                                                        onClick={async () => {
+                                                                            const d = restrictionsDraft;
+                                                                            if (!d) return;
+
+                                                                            // 1) Listing actions
+                                                                            const desiredStatus = d.desiredStatus ?? it.status;
+                                                                            if (desiredStatus !== it.status) {
+                                                                                const ok =
+                                                                                    desiredStatus === "deleted"
+                                                                                        ? window.confirm("Delete this listing? It will be hidden from the site.")
+                                                                                        : desiredStatus === "active" && it.status === "deleted"
+                                                                                            ? window.confirm("Restore this listing to active?")
+                                                                                            : true;
+                                                                                if (!ok) return;
+                                                                                await adminSetListingStatus(it.id, desiredStatus);
+                                                                            }
+
+                                                                            if (isSuperadmin && d.desiredFeaturedUntil !== undefined) {
+                                                                                const cur = it.featuredUntil ?? null;
+                                                                                const next = d.desiredFeaturedUntil;
+                                                                                if (next !== cur) {
+                                                                                    await adminSetListingFeaturedUntil(it.id, next);
+                                                                                }
+                                                                            }
+
+                                                                            // 2) Owner restrictions
+                                                                            const any = d.blockEdit || d.blockPauseResume || d.blockStatusChanges || d.blockFeaturing;
+                                                                            const nextReason = any && d.reason.trim() ? d.reason.trim() : null;
+                                                                            const curReason = it.ownerBlockReason == null ? null : String(it.ownerBlockReason);
+                                                                            const shouldApplyRestrictions =
+                                                                                Boolean(it.ownerBlockEdit) !== d.blockEdit ||
+                                                                                Boolean(it.ownerBlockPauseResume) !== d.blockPauseResume ||
+                                                                                Boolean(it.ownerBlockStatusChanges) !== d.blockStatusChanges ||
+                                                                                Boolean(it.ownerBlockFeaturing) !== d.blockFeaturing ||
+                                                                                curReason !== nextReason;
+
+                                                                            if (shouldApplyRestrictions) {
+                                                                                await adminSetListingRestrictions(it.id, {
+                                                                                    blockEdit: d.blockEdit,
+                                                                                    blockPauseResume: d.blockPauseResume,
+                                                                                    blockStatusChanges: d.blockStatusChanges,
+                                                                                    blockFeaturing: d.blockFeaturing,
+                                                                                    reason: nextReason,
+                                                                                });
+                                                                            }
+                                                                            await load({ preserveOrder: true });
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </td>

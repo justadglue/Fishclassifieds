@@ -1552,6 +1552,20 @@ app.patch("/api/listings/:id", requireAuth, (req, res) => {
   }
 
   const pRaw = parsed.data;
+
+  // Moderation restrictions (per-capability owner blocks).
+  const blockEdit = Boolean(Number((row as any).owner_block_edit ?? 0));
+  const blockFeaturing = Boolean(Number((row as any).owner_block_featuring ?? 0));
+  const isFeaturing = (pRaw as any).featured !== undefined || (pRaw as any).featuredUntil !== undefined;
+  const isEditing = Object.keys(pRaw as any).some((k) => !["featured", "featuredUntil"].includes(k));
+
+  if (isEditing && blockEdit) {
+    return res.status(403).json({ error: "Editing is blocked by moderation", code: "LISTING_EDIT_BLOCKED" });
+  }
+  if (isFeaturing && blockFeaturing) {
+    return res.status(403).json({ error: "Featuring is blocked by moderation", code: "LISTING_FEATURING_BLOCKED" });
+  }
+
   if (currentStatus === "deleted") return res.status(400).json({ error: "Listing is deleted" });
   if (currentStatus === "expired") return res.status(400).json({ error: "Listing is expired" });
 
@@ -1781,6 +1795,9 @@ app.delete("/api/listings/:id", requireAuth, (req, res) => {
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!assertListingOwner(req, res, row)) return;
 
+  const status = String(row.status ?? "active") as ListingStatus;
+  if (status === "deleted") return res.json({ ok: true });
+
   const now = nowIso();
   db.prepare(`UPDATE listings SET status = 'deleted',deleted_at = ?,updated_at = ? WHERE id = ?`).run(now, now, id);
   return res.json({ ok: true });
@@ -1819,6 +1836,11 @@ function mapWantedRow(req: express.Request, row: any) {
     sellerBio,
     featured: (row as any).featured_until != null,
     featuredUntil: (row as any).featured_until ?? null,
+    ownerBlockEdit: Boolean(Number((row as any).owner_block_edit ?? 0)),
+    ownerBlockPauseResume: Boolean(Number((row as any).owner_block_pause_resume ?? 0)),
+    ownerBlockStatusChanges: Boolean(Number((row as any).owner_block_status_changes ?? 0)),
+    ownerBlockFeaturing: Boolean(Number((row as any).owner_block_featuring ?? 0)),
+    ownerBlockReason: (row as any).owner_block_reason != null ? String((row as any).owner_block_reason) : null,
     views: Number((row as any).views ?? 0),
     title: String(row.title),
     category: String(row.category),
@@ -2223,6 +2245,15 @@ app.patch("/api/wanted/:id", requireAuth, (req, res) => {
   const pRaw = parsed.data;
   const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.isSuperadmin));
 
+  // Moderation restrictions (per-capability owner blocks).
+  const blockEdit = Boolean(Number((row as any).owner_block_edit ?? 0));
+  const blockFeaturing = Boolean(Number((row as any).owner_block_featuring ?? 0));
+  const isFeaturing = (pRaw as any).featured !== undefined || (pRaw as any).featuredUntil !== undefined;
+  const isEditing = Object.keys(pRaw as any).some((k) => !["featured", "featuredUntil"].includes(k));
+
+  if (isEditing && blockEdit) return res.status(403).json({ error: "Editing is blocked by moderation", code: "LISTING_EDIT_BLOCKED" });
+  if (isFeaturing && blockFeaturing) return res.status(403).json({ error: "Featuring is blocked by moderation", code: "LISTING_FEATURING_BLOCKED" });
+
   // Draft updates can be incomplete; skip publish-time constraints and body decoding.
   if (currentLife === "draft") {
     const sets: string[] = [];
@@ -2473,6 +2504,9 @@ app.post("/api/wanted/:id/close", requireAuth, (req, res) => {
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
+  const blockStatusChanges = Boolean(Number((row as any).owner_block_status_changes ?? 0));
+  if (blockStatusChanges) return res.status(403).json({ error: "Status changes are blocked by moderation", code: "LISTING_STATUS_BLOCKED" });
+
   const status = String(row.status ?? "active") as ListingStatus;
   if (status === "deleted") return res.status(400).json({ error: "Wanted post is deleted" });
   if (status === "expired") return res.status(400).json({ error: "Wanted post is expired" });
@@ -2525,6 +2559,9 @@ app.post("/api/wanted/:id/pause", requireAuth, (req, res) => {
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
+  const blockPauseResume = Boolean(Number((row as any).owner_block_pause_resume ?? 0));
+  if (blockPauseResume) return res.status(403).json({ error: "Pause/resume is blocked by moderation", code: "LISTING_PAUSE_RESUME_BLOCKED" });
+
   const status = String(row.status ?? "active") as ListingStatus;
   if (status === "deleted") return res.status(400).json({ error: "Wanted post is deleted" });
   if (status === "expired") return res.status(400).json({ error: "Wanted post is expired" });
@@ -2553,6 +2590,9 @@ app.post("/api/wanted/:id/resume", requireAuth, (req, res) => {
   const row = db.prepare(`SELECT * FROM listings WHERE id = ? AND listing_type = 1`).get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
+
+  const blockPauseResume = Boolean(Number((row as any).owner_block_pause_resume ?? 0));
+  if (blockPauseResume) return res.status(403).json({ error: "Pause/resume is blocked by moderation", code: "LISTING_PAUSE_RESUME_BLOCKED" });
 
   const status = String(row.status ?? "active") as ListingStatus;
   if (status === "deleted") return res.status(400).json({ error: "Wanted post is deleted" });
@@ -2583,6 +2623,9 @@ app.post("/api/wanted/:id/relist", requireAuth, (req, res) => {
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
 
+  const blockStatusChanges = Boolean(Number((row as any).owner_block_status_changes ?? 0));
+  if (blockStatusChanges) return res.status(403).json({ error: "Status changes are blocked by moderation", code: "LISTING_STATUS_BLOCKED" });
+
   const status = String(row.status ?? "active") as ListingStatus;
   if (status === "deleted") return res.status(400).json({ error: "Wanted post is deleted" });
   if (status !== "expired") return res.status(400).json({ error: "Only expired wanted posts can be relisted" });
@@ -2612,6 +2655,9 @@ app.delete("/api/wanted/:id", requireAuth, (req, res) => {
   const row = db.prepare(`SELECT * FROM listings WHERE id = ? AND listing_type = 1`).get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!requireWantedOwner(req, row)) return res.status(403).json({ error: "Not owner" });
+
+  const status = String(row.status ?? "active") as ListingStatus;
+  if (status === "deleted") return res.json({ ok: true });
 
   db.prepare(`DELETE FROM listing_images WHERE listing_id = ?`).run(id);
   const now = nowIso();
@@ -2669,6 +2715,9 @@ app.post("/api/listings/:id/pause", requireAuth, (req, res) => {
   const row = loadOwnedListing(req, res);
   if (!row) return;
 
+  const blockPauseResume = Boolean(Number((row as any).owner_block_pause_resume ?? 0));
+  if (blockPauseResume) return res.status(403).json({ error: "Pause/resume is blocked by moderation", code: "LISTING_PAUSE_RESUME_BLOCKED" });
+
   const status = String(row.status ?? "active") as ListingStatus;
 
   if (status === "deleted") return res.status(400).json({ error: "Listing is deleted" });
@@ -2687,6 +2736,9 @@ app.post("/api/listings/:id/resume", requireAuth, (req, res) => {
   const row = loadOwnedListing(req, res);
   if (!row) return;
 
+  const blockPauseResume = Boolean(Number((row as any).owner_block_pause_resume ?? 0));
+  if (blockPauseResume) return res.status(403).json({ error: "Pause/resume is blocked by moderation", code: "LISTING_PAUSE_RESUME_BLOCKED" });
+
   const status = String(row.status ?? "active") as ListingStatus;
 
   if (status === "deleted") return res.status(400).json({ error: "Listing is deleted" });
@@ -2704,6 +2756,9 @@ app.post("/api/listings/:id/mark-sold", requireAuth, (req, res) => {
   const row = loadOwnedListing(req, res);
   if (!row) return;
 
+  const blockStatusChanges = Boolean(Number((row as any).owner_block_status_changes ?? 0));
+  if (blockStatusChanges) return res.status(403).json({ error: "Status changes are blocked by moderation", code: "LISTING_STATUS_BLOCKED" });
+
   const status = String(row.status ?? "active") as ListingStatus;
 
   if (status === "deleted") return res.status(400).json({ error: "Listing is deleted" });
@@ -2720,6 +2775,9 @@ app.post("/api/listings/:id/mark-closed", requireAuth, (req, res) => {
   runAutoExpirePass();
   const row = loadOwnedListing(req, res);
   if (!row) return;
+
+  const blockStatusChanges = Boolean(Number((row as any).owner_block_status_changes ?? 0));
+  if (blockStatusChanges) return res.status(403).json({ error: "Status changes are blocked by moderation", code: "LISTING_STATUS_BLOCKED" });
 
   const status = String(row.status ?? "active") as ListingStatus;
   if (status === "deleted") return res.status(400).json({ error: "Listing is deleted" });
@@ -2739,6 +2797,9 @@ app.post("/api/listings/:id/relist", requireAuth, (req, res) => {
   const row = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
   if (!assertListingOwner(req, res, row)) return;
+
+  const blockStatusChanges = Boolean(Number((row as any).owner_block_status_changes ?? 0));
+  if (blockStatusChanges) return res.status(403).json({ error: "Status changes are blocked by moderation", code: "LISTING_STATUS_BLOCKED" });
 
   const status = String(row.status ?? "active") as ListingStatus;
   if (status === "deleted") return res.status(400).json({ error: "Listing is deleted" });
@@ -2883,6 +2944,11 @@ function mapListing(req: express.Request, row: ListingRow & any) {
     id: row.id,
     featured: (row as any).featured_until != null,
     featuredUntil: (row as any).featured_until ?? null,
+    ownerBlockEdit: Boolean(Number((row as any).owner_block_edit ?? 0)),
+    ownerBlockPauseResume: Boolean(Number((row as any).owner_block_pause_resume ?? 0)),
+    ownerBlockStatusChanges: Boolean(Number((row as any).owner_block_status_changes ?? 0)),
+    ownerBlockFeaturing: Boolean(Number((row as any).owner_block_featuring ?? 0)),
+    ownerBlockReason: (row as any).owner_block_reason != null ? String((row as any).owner_block_reason) : null,
     views: Number((row as any).views ?? 0),
     sellerUsername,
     sellerAvatarUrl,

@@ -76,6 +76,14 @@ router.use(requireAdmin);
 
 const ListingStatusSchema = z.enum(["draft", "pending", "active", "paused", "sold", "closed", "expired", "deleted"]);
 
+const AdminSetRestrictionsSchema = z.object({
+  blockEdit: z.boolean(),
+  blockPauseResume: z.boolean(),
+  blockStatusChanges: z.boolean(),
+  blockFeaturing: z.boolean(),
+  reason: z.string().max(400).optional().nullable(),
+});
+
 // --- Admin overview stats ---
 router.get("/stats", (req, res) => {
   const db = getDb(req);
@@ -174,6 +182,11 @@ router.get("/listings", (req, res) => {
   const featured = String(req.query.featured ?? "").trim() === "1";
   const includeDeleted = String(req.query.includeDeleted ?? "").trim() === "1";
   const userQuery = String(req.query.user ?? "").trim().toLowerCase();
+  const restrictionsRaw = String(req.query.restrictions ?? "all").trim();
+  const restrictions =
+    restrictionsRaw === "any" || restrictionsRaw === "none" || restrictionsRaw === "edit" || restrictionsRaw === "status" || restrictionsRaw === "featuring"
+      ? restrictionsRaw
+      : "all";
 
   const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 50;
@@ -228,6 +241,22 @@ router.get("/listings", (req, res) => {
     where.push(`(${tokenClauses.join(" AND ")})`);
   }
 
+  if (restrictions === "any") {
+    where.push(
+      `(COALESCE(l.owner_block_edit,0)=1 OR COALESCE(l.owner_block_pause_resume,0)=1 OR COALESCE(l.owner_block_status_changes,0)=1 OR COALESCE(l.owner_block_featuring,0)=1)`
+    );
+  } else if (restrictions === "none") {
+    where.push(
+      `(COALESCE(l.owner_block_edit,0)=0 AND COALESCE(l.owner_block_pause_resume,0)=0 AND COALESCE(l.owner_block_status_changes,0)=0 AND COALESCE(l.owner_block_featuring,0)=0)`
+    );
+  } else if (restrictions === "edit") {
+    where.push(`(COALESCE(l.owner_block_edit,0)=1 OR COALESCE(l.owner_block_pause_resume,0)=1)`);
+  } else if (restrictions === "status") {
+    where.push(`COALESCE(l.owner_block_status_changes,0)=1`);
+  } else if (restrictions === "featuring") {
+    where.push(`COALESCE(l.owner_block_featuring,0)=1`);
+  }
+
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
   const totalRow = db
@@ -249,6 +278,7 @@ ${whereSql}
 SELECT
   l.id,l.user_id,l.listing_type,l.status,l.title,l.category,l.species,l.sex,l.water_type,l.size,
   l.shipping_offered,l.quantity,l.price_cents,l.budget_cents,l.location,l.phone,l.views,
+  l.owner_block_edit,l.owner_block_pause_resume,l.owner_block_status_changes,l.owner_block_featuring,l.owner_block_reason,l.owner_block_updated_at,l.owner_block_actor_user_id,
   l.featured_until,l.published_at,l.expires_at,l.created_at,l.updated_at,l.deleted_at,
   u.username as user_username,u.email as user_email,u.first_name as user_first_name,u.last_name as user_last_name,
   li.thumb_url as hero_thumb_url, li.medium_url as hero_medium_url, li.url as hero_url
@@ -300,6 +330,13 @@ LIMIT ? OFFSET ?
     createdAt: String(r.created_at ?? ""),
     updatedAt: String(r.updated_at ?? ""),
     deletedAt: r.deleted_at != null ? String(r.deleted_at) : null,
+    ownerBlockEdit: Boolean(Number((r as any).owner_block_edit ?? 0)),
+    ownerBlockPauseResume: Boolean(Number((r as any).owner_block_pause_resume ?? 0)),
+    ownerBlockStatusChanges: Boolean(Number(r.owner_block_status_changes ?? 0)),
+    ownerBlockFeaturing: Boolean(Number(r.owner_block_featuring ?? 0)),
+    ownerBlockReason: r.owner_block_reason != null ? String(r.owner_block_reason) : null,
+    ownerBlockUpdatedAt: r.owner_block_updated_at != null ? String(r.owner_block_updated_at) : null,
+    ownerBlockActorUserId: r.owner_block_actor_user_id != null ? Number(r.owner_block_actor_user_id) : null,
     heroUrl: r.hero_thumb_url != null ? String(r.hero_thumb_url) : r.hero_medium_url != null ? String(r.hero_medium_url) : r.hero_url != null ? String(r.hero_url) : null,
   }));
 
@@ -362,6 +399,13 @@ ORDER BY sort_order ASC`
       updatedAt: String(row.updated_at ?? ""),
       deletedAt: row.deleted_at != null ? String(row.deleted_at) : null,
       description: String(row.description ?? ""),
+      ownerBlockEdit: Boolean(Number((row as any).owner_block_edit ?? 0)),
+      ownerBlockPauseResume: Boolean(Number((row as any).owner_block_pause_resume ?? 0)),
+      ownerBlockStatusChanges: Boolean(Number(row.owner_block_status_changes ?? 0)),
+      ownerBlockFeaturing: Boolean(Number(row.owner_block_featuring ?? 0)),
+      ownerBlockReason: row.owner_block_reason != null ? String(row.owner_block_reason) : null,
+      ownerBlockUpdatedAt: row.owner_block_updated_at != null ? String(row.owner_block_updated_at) : null,
+      ownerBlockActorUserId: row.owner_block_actor_user_id != null ? Number(row.owner_block_actor_user_id) : null,
       images: images.map((im) => ({
         id: String(im.id),
         url: String(im.url),
@@ -381,12 +425,25 @@ router.post("/listings/:id/set-status", (req, res) => {
   const parsed = AdminSetStatusSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
 
-  const row = db.prepare(`SELECT id,user_id,title,status,listing_type FROM listings WHERE id = ?`).get(id) as any | undefined;
+  const row = db
+    .prepare(
+      `SELECT id,user_id,title,status,listing_type,
+              owner_block_edit,owner_block_pause_resume,owner_block_status_changes,owner_block_featuring,owner_block_reason
+       FROM listings WHERE id = ?`
+    )
+    .get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
 
   const ownerUserId = row.user_id != null ? Number(row.user_id) : null;
   const prevStatus = String(row.status ?? "active");
   const nextStatus = String(parsed.data.status);
+  const prevBlocks = {
+    blockEdit: Boolean(Number(row.owner_block_edit ?? 0)),
+    blockPauseResume: Boolean(Number(row.owner_block_pause_resume ?? 0)),
+    blockStatusChanges: Boolean(Number(row.owner_block_status_changes ?? 0)),
+    blockFeaturing: Boolean(Number(row.owner_block_featuring ?? 0)),
+    reason: row.owner_block_reason != null ? String(row.owner_block_reason) : null,
+  };
   const now = nowIso();
 
   if (nextStatus === "deleted") {
@@ -397,6 +454,39 @@ router.post("/listings/:id/set-status", (req, res) => {
       now,
       id
     );
+  }
+
+  // Default restrictions derived from admin status actions.
+  // paused -> block resume + featuring. active -> clear all restrictions.
+  let restrictionsChanged = false;
+  if (nextStatus === "paused") {
+    db.prepare(
+      `UPDATE listings
+       SET owner_block_pause_resume = 1,
+           owner_block_status_changes = 0,
+           owner_block_featuring = 1,
+           owner_block_updated_at = ?,
+           owner_block_actor_user_id = ?,
+           updated_at = ?
+       WHERE id = ?`
+    ).run(now, req.user!.id, now, id);
+    restrictionsChanged =
+      !prevBlocks.blockPauseResume || prevBlocks.blockStatusChanges || !prevBlocks.blockFeaturing;
+  } else if (nextStatus === "active") {
+    db.prepare(
+      `UPDATE listings
+       SET owner_block_edit = 0,
+           owner_block_pause_resume = 0,
+           owner_block_status_changes = 0,
+           owner_block_featuring = 0,
+           owner_block_reason = NULL,
+           owner_block_updated_at = ?,
+           owner_block_actor_user_id = ?,
+           updated_at = ?
+       WHERE id = ?`
+    ).run(now, req.user!.id, now, id);
+    restrictionsChanged =
+      prevBlocks.blockEdit || prevBlocks.blockPauseResume || prevBlocks.blockStatusChanges || prevBlocks.blockFeaturing || prevBlocks.reason != null;
   }
 
   audit(db, req.user!.id, "set_listing_status", "listing", id, { prevStatus, nextStatus });
@@ -412,6 +502,34 @@ router.post("/listings/:id/set-status", (req, res) => {
       body,
       { listingId: id, listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale", prevStatus, nextStatus }
     );
+    if (restrictionsChanged) {
+      const r2 = db
+        .prepare(
+          `SELECT owner_block_edit,owner_block_pause_resume,owner_block_status_changes,owner_block_featuring,owner_block_reason
+           FROM listings WHERE id = ?`
+        )
+        .get(id) as any;
+      const nextBlocks = {
+        blockEdit: Boolean(Number(r2?.owner_block_edit ?? 0)),
+        blockPauseResume: Boolean(Number(r2?.owner_block_pause_resume ?? 0)),
+        blockStatusChanges: Boolean(Number(r2?.owner_block_status_changes ?? 0)),
+        blockFeaturing: Boolean(Number(r2?.owner_block_featuring ?? 0)),
+        reason: r2?.owner_block_reason != null ? String(r2.owner_block_reason) : null,
+      };
+      notify(
+        db,
+        ownerUserId,
+        "listing_restrictions_changed",
+        withListingTitle("Moderation restrictions updated", title),
+        null,
+        {
+          listingId: id,
+          listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale",
+          prev: prevBlocks,
+          next: nextBlocks,
+        }
+      );
+    }
   }
   return res.json({ ok: true });
 });
@@ -424,18 +542,45 @@ router.post("/listings/:id/set-featured", requireSuperadmin, (req, res) => {
   const parsed = AdminSetFeaturedSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
 
-  const row = db.prepare(`SELECT id,user_id,title,featured_until,status,listing_type FROM listings WHERE id = ?`).get(id) as any | undefined;
+  const row = db
+    .prepare(
+      `SELECT id,user_id,title,featured_until,status,listing_type,
+              owner_block_edit,owner_block_pause_resume,owner_block_status_changes,owner_block_featuring,owner_block_reason
+       FROM listings WHERE id = ?`
+    )
+    .get(id) as any | undefined;
   if (!row) return res.status(404).json({ error: "Not found" });
 
   const ownerUserId = row.user_id != null ? Number(row.user_id) : null;
   const prev = row.featured_until != null ? Number(row.featured_until) : null;
   const next = parsed.data.featuredUntil;
+  const prevBlocks = {
+    blockEdit: Boolean(Number(row.owner_block_edit ?? 0)),
+    blockPauseResume: Boolean(Number(row.owner_block_pause_resume ?? 0)),
+    blockStatusChanges: Boolean(Number(row.owner_block_status_changes ?? 0)),
+    blockFeaturing: Boolean(Number(row.owner_block_featuring ?? 0)),
+    reason: row.owner_block_reason != null ? String(row.owner_block_reason) : null,
+  };
   const now = nowIso();
 
   if (next === null) {
     db.prepare(`UPDATE listings SET featured = 0, featured_until = NULL, updated_at = ? WHERE id = ?`).run(now, id);
   } else {
     db.prepare(`UPDATE listings SET featured = 1, featured_until = ?, updated_at = ? WHERE id = ?`).run(next, now, id);
+  }
+
+  // Default restriction derived from admin "unfeature": block owner from featuring until admin clears.
+  let restrictionsChanged = false;
+  if (next === null) {
+    db.prepare(
+      `UPDATE listings
+       SET owner_block_featuring = 1,
+           owner_block_updated_at = ?,
+           owner_block_actor_user_id = ?,
+           updated_at = ?
+       WHERE id = ?`
+    ).run(now, req.user!.id, now, id);
+    restrictionsChanged = !prevBlocks.blockFeaturing;
   }
 
   audit(db, req.user!.id, "set_listing_featured", "listing", id, { prevFeaturedUntil: prev, nextFeaturedUntil: next });
@@ -451,7 +596,113 @@ router.post("/listings/:id/set-featured", requireSuperadmin, (req, res) => {
       msg,
       { listingId: id, listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale", prevFeaturedUntil: prev, nextFeaturedUntil: next }
     );
+    if (restrictionsChanged) {
+      const r2 = db
+        .prepare(
+          `SELECT owner_block_edit,owner_block_pause_resume,owner_block_status_changes,owner_block_featuring,owner_block_reason
+           FROM listings WHERE id = ?`
+        )
+        .get(id) as any;
+      const nextBlocks = {
+        blockEdit: Boolean(Number(r2?.owner_block_edit ?? 0)),
+        blockPauseResume: Boolean(Number(r2?.owner_block_pause_resume ?? 0)),
+        blockStatusChanges: Boolean(Number(r2?.owner_block_status_changes ?? 0)),
+        blockFeaturing: Boolean(Number(r2?.owner_block_featuring ?? 0)),
+        reason: r2?.owner_block_reason != null ? String(r2.owner_block_reason) : null,
+      };
+      notify(
+        db,
+        ownerUserId,
+        "listing_restrictions_changed",
+        withListingTitle("Moderation restrictions updated", title),
+        null,
+        {
+          listingId: id,
+          listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale",
+          prev: prevBlocks,
+          next: nextBlocks,
+        }
+      );
+    }
   }
+  return res.json({ ok: true });
+});
+
+router.post("/listings/:id/set-restrictions", (req, res) => {
+  const db = getDb(req);
+  const id = String(req.params.id ?? "").trim();
+  if (!id) return res.status(400).json({ error: "Missing id" });
+  const parsed = AdminSetRestrictionsSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+
+  const row = db
+    .prepare(
+      `SELECT id,user_id,title,listing_type,
+              owner_block_edit,owner_block_pause_resume,owner_block_status_changes,owner_block_featuring,owner_block_reason
+       FROM listings WHERE id = ?`
+    )
+    .get(id) as any | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+
+  const ownerUserId = row.user_id != null ? Number(row.user_id) : null;
+  const prev = {
+    blockEdit: Boolean(Number(row.owner_block_edit ?? 0)),
+    blockPauseResume: Boolean(Number(row.owner_block_pause_resume ?? 0)),
+    blockStatusChanges: Boolean(Number(row.owner_block_status_changes ?? 0)),
+    blockFeaturing: Boolean(Number(row.owner_block_featuring ?? 0)),
+    reason: row.owner_block_reason != null ? String(row.owner_block_reason) : null,
+  };
+  const next = {
+    blockEdit: Boolean(parsed.data.blockEdit),
+    blockPauseResume: Boolean(parsed.data.blockPauseResume),
+    blockStatusChanges: Boolean(parsed.data.blockStatusChanges),
+    blockFeaturing: Boolean(parsed.data.blockFeaturing),
+    reason: parsed.data.reason != null ? String(parsed.data.reason) : null,
+  };
+
+  // If there are no restrictions enabled, drop any reason to avoid "reason-only" notifications/UI.
+  if (!next.blockEdit && !next.blockPauseResume && !next.blockStatusChanges && !next.blockFeaturing) {
+    next.reason = null;
+  }
+
+  const now = nowIso();
+  db.prepare(
+    `UPDATE listings
+     SET owner_block_edit = ?,
+         owner_block_pause_resume = ?,
+         owner_block_status_changes = ?,
+         owner_block_featuring = ?,
+         owner_block_reason = ?,
+         owner_block_updated_at = ?,
+         owner_block_actor_user_id = ?,
+         updated_at = ?
+     WHERE id = ?`
+  ).run(
+    next.blockEdit ? 1 : 0,
+    next.blockPauseResume ? 1 : 0,
+    next.blockStatusChanges ? 1 : 0,
+    next.blockFeaturing ? 1 : 0,
+    next.reason,
+    now,
+    req.user!.id,
+    now,
+    id
+  );
+
+  audit(db, req.user!.id, "set_listing_restrictions", "listing", id, { prev, next });
+
+  if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
+    const title = String(row.title ?? "").trim() || "your listing";
+    notify(
+      db,
+      ownerUserId,
+      "listing_restrictions_changed",
+      withListingTitle("Moderation restrictions updated", title),
+      next.reason ? `Reason: ${next.reason}` : null,
+      { listingId: id, listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale", prev, next }
+    );
+  }
+
   return res.json({ ok: true });
 });
 

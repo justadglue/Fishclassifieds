@@ -13,6 +13,13 @@ export type ListingRow = {
   listing_type?: number;
   featured?: number;
   featured_until?: number | null;
+  owner_block_edit?: number;
+  owner_block_pause_resume?: number;
+  owner_block_status_changes?: number;
+  owner_block_featuring?: number;
+  owner_block_reason?: string | null;
+  owner_block_updated_at?: string | null;
+  owner_block_actor_user_id?: number | null;
   views?: number;
   title: string;
   category: string;
@@ -216,6 +223,14 @@ CREATE TABLE IF NOT EXISTS listings(
   listing_type INTEGER NOT NULL DEFAULT 0,
   featured INTEGER NOT NULL DEFAULT 0,
   featured_until INTEGER,
+  -- Per-listing moderation restrictions (owner capability blocks).
+  owner_block_edit INTEGER NOT NULL DEFAULT 0,
+  owner_block_pause_resume INTEGER NOT NULL DEFAULT 0,
+  owner_block_status_changes INTEGER NOT NULL DEFAULT 0,
+  owner_block_featuring INTEGER NOT NULL DEFAULT 0,
+  owner_block_reason TEXT,
+  owner_block_updated_at TEXT,
+  owner_block_actor_user_id INTEGER,
   views INTEGER NOT NULL DEFAULT 0,
   title TEXT NOT NULL,
   category TEXT NOT NULL DEFAULT 'Fish',

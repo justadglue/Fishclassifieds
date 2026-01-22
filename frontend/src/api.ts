@@ -15,6 +15,11 @@ export type Listing = {
   id: string;
   featured?: boolean;
   featuredUntil?: number | null;
+  ownerBlockEdit?: boolean;
+  ownerBlockPauseResume?: boolean;
+  ownerBlockStatusChanges?: boolean;
+  ownerBlockFeaturing?: boolean;
+  ownerBlockReason?: string | null;
   views?: number;
   sellerUsername?: string | null;
   sellerAvatarUrl?: string | null;
@@ -48,6 +53,11 @@ export type WantedPost = {
   sellerBio?: string | null;
   featured?: boolean;
   featuredUntil?: number | null;
+  ownerBlockEdit?: boolean;
+  ownerBlockPauseResume?: boolean;
+  ownerBlockStatusChanges?: boolean;
+  ownerBlockFeaturing?: boolean;
+  ownerBlockReason?: string | null;
   views?: number;
   title: string;
   category: Category;
@@ -433,6 +443,13 @@ export type AdminListingListItem = {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  ownerBlockEdit?: boolean;
+  ownerBlockPauseResume?: boolean;
+  ownerBlockStatusChanges?: boolean;
+  ownerBlockFeaturing?: boolean;
+  ownerBlockReason?: string | null;
+  ownerBlockUpdatedAt?: string | null;
+  ownerBlockActorUserId?: number | null;
 };
 
 export function adminFetchListings(params?: {
@@ -442,6 +459,7 @@ export function adminFetchListings(params?: {
   status?: "all" | ListingStatus;
   featured?: boolean;
   includeDeleted?: boolean;
+  restrictions?: "all" | "any" | "none" | "edit" | "status" | "featuring";
   limit?: number;
   offset?: number;
 }) {
@@ -452,6 +470,7 @@ export function adminFetchListings(params?: {
   if (params?.status) qs.set("status", params.status);
   if (params?.featured) qs.set("featured", "1");
   if (params?.includeDeleted) qs.set("includeDeleted", "1");
+  if (params?.restrictions && params.restrictions !== "all") qs.set("restrictions", params.restrictions);
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
   if (params?.offset !== undefined) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
@@ -477,6 +496,17 @@ export function adminSetListingFeaturedUntil(id: string, featuredUntil: number |
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ featuredUntil }),
+  });
+}
+
+export function adminSetListingRestrictions(
+  id: string,
+  input: { blockEdit: boolean; blockPauseResume: boolean; blockStatusChanges: boolean; blockFeaturing: boolean; reason?: string | null }
+) {
+  return apiFetch<{ ok: true }>(`/api/admin/listings/${encodeURIComponent(id)}/set-restrictions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
   });
 }
 

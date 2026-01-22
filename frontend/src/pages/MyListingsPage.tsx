@@ -204,7 +204,7 @@ function ActionButton(props: {
   const { label, title, onClick, disabled, variant = "default", icon } = props;
 
   const base =
-    "inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 text-xs font-bold leading-none transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2";
+    "inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 text-xs font-bold leading-none transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none";
 
   const cls =
     variant === "primary"
@@ -216,19 +216,31 @@ function ActionButton(props: {
           : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50 focus-visible:ring-slate-300 focus-visible:ring-offset-slate-50 disabled:opacity-60";
 
   return (
-    <button type="button" title={title ?? label} aria-label={label} onClick={onClick} disabled={disabled} className={`${base} ${cls}`}>
+    <button type="button" title={disabled ? undefined : title ?? label} aria-label={label} onClick={onClick} disabled={disabled} className={`${base} ${cls}`}>
       {icon}
       <span>{label}</span>
     </button>
   );
 }
 
-function ActionLink(props: { to: string; label: string; icon?: React.ReactNode }) {
-  const { to, label, icon } = props;
+function ActionLink(props: { to: string; label: string; icon?: React.ReactNode; disabled?: boolean; title?: string }) {
+  const { to, label, icon, disabled, title } = props;
   return (
     <Link
       to={to}
-      className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold leading-none text-slate-900 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
+      title={disabled ? undefined : title ?? label}
+      onClick={(e) => {
+        if (disabled) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
+      className={[
+        "inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 text-xs font-bold leading-none transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+        disabled
+          ? "pointer-events-none cursor-default border-slate-200 bg-slate-100 text-slate-400 opacity-70"
+          : "cursor-pointer border-slate-200 bg-white text-slate-900 hover:bg-slate-50 focus-visible:ring-slate-300 focus-visible:ring-offset-slate-50",
+      ].join(" ")}
       aria-label={label}
     >
       {icon}
@@ -921,11 +933,11 @@ export default function MyListingsPage() {
                     const openHref = l.status === "draft" ? `/post/sale?draft=${encodeURIComponent(l.id)}` : `/listing/sale/${l.id}`;
                     const isDraft = l.status === "draft";
 
-                    const canToggle = l.status === "active" || l.status === "paused";
-                    const canResolve = l.status === "active" || l.status === "paused";
+                    const canToggle = (l.status === "active" || l.status === "paused") && !l.ownerBlockPauseResume;
+                    const canResolve = (l.status === "active" || l.status === "paused") && !l.ownerBlockStatusChanges;
 
                     const toggleTitle = l.status === "paused" ? "Resume" : "Pause";
-                    const canFeature = l.status === "active";
+                    const canFeature = l.status === "active" && !l.ownerBlockFeaturing;
                     const isSold = l.status === "sold";
 
                     return (
@@ -1033,65 +1045,95 @@ export default function MyListingsPage() {
                           <tr className="transition-colors group-hover:bg-slate-50/70" data-row-key={row.key}>
                             <td colSpan={9} className="px-4 pb-4 pt-0" data-row-key={row.key} onClick={(e) => e.stopPropagation()}>
                               <div
-                                className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2"
+                                className="mx-auto max-w-4xl"
                                 data-row-key={row.key}
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                {isDraft ? (
-                                  <ActionLink to={openHref} label="Resume draft" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
-                                ) : !isSold ? (
-                                  <>
-                                    <ActionButton
-                                      label={l.featured ? "Manage featuring" : "Feature this listing"}
-                                      title={
-                                        !canFeature
-                                          ? "Only active, unsold listings can be featured."
-                                          : l.featured
-                                            ? "Manage featuring"
-                                            : "Feature this listing"
-                                      }
-                                      variant="feature"
-                                      disabled={!canFeature}
-                                      onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
-                                      icon={l.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
+                                <div className="flex flex-wrap items-center justify-center gap-2">
+                                  {isDraft ? (
+                                    <ActionLink
+                                      to={openHref}
+                                      label="Resume draft"
+                                      icon={<Pencil aria-hidden="true" className="h-4 w-4" />}
+                                      disabled={Boolean(l.ownerBlockEdit)}
                                     />
+                                  ) : !isSold ? (
+                                    <>
+                                      <ActionButton
+                                        label={l.featured ? "Manage featuring" : "Feature this listing"}
+                                        title={
+                                          !canFeature
+                                            ? "Only active, unsold listings can be featured."
+                                            : l.featured
+                                              ? "Manage featuring"
+                                              : "Feature this listing"
+                                        }
+                                        variant="feature"
+                                        disabled={!canFeature}
+                                        onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
+                                        icon={l.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
+                                      />
 
-                                    <ActionLink to={`/edit/sale/${l.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
+                                      <ActionLink
+                                        to={`/edit/sale/${l.id}`}
+                                        label="Edit"
+                                        icon={<Pencil aria-hidden="true" className="h-4 w-4" />}
+                                        disabled={Boolean(l.ownerBlockEdit)}
+                                      />
 
+                                      <ActionButton
+                                        label={toggleTitle}
+                                        title={toggleTitle}
+                                        disabled={!canToggle}
+                                        onClick={() => doTogglePauseResume(l)}
+                                        icon={l.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
+                                      />
+
+                                      <ActionButton
+                                        label="Mark sold"
+                                        title="Mark as sold"
+                                        variant="primary"
+                                        disabled={!canResolve}
+                                        onClick={() => doSold(l.id)}
+                                        icon={<Check aria-hidden="true" className="h-4 w-4" />}
+                                      />
+                                    </>
+                                  ) : (
                                     <ActionButton
-                                      label={toggleTitle}
-                                      title={toggleTitle}
-                                      disabled={!canToggle}
-                                      onClick={() => doTogglePauseResume(l)}
-                                      icon={l.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
-                                    />
-
-                                    <ActionButton
-                                      label="Mark sold"
-                                      title="Mark as sold"
+                                      label="Relist"
+                                      title="Relist"
                                       variant="primary"
-                                      disabled={!canResolve}
-                                      onClick={() => doSold(l.id)}
-                                      icon={<Check aria-hidden="true" className="h-4 w-4" />}
+                                      disabled={Boolean(l.ownerBlockStatusChanges)}
+                                      onClick={() => doRelist(l.id)}
+                                      icon={<RotateCcw aria-hidden="true" className="h-4 w-4" />}
                                     />
-                                  </>
-                                ) : (
-                                  <ActionButton
-                                    label="Relist"
-                                    title="Relist"
-                                    variant="primary"
-                                    onClick={() => doRelist(l.id)}
-                                    icon={<RotateCcw aria-hidden="true" className="h-4 w-4" />}
-                                  />
-                                )}
+                                  )}
 
-                                <ActionButton
-                                  label="Delete"
-                                  title="Delete"
-                                  variant="danger"
-                                  onClick={() => onDelete(l)}
-                                  icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
-                                />
+                                  <ActionButton
+                                    label="Delete"
+                                    title="Delete"
+                                    variant="danger"
+                                    onClick={() => onDelete(l)}
+                                    icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
+                                  />
+                                </div>
+
+                                {(Boolean(l.ownerBlockEdit) ||
+                                  Boolean(l.ownerBlockPauseResume) ||
+                                  Boolean(l.ownerBlockStatusChanges) ||
+                                  Boolean(l.ownerBlockFeaturing) ||
+                                  Boolean(l.ownerBlockReason)) && (
+                                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                                      <div className="font-extrabold">Moderation restrictions</div>
+                                      <div className="mt-1 text-sm font-semibold">
+                                        {l.ownerBlockEdit ? "Edit disabled. " : ""}
+                                        {l.ownerBlockPauseResume ? "Pause/Resume disabled. " : ""}
+                                        {l.ownerBlockStatusChanges ? "Status changes disabled. " : ""}
+                                        {l.ownerBlockFeaturing ? "Featuring disabled. " : ""}
+                                      </div>
+                                      {l.ownerBlockReason ? <div className="mt-2 text-sm font-semibold">Reason: {l.ownerBlockReason}</div> : null}
+                                    </div>
+                                  )}
                               </div>
                             </td>
                           </tr>
@@ -1211,52 +1253,87 @@ export default function MyListingsPage() {
                         <tr className="transition-colors group-hover:bg-slate-50/70" data-row-key={row.key}>
                           <td colSpan={9} className="px-4 pb-4 pt-0" data-row-key={row.key} onClick={(e) => e.stopPropagation()}>
                             <div
-                              className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2"
+                              className="mx-auto max-w-4xl"
                               data-row-key={row.key}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              {isDraft ? (
-                                <ActionLink to={openHref} label="Resume draft" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
-                              ) : (
-                                <>
-                                  {(() => {
-                                    const canFeature = w.status === "active";
-                                    return (
-                                      <ActionButton
-                                        label={w.featured ? "Manage featuring" : "Feature this listing"}
-                                        title={!canFeature ? "Only active wanted posts can be featured." : w.featured ? "Manage featuring" : "Feature this listing"}
-                                        variant="feature"
-                                        disabled={!canFeature}
-                                        onClick={() => nav(`/feature/${encodeURIComponent(w.id)}`)}
-                                        icon={w.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
-                                      />
-                                    );
-                                  })()}
-                                  <ActionLink to={`/edit/wanted/${w.id}`} label="Edit" icon={<Pencil aria-hidden="true" className="h-4 w-4" />} />
-                                  <ActionButton
-                                    label={w.status === "paused" ? "Resume" : "Pause"}
-                                    title={w.status === "paused" ? "Resume" : "Pause"}
-                                    disabled={w.status !== "active" && w.status !== "paused"}
-                                    onClick={() => onPauseResumeWanted(w)}
-                                    icon={w.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
+                              <div className="flex flex-wrap items-center justify-center gap-2">
+                                {isDraft ? (
+                                  <ActionLink
+                                    to={openHref}
+                                    label="Resume draft"
+                                    icon={<Pencil aria-hidden="true" className="h-4 w-4" />}
+                                    disabled={Boolean(w.ownerBlockEdit)}
                                   />
-                                  <ActionButton
-                                    label="Mark as Closed"
-                                    title="Mark as Closed"
-                                    variant="primary"
-                                    disabled={w.status !== "active" && w.status !== "paused"}
-                                    onClick={() => onCloseWanted(w)}
-                                    icon={<Check aria-hidden="true" className="h-4 w-4" />}
-                                  />
-                                </>
-                              )}
-                              <ActionButton
-                                label="Delete"
-                                title="Delete wanted post"
-                                variant="danger"
-                                onClick={() => onDeleteWanted(w)}
-                                icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
-                              />
+                                ) : (
+                                  <>
+                                    {(() => {
+                                      const canFeature = w.status === "active" && !w.ownerBlockFeaturing;
+                                      return (
+                                        <ActionButton
+                                          label={w.featured ? "Manage featuring" : "Feature this listing"}
+                                          title={
+                                            !canFeature
+                                              ? "Only active wanted posts can be featured."
+                                              : w.featured
+                                                ? "Manage featuring"
+                                                : "Feature this listing"
+                                          }
+                                          variant="feature"
+                                          disabled={!canFeature}
+                                          onClick={() => nav(`/feature/${encodeURIComponent(w.id)}`)}
+                                          icon={w.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
+                                        />
+                                      );
+                                    })()}
+                                    <ActionLink
+                                      to={`/edit/wanted/${w.id}`}
+                                      label="Edit"
+                                      icon={<Pencil aria-hidden="true" className="h-4 w-4" />}
+                                      disabled={Boolean(w.ownerBlockEdit)}
+                                    />
+                                    <ActionButton
+                                      label={w.status === "paused" ? "Resume" : "Pause"}
+                                      title={w.status === "paused" ? "Resume" : "Pause"}
+                                      disabled={(w.status !== "active" && w.status !== "paused") || Boolean(w.ownerBlockPauseResume)}
+                                      onClick={() => onPauseResumeWanted(w)}
+                                      icon={w.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
+                                    />
+                                    <ActionButton
+                                      label="Mark as Closed"
+                                      title="Mark as Closed"
+                                      variant="primary"
+                                      disabled={(w.status !== "active" && w.status !== "paused") || Boolean(w.ownerBlockStatusChanges)}
+                                      onClick={() => onCloseWanted(w)}
+                                      icon={<Check aria-hidden="true" className="h-4 w-4" />}
+                                    />
+                                  </>
+                                )}
+                                <ActionButton
+                                  label="Delete"
+                                  title="Delete wanted post"
+                                  variant="danger"
+                                  onClick={() => onDeleteWanted(w)}
+                                  icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
+                                />
+                              </div>
+
+                              {(Boolean(w.ownerBlockEdit) ||
+                                Boolean(w.ownerBlockPauseResume) ||
+                                Boolean(w.ownerBlockStatusChanges) ||
+                                Boolean(w.ownerBlockFeaturing) ||
+                                Boolean(w.ownerBlockReason)) && (
+                                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                                    <div className="font-extrabold">Moderation restrictions</div>
+                                    <div className="mt-1 text-sm font-semibold">
+                                      {w.ownerBlockEdit ? "Edit disabled. " : ""}
+                                      {w.ownerBlockPauseResume ? "Pause/Resume disabled. " : ""}
+                                      {w.ownerBlockStatusChanges ? "Status changes disabled. " : ""}
+                                      {w.ownerBlockFeaturing ? "Featuring disabled. " : ""}
+                                    </div>
+                                    {w.ownerBlockReason ? <div className="mt-2 text-sm font-semibold">Reason: {w.ownerBlockReason}</div> : null}
+                                  </div>
+                                )}
                             </div>
                           </td>
                         </tr>

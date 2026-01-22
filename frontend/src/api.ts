@@ -230,9 +230,17 @@ export function adminFetchStats(params?: { days?: number }) {
   return apiFetch<AdminStats>(`/api/admin/stats${suffix}`);
 }
 
-export function adminFetchApprovals(params?: { kind?: "all" | "sale" | "wanted"; limit?: number; offset?: number }) {
+export function adminFetchApprovals(params?: {
+  kind?: "all" | "sale" | "wanted";
+  sortKey?: string;
+  sortDir?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+}) {
   const qs = new URLSearchParams();
   if (params?.kind) qs.set("kind", params.kind);
+  if (params?.sortKey) qs.set("sortKey", params.sortKey);
+  if (params?.sortDir) qs.set("sortDir", params.sortDir);
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
   if (params?.offset !== undefined) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
@@ -265,9 +273,17 @@ export type AdminReport = {
   resolvedNote: string | null;
 };
 
-export function adminFetchReports(params?: { status?: "open" | "resolved"; limit?: number; offset?: number }) {
+export function adminFetchReports(params?: {
+  status?: "open" | "resolved";
+  sortKey?: string;
+  sortDir?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+}) {
   const qs = new URLSearchParams();
   if (params?.status) qs.set("status", params.status);
+  if (params?.sortKey) qs.set("sortKey", params.sortKey);
+  if (params?.sortDir) qs.set("sortDir", params.sortDir);
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
   if (params?.offset !== undefined) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
@@ -309,9 +325,11 @@ export type AdminUserDirectoryItem = AdminUser & {
   moderation: { status: "active" | "suspended" | "banned"; reason: string | null; suspendedUntil: number | null; updatedAt: string | null };
 };
 
-export function adminFetchUserDirectory(params?: { query?: string; limit?: number; offset?: number }) {
+export function adminFetchUserDirectory(params?: { query?: string; sortKey?: string; sortDir?: "asc" | "desc"; limit?: number; offset?: number }) {
   const qs = new URLSearchParams();
   if (params?.query) qs.set("query", params.query);
+  if (params?.sortKey) qs.set("sortKey", params.sortKey);
+  if (params?.sortDir) qs.set("sortDir", params.sortDir);
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
   if (params?.offset !== undefined) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
@@ -391,12 +409,23 @@ export function markAllNotificationsRead() {
   return apiFetch<{ ok: true; changes: number }>(`/api/notifications/read-all`, { method: "POST" });
 }
 
-export function adminFetchAudit(params?: { actorUserId?: number; action?: string; targetKind?: string; targetId?: string; limit?: number; offset?: number }) {
+export function adminFetchAudit(params?: {
+  actorUserId?: number;
+  action?: string;
+  targetKind?: string;
+  targetId?: string;
+  sortKey?: string;
+  sortDir?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+}) {
   const qs = new URLSearchParams();
   if (params?.actorUserId !== undefined) qs.set("actorUserId", String(params.actorUserId));
   if (params?.action) qs.set("action", params.action);
   if (params?.targetKind) qs.set("targetKind", params.targetKind);
   if (params?.targetId) qs.set("targetId", params.targetId);
+  if (params?.sortKey) qs.set("sortKey", params.sortKey);
+  if (params?.sortDir) qs.set("sortDir", params.sortDir);
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
   if (params?.offset !== undefined) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
@@ -465,6 +494,8 @@ export function adminFetchListings(params?: {
   featured?: boolean;
   includeDeleted?: boolean;
   restrictions?: "all" | "any" | "none" | "edit" | "status" | "featuring";
+  sortKey?: string;
+  sortDir?: "asc" | "desc";
   limit?: number;
   offset?: number;
 }) {
@@ -476,6 +507,8 @@ export function adminFetchListings(params?: {
   if (params?.featured) qs.set("featured", "1");
   if (params?.includeDeleted) qs.set("includeDeleted", "1");
   if (params?.restrictions && params.restrictions !== "all") qs.set("restrictions", params.restrictions);
+  if (params?.sortKey) qs.set("sortKey", params.sortKey);
+  if (params?.sortDir) qs.set("sortDir", params.sortDir);
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
   if (params?.offset !== undefined) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
@@ -515,9 +548,11 @@ export function adminSetListingRestrictions(
   });
 }
 
-export function adminFetchUsers(params?: { query?: string; limit?: number; offset?: number }) {
+export function adminFetchUsers(params?: { query?: string; sortKey?: string; sortDir?: "asc" | "desc"; limit?: number; offset?: number }) {
   const qs = new URLSearchParams();
   if (params?.query) qs.set("query", params.query);
+  if (params?.sortKey) qs.set("sortKey", params.sortKey);
+  if (params?.sortDir) qs.set("sortDir", params.sortDir);
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
   if (params?.offset !== undefined) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";

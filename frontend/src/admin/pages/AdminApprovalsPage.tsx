@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { adminApprove, adminFetchApprovals, adminReject, type AdminApprovalItem } from "../../api";
 import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
-import { stableSort } from "../utils/stableSort";
 
 function kindLabel(k: "sale" | "wanted") {
   return k === "sale" ? "For sale" : "Wanted";
@@ -25,11 +24,18 @@ export default function AdminApprovalsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [sort, setSort] = useState<{ key: string; dir: SortDir }>({ key: "createdAt", dir: "desc" });
 
-  async function load(next?: { offset?: number; limit?: number }) {
+  async function load(next?: { offset?: number; limit?: number; sort?: { key: string; dir: SortDir } }) {
+    const s = next?.sort ?? sort;
     setLoading(true);
     setErr(null);
     try {
-      const res = await adminFetchApprovals({ kind, limit: next?.limit ?? limit, offset: next?.offset ?? offset });
+      const res = await adminFetchApprovals({
+        kind,
+        sortKey: s.key,
+        sortDir: s.dir,
+        limit: next?.limit ?? limit,
+        offset: next?.offset ?? offset,
+      });
       setItems(res.items);
       setTotal(res.total);
       setLimit(res.limit);
@@ -61,44 +67,13 @@ export default function AdminApprovalsPage() {
   function toggleSort(next: string) {
     const same = sort.key === next;
     const dir = same ? (sort.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next] ?? "asc";
-    setSort({ key: next, dir });
+    const nextSort = { key: next, dir };
+    setSort(nextSort);
+    setOffset(0);
+    load({ offset: 0, sort: nextSort });
   }
 
-  function getTime(iso: string) {
-    const t = Date.parse(String(iso));
-    return Number.isFinite(t) ? t : null;
-  }
-
-  const displayItems = useMemo(() => {
-    const dirMul = sort.dir === "asc" ? 1 : -1;
-    return stableSort(items, (a, b) => {
-      switch (sort.key) {
-        case "createdAt": {
-          const at = getTime(a.createdAt);
-          const bt = getTime(b.createdAt);
-          if (at == null && bt == null) return 0;
-          if (at == null) return 1 * dirMul;
-          if (bt == null) return -1 * dirMul;
-          return (at - bt) * dirMul;
-        }
-        case "kind":
-          return kindLabel(a.kind).localeCompare(kindLabel(b.kind)) * dirMul;
-        case "title":
-          return String(a.title ?? "").localeCompare(String(b.title ?? "")) * dirMul;
-        case "category":
-          return String(a.category ?? "").localeCompare(String(b.category ?? "")) * dirMul;
-        case "location":
-          return String(a.location ?? "").localeCompare(String(b.location ?? "")) * dirMul;
-        case "user": {
-          const ak = `${a.user.username ?? ""}\n${a.user.email ?? ""}`.toLowerCase();
-          const bk = `${b.user.username ?? ""}\n${b.user.email ?? ""}`.toLowerCase();
-          return ak.localeCompare(bk) * dirMul;
-        }
-        default:
-          return 0;
-      }
-    });
-  }, [items, sort.dir, sort.key]);
+  const displayItems = useMemo(() => items, [items]);
 
   async function doApprove(it: AdminApprovalItem) {
     await adminApprove(it.kind, it.id);

@@ -121,29 +121,6 @@ function cap1(s: string) {
     return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
-function statusRankAny(status: string) {
-    switch (status) {
-        case "active":
-            return 0;
-        case "pending":
-            return 1;
-        case "paused":
-            return 2;
-        case "draft":
-            return 3;
-        case "expired":
-            return 4;
-        case "sold":
-            return 5;
-        case "closed":
-            return 6;
-        case "deleted":
-            return 7;
-        default:
-            return 8;
-    }
-}
-
 function StatusTextAny({ status }: { status: ListingStatus }) {
     const s = status;
     const cls =
@@ -246,140 +223,6 @@ function renderFeaturedTextAny(until: number | null) {
             <span>Featured ({days}d left)</span>
         </div>
     );
-}
-
-function parseMs(iso: string | null | undefined) {
-    if (!iso) return null;
-    const n = new Date(iso).getTime();
-    return Number.isFinite(n) ? n : null;
-}
-
-function sortAdminRows(rows: AdminListingListItem[], sortKey: SortKey, sortDir: SortDir) {
-    const dirMul = sortDir === "asc" ? 1 : -1;
-    const withIdx = rows.map((r, idx) => ({ r, idx }));
-    const cmpStr = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" });
-    const cmpNumNullLast = (a: number | null, b: number | null) => {
-        if (a == null && b == null) return 0;
-        if (a == null) return 1;
-        if (b == null) return -1;
-        return a === b ? 0 : a < b ? -1 : 1;
-    };
-
-    const getTitle = (r: AdminListingListItem) => String(r.title ?? "");
-    const getFullName = (r: AdminListingListItem) => {
-        if (!r.user) return "";
-        const fn = String(r.user.firstName ?? "").trim();
-        const ln = String(r.user.lastName ?? "").trim();
-        return `${fn} ${ln}`.trim();
-    };
-    const getUsername = (r: AdminListingListItem) => String(r.user?.username ?? "");
-    const getEmail = (r: AdminListingListItem) => String(r.user?.email ?? "");
-    const getPhone = (r: AdminListingListItem) => String(r.phone ?? "");
-    const getRestrictionsCount = (r: AdminListingListItem) =>
-        (r.ownerBlockEdit ? 1 : 0) + (r.ownerBlockPauseResume ? 1 : 0) + (r.ownerBlockStatusChanges ? 1 : 0) + (r.ownerBlockFeaturing ? 1 : 0);
-    const getPriceSort = (r: AdminListingListItem): number | null => (r.kind === "sale" ? Number(r.priceCents ?? 0) : r.budgetCents ?? null);
-    const getViewsSort = (r: AdminListingListItem): number | null => Number.isFinite(Number(r.views)) ? Number(r.views) : 0;
-    const getCreatedMs = (r: AdminListingListItem) => parseMs(r.createdAt);
-    const getPublishedMs = (r: AdminListingListItem) => parseMs(r.publishedAt);
-    const getUpdatedMs = (r: AdminListingListItem) => parseMs(r.updatedAt);
-    const getExpiresInMs = (r: AdminListingListItem) => {
-        const exp = parseMs(r.expiresAt);
-        if (exp == null) return null;
-        return Math.max(0, exp - Date.now());
-    };
-
-    function cmpRow(a: AdminListingListItem, b: AdminListingListItem) {
-        if (sortKey === "status") {
-            const r = (statusRankAny(String(a.status)) - statusRankAny(String(b.status))) * dirMul;
-            if (r) return r;
-            const au = getUpdatedMs(a) ?? 0;
-            const bu = getUpdatedMs(b) ?? 0;
-            return bu - au;
-        }
-
-        let r = 0;
-        switch (sortKey) {
-            case "listing":
-                r = cmpStr(getTitle(a), getTitle(b)) * dirMul;
-                break;
-            case "fullName":
-                r = cmpStr(getFullName(a), getFullName(b)) * dirMul;
-                break;
-            case "username":
-                r = cmpStr(getUsername(a), getUsername(b)) * dirMul;
-                break;
-            case "email":
-                r = cmpStr(getEmail(a), getEmail(b)) * dirMul;
-                break;
-            case "phone":
-                r = cmpStr(getPhone(a), getPhone(b)) * dirMul;
-                break;
-            case "restrictions": {
-                const ar = getRestrictionsCount(a);
-                const br = getRestrictionsCount(b);
-                r = (ar - br) * dirMul;
-                break;
-            }
-            case "price": {
-                const ar = getPriceSort(a);
-                const br = getPriceSort(b);
-                const base = cmpNumNullLast(ar, br);
-                r = base * (ar == null || br == null ? 1 : dirMul);
-                break;
-            }
-            case "views": {
-                const ar = getViewsSort(a);
-                const br = getViewsSort(b);
-                const base = cmpNumNullLast(ar, br);
-                r = base * (ar == null || br == null ? 1 : dirMul);
-                break;
-            }
-            case "created": {
-                const ar = getCreatedMs(a);
-                const br = getCreatedMs(b);
-                const base = cmpNumNullLast(ar, br);
-                r = base * (ar == null || br == null ? 1 : dirMul);
-                break;
-            }
-            case "published": {
-                const ar = getPublishedMs(a);
-                const br = getPublishedMs(b);
-                const base = cmpNumNullLast(ar, br);
-                r = base * (ar == null || br == null ? 1 : dirMul);
-                break;
-            }
-            case "updated": {
-                const ar = getUpdatedMs(a);
-                const br = getUpdatedMs(b);
-                const base = cmpNumNullLast(ar, br);
-                r = base * (ar == null || br == null ? 1 : dirMul);
-                break;
-            }
-            case "expiresIn": {
-                const ar = getExpiresInMs(a);
-                const br = getExpiresInMs(b);
-                const base = cmpNumNullLast(ar, br);
-                r = base * (ar == null || br == null ? 1 : dirMul);
-                break;
-            }
-        }
-
-        if (r) return r;
-        const sr = statusRankAny(String(a.status)) - statusRankAny(String(b.status));
-        if (sr) return sr;
-        const au = getUpdatedMs(a) ?? 0;
-        const bu = getUpdatedMs(b) ?? 0;
-        if (bu !== au) return bu - au;
-        return 0;
-    }
-
-    withIdx.sort((aa, bb) => {
-        const r = cmpRow(aa.r, bb.r);
-        if (r) return r;
-        return aa.idx - bb.idx;
-    });
-
-    return withIdx.map((x) => x.r);
 }
 
 export default function AdminListingsPage() {
@@ -562,10 +405,11 @@ export default function AdminListingsPage() {
         setOffset(0);
     }
 
-    async function load(next?: { offset?: number; preserveOrder?: boolean }) {
+    async function load(next?: { offset?: number; preserveOrder?: boolean; sort?: { key: SortKey; dir: SortDir } }) {
         setLoading(true);
         setErr(null);
         try {
+            const s = next?.sort ?? sort;
             const res = await adminFetchListings({
                 q: q.trim() ? q.trim() : undefined,
                 user: userQ.trim() ? userQ.trim() : undefined,
@@ -574,6 +418,8 @@ export default function AdminListingsPage() {
                 featured: featuredOnly ? true : undefined,
                 includeDeleted: includeDeleted ? true : undefined,
                 restrictions,
+                sortKey: s.key,
+                sortDir: s.dir,
                 limit,
                 offset: next?.offset ?? offset,
             });
@@ -581,7 +427,7 @@ export default function AdminListingsPage() {
             // Like My Listings: do NOT auto-reorder after local actions (pause/delete/feature),
             // because it makes the row jump out of view. Only re-order on initial load / filter changes / explicit sort clicks.
             if (!next?.preserveOrder) {
-                setRowOrder(sortAdminRows(res.items, sort.key, sort.dir).map((r) => `${r.kind}:${r.id}`));
+                setRowOrder(res.items.map((r) => `${r.kind}:${r.id}`));
             }
             setTotal(res.total);
             setLimit(res.limit);
@@ -794,8 +640,10 @@ export default function AdminListingsPage() {
         const same = sort.key === next;
         const dir = same ? (sort.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next];
         const key = next;
-        setSort({ key, dir });
-        setRowOrder(sortAdminRows(items, key, dir).map((r) => `${r.kind}:${r.id}`));
+        const nextSort = { key, dir };
+        setSort(nextSort);
+        resetPaging();
+        load({ offset: 0, sort: nextSort });
     }
 
     function SortTh(props: { label: string; k: SortKey; className?: string; title?: string; align?: "left" | "right" | "center" }) {

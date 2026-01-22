@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { adminFetchUserDirectory, resolveImageUrl, type AdminUserDirectoryItem } from "../../api";
 import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
-import { stableSort } from "../utils/stableSort";
 
 function DefaultAvatar() {
   return (
@@ -55,14 +54,21 @@ export default function AdminUserDirectoryPage() {
   const [err, setErr] = useState<string | null>(null);
   const [sort, setSort] = useState<{ key: string; dir: SortDir }>({ key: "lastActive", dir: "desc" });
 
-  async function load(next?: { offset?: number; silent?: boolean }) {
+  async function load(next?: { offset?: number; silent?: boolean; sort?: { key: string; dir: SortDir } }) {
     const silent = Boolean(next?.silent);
+    const s = next?.sort ?? sort;
     if (!silent) {
       setLoading(true);
       setErr(null);
     }
     try {
-      const res = await adminFetchUserDirectory({ query: q.trim() ? q.trim() : undefined, limit, offset: next?.offset ?? offset });
+      const res = await adminFetchUserDirectory({
+        query: q.trim() ? q.trim() : undefined,
+        sortKey: s.key,
+        sortDir: s.dir,
+        limit,
+        offset: next?.offset ?? offset,
+      });
       setItems(res.items);
       setTotal(res.total);
       setLimit(res.limit);
@@ -100,51 +106,13 @@ export default function AdminUserDirectoryPage() {
   function toggleSort(next: string) {
     const same = sort.key === next;
     const dir = same ? (sort.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next] ?? "asc";
-    setSort({ key: next, dir });
+    const nextSort = { key: next, dir };
+    setSort(nextSort);
+    setOffset(0);
+    load({ offset: 0, sort: nextSort });
   }
 
-  function getTime(iso: string | null | undefined) {
-    const t = Date.parse(String(iso ?? ""));
-    return Number.isFinite(t) ? t : null;
-  }
-
-  const displayItems = useMemo(() => {
-    const dirMul = sort.dir === "asc" ? 1 : -1;
-    return stableSort(items, (a, b) => {
-      switch (sort.key) {
-        case "user": {
-          const ak = `${a.username ?? ""}\n${a.email ?? ""}`.toLowerCase();
-          const bk = `${b.username ?? ""}\n${b.email ?? ""}`.toLowerCase();
-          return ak.localeCompare(bk) * dirMul;
-        }
-        case "lastActive": {
-          const at = getTime(a.lastActiveAt);
-          const bt = getTime(b.lastActiveAt);
-          if (at == null && bt == null) return 0;
-          if (at == null) return 1 * dirMul;
-          if (bt == null) return -1 * dirMul;
-          return (at - bt) * dirMul;
-        }
-        case "moderation": {
-          const ak = `${a.moderation?.status ?? "active"}`;
-          const bk = `${b.moderation?.status ?? "active"}`;
-          return ak.localeCompare(bk) * dirMul;
-        }
-        case "admin": {
-          const av = a.isAdmin ? 1 : 0;
-          const bv = b.isAdmin ? 1 : 0;
-          return (av - bv) * dirMul;
-        }
-        case "superadmin": {
-          const av = a.isSuperadmin ? 1 : 0;
-          const bv = b.isSuperadmin ? 1 : 0;
-          return (av - bv) * dirMul;
-        }
-        default:
-          return 0;
-      }
-    });
-  }, [items, sort.dir, sort.key]);
+  const displayItems = useMemo(() => items, [items]);
 
   return (
     <div>

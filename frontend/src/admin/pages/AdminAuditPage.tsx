@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { adminFetchAudit, type AdminAuditItem } from "../../api";
 import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
-import { stableSort } from "../utils/stableSort";
 
 function fmtIso(iso: string) {
   const t = Date.parse(String(iso));
@@ -24,7 +23,8 @@ export default function AdminAuditPage() {
   const [err, setErr] = useState<string | null>(null);
   const [sort, setSort] = useState<{ key: string; dir: SortDir }>({ key: "when", dir: "desc" });
 
-  async function load(next?: { offset?: number }) {
+  async function load(next?: { offset?: number; sort?: { key: string; dir: SortDir } }) {
+    const s = next?.sort ?? sort;
     setLoading(true);
     setErr(null);
     try {
@@ -34,6 +34,8 @@ export default function AdminAuditPage() {
         action: action.trim() ? action.trim() : undefined,
         targetKind: targetKind.trim() ? targetKind.trim() : undefined,
         targetId: targetId.trim() ? targetId.trim() : undefined,
+        sortKey: s.key,
+        sortDir: s.dir,
         limit,
         offset: next?.offset ?? offset,
       });
@@ -82,49 +84,13 @@ export default function AdminAuditPage() {
   function toggleSort(next: string) {
     const same = sort.key === next;
     const dir = same ? (sort.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next] ?? "asc";
-    setSort({ key: next, dir });
+    const nextSort = { key: next, dir };
+    setSort(nextSort);
+    setOffset(0);
+    load({ offset: 0, sort: nextSort });
   }
 
-  function getTime(iso: string) {
-    const t = Date.parse(String(iso));
-    return Number.isFinite(t) ? t : null;
-  }
-
-  const displayItems = useMemo(() => {
-    const dirMul = sort.dir === "asc" ? 1 : -1;
-    return stableSort(items, (a, b) => {
-      switch (sort.key) {
-        case "when": {
-          const at = getTime(a.createdAt);
-          const bt = getTime(b.createdAt);
-          if (at == null && bt == null) return 0;
-          if (at == null) return 1 * dirMul;
-          if (bt == null) return -1 * dirMul;
-          return (at - bt) * dirMul;
-        }
-        case "actor": {
-          const ak = `${a.actor.username ?? ""}\n${a.actor.email ?? ""}`.toLowerCase();
-          const bk = `${b.actor.username ?? ""}\n${b.actor.email ?? ""}`.toLowerCase();
-          return ak.localeCompare(bk) * dirMul;
-        }
-        case "action": {
-          return String(a.action ?? "").localeCompare(String(b.action ?? "")) * dirMul;
-        }
-        case "target": {
-          const ak = `${a.targetKind}:${a.targetId}`.toLowerCase();
-          const bk = `${b.targetKind}:${b.targetId}`.toLowerCase();
-          return ak.localeCompare(bk) * dirMul;
-        }
-        case "meta": {
-          const av = a.metaJson ? 1 : 0;
-          const bv = b.metaJson ? 1 : 0;
-          return (av - bv) * dirMul;
-        }
-        default:
-          return 0;
-      }
-    });
-  }, [items, sort.dir, sort.key]);
+  const displayItems = useMemo(() => items, [items]);
 
   return (
     <div>

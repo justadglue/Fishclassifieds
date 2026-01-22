@@ -3,7 +3,6 @@ import { adminFetchUsers, adminSetAdmin, adminSetSuperadmin, authReauth, resolve
 import { useAuth } from "../../auth";
 import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
-import { stableSort } from "../utils/stableSort";
 
 function DefaultAvatar() {
   return (
@@ -73,12 +72,15 @@ export default function AdminUserPrivilegesPage() {
     }
   }
 
-  async function load(next?: { offset?: number; limit?: number }) {
+  async function load(next?: { offset?: number; limit?: number; sort?: { key: string; dir: SortDir } }) {
     setLoading(true);
     setErr(null);
     try {
+      const s = next?.sort ?? sort;
       const res = await adminFetchUsers({
         query: q.trim() ? q.trim() : undefined,
+        sortKey: s.key,
+        sortDir: s.dir,
         limit: next?.limit ?? limit,
         offset: next?.offset ?? offset,
       });
@@ -110,33 +112,13 @@ export default function AdminUserPrivilegesPage() {
   function toggleSort(next: string) {
     const same = sort.key === next;
     const dir = same ? (sort.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next] ?? "asc";
-    setSort({ key: next, dir });
+    const nextSort = { key: next, dir };
+    setSort(nextSort);
+    setOffset(0);
+    load({ offset: 0, sort: nextSort });
   }
 
-  const displayItems = useMemo(() => {
-    const dirMul = sort.dir === "asc" ? 1 : -1;
-    return stableSort(items, (a, b) => {
-      switch (sort.key) {
-        case "user": {
-          const ak = `${a.username ?? ""}\n${a.email ?? ""}`.toLowerCase();
-          const bk = `${b.username ?? ""}\n${b.email ?? ""}`.toLowerCase();
-          return ak.localeCompare(bk) * dirMul;
-        }
-        case "admin": {
-          const av = a.isAdmin ? 1 : 0;
-          const bv = b.isAdmin ? 1 : 0;
-          return (av - bv) * dirMul;
-        }
-        case "superadmin": {
-          const av = a.isSuperadmin ? 1 : 0;
-          const bv = b.isSuperadmin ? 1 : 0;
-          return (av - bv) * dirMul;
-        }
-        default:
-          return 0;
-      }
-    });
-  }, [items, sort.dir, sort.key]);
+  const displayItems = useMemo(() => items, [items]);
 
   async function toggleAdmin(u: AdminUser) {
     const next = !u.isAdmin;

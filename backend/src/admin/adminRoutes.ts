@@ -71,6 +71,16 @@ function withListingTitle(prefix: string, title: string) {
   return `${prefix} — ${t}`;
 }
 
+function parseSortDir(raw: any, fallback: "asc" | "desc" = "desc"): "asc" | "desc" {
+  const s = String(raw ?? "").trim().toLowerCase();
+  if (s === "asc" || s === "desc") return s;
+  return fallback;
+}
+
+function sortDirSql(dir: "asc" | "desc") {
+  return dir === "asc" ? "ASC" : "DESC";
+}
+
 router.use(requireAuth);
 router.use(requireAdmin);
 
@@ -193,6 +203,62 @@ router.get("/listings", (req, res) => {
   const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
 
+  const sortKey = String(req.query.sortKey ?? "").trim();
+  const sortDir = parseSortDir(req.query.sortDir, "desc");
+  const dirSql = sortDirSql(sortDir);
+
+  const orderBySql = (() => {
+    const statusRankExpr = `CASE l.status
+      WHEN 'active' THEN 0
+      WHEN 'pending' THEN 1
+      WHEN 'paused' THEN 2
+      WHEN 'draft' THEN 3
+      WHEN 'expired' THEN 4
+      WHEN 'sold' THEN 5
+      WHEN 'closed' THEN 6
+      WHEN 'deleted' THEN 7
+      ELSE 8
+    END`;
+
+    const restrictionsCountExpr = `(COALESCE(l.owner_block_edit,0)+COALESCE(l.owner_block_pause_resume,0)+COALESCE(l.owner_block_status_changes,0)+COALESCE(l.owner_block_featuring,0))`;
+    const priceExpr = `(CASE WHEN l.listing_type = 0 THEN l.price_cents ELSE l.budget_cents END)`;
+
+    const nullLast = (expr: string) => `CASE WHEN ${expr} IS NULL THEN 1 ELSE 0 END ASC, ${expr} ${dirSql}`;
+
+    switch (sortKey) {
+      case "listing":
+        return `lower(COALESCE(l.title,'')) ${dirSql}, l.id ${dirSql}`;
+      case "fullName":
+        return `lower(trim(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,''))) ${dirSql}, l.id ${dirSql}`;
+      case "username":
+        return `lower(COALESCE(u.username,'')) ${dirSql}, l.id ${dirSql}`;
+      case "email":
+        return `lower(COALESCE(u.email,'')) ${dirSql}, l.id ${dirSql}`;
+      case "phone":
+        return `lower(COALESCE(l.phone,'')) ${dirSql}, l.id ${dirSql}`;
+      case "restrictions":
+        return `${restrictionsCountExpr} ${dirSql}, l.id ${dirSql}`;
+      case "price":
+        // Null last regardless of direction (matches UI behavior).
+        return `${nullLast(priceExpr)}, l.id ${dirSql}`;
+      case "views":
+        return `COALESCE(l.views,0) ${dirSql}, l.id ${dirSql}`;
+      case "status":
+        // Secondary: updated newest first (matches UI behavior).
+        return `${statusRankExpr} ${dirSql}, l.updated_at DESC, l.id DESC`;
+      case "published":
+        return `${nullLast("l.published_at")}, l.id ${dirSql}`;
+      case "created":
+        return `l.created_at ${dirSql}, l.id ${dirSql}`;
+      case "updated":
+        return `l.updated_at ${dirSql}, l.id ${dirSql}`;
+      case "expiresIn":
+        return `${nullLast("l.expires_at")}, l.id ${dirSql}`;
+      default:
+        return `COALESCE(l.published_at, l.created_at) DESC, l.id DESC`;
+    }
+  })();
+
   const where: string[] = [];
   const params: any[] = [];
 
@@ -291,7 +357,7 @@ LEFT JOIN listing_images li
    SELECT MIN(sort_order) FROM listing_images WHERE listing_id = l.id
  )
 ${whereSql}
-ORDER BY COALESCE(l.published_at, l.created_at) DESC, l.id DESC
+ORDER BY ${orderBySql}
 LIMIT ? OFFSET ?
 `
     )
@@ -714,6 +780,29 @@ router.get("/users-directory", (req, res) => {
   const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
 
+  const sortKey = String(req.query.sortKey ?? "").trim();
+  const sortDir = parseSortDir(req.query.sortDir, "desc");
+  const dirSql = sortDirSql(sortDir);
+  const orderBySql = (() => {
+    switch (sortKey) {
+      case "user":
+        return `lower(COALESCE(u.username,'') || '\n' || COALESCE(u.email,'')) ${dirSql}, u.id ${dirSql}`;
+      case "lastActive": {
+        // UI puts null last for asc and null first for desc.
+        if (sortDir === "asc") return `(s.last_active_at IS NULL) ASC, s.last_active_at ASC, u.id ASC`;
+        return `(s.last_active_at IS NULL) DESC, s.last_active_at DESC, u.id DESC`;
+      }
+      case "moderation":
+        return `lower(COALESCE(m.status,'active')) ${dirSql}, u.id ${dirSql}`;
+      case "admin":
+        return `COALESCE(u.is_admin,0) ${dirSql}, u.id ${dirSql}`;
+      case "superadmin":
+        return `COALESCE(u.is_superadmin,0) ${dirSql}, u.id ${dirSql}`;
+      default:
+        return `u.id DESC`;
+    }
+  })();
+
   const db = getDb(req);
   const where: string[] = [];
   const params: any[] = [];
@@ -750,7 +839,7 @@ LEFT JOIN (
   GROUP BY user_id
 ) s ON s.user_id = u.id
 ${whereSql}
-ORDER BY u.id DESC
+ORDER BY ${orderBySql}
 LIMIT ? OFFSET ?
 `
     )
@@ -1015,6 +1104,26 @@ router.get("/audit", (req, res) => {
   const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
 
+  const sortKey = String(req.query.sortKey ?? "").trim();
+  const sortDir = parseSortDir(req.query.sortDir, "desc");
+  const dirSql = sortDirSql(sortDir);
+  const orderBySql = (() => {
+    switch (sortKey) {
+      case "when":
+        return `a.created_at ${dirSql}, a.id ${dirSql}`;
+      case "actor":
+        return `lower(COALESCE(u.username,'') || '\n' || COALESCE(u.email,'')) ${dirSql}, a.id ${dirSql}`;
+      case "action":
+        return `lower(COALESCE(a.action,'')) ${dirSql}, a.id ${dirSql}`;
+      case "target":
+        return `lower(COALESCE(a.target_kind,'') || ':' || COALESCE(a.target_id,'')) ${dirSql}, a.id ${dirSql}`;
+      case "meta":
+        return `CASE WHEN a.meta_json IS NULL THEN 0 ELSE 1 END ${dirSql}, a.created_at DESC, a.id DESC`;
+      default:
+        return `a.created_at DESC, a.id DESC`;
+    }
+  })();
+
   const where: string[] = [];
   const params: any[] = [];
 
@@ -1056,7 +1165,7 @@ SELECT a.*,
 FROM admin_audit a
 LEFT JOIN users u ON u.id = a.actor_user_id
 ${whereSql}
-ORDER BY a.created_at DESC
+ORDER BY ${orderBySql}
 LIMIT ? OFFSET ?
 `
     )
@@ -1175,6 +1284,28 @@ router.get("/approvals", (req, res) => {
   const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
 
+  const sortKey = String(req.query.sortKey ?? "").trim();
+  const sortDir = parseSortDir(req.query.sortDir, "desc");
+  const dirSql = sortDirSql(sortDir);
+  const orderBySql = (() => {
+    switch (sortKey) {
+      case "createdAt":
+        return `l.created_at ${dirSql}, l.id ${dirSql}`;
+      case "kind":
+        return `l.listing_type ${dirSql}, l.created_at DESC, l.id DESC`;
+      case "title":
+        return `lower(COALESCE(l.title,'')) ${dirSql}, l.id ${dirSql}`;
+      case "category":
+        return `lower(COALESCE(l.category,'')) ${dirSql}, l.id ${dirSql}`;
+      case "location":
+        return `lower(COALESCE(l.location,'')) ${dirSql}, l.id ${dirSql}`;
+      case "user":
+        return `lower(COALESCE(u.username,'') || '\n' || COALESCE(u.email,'')) ${dirSql}, l.id ${dirSql}`;
+      default:
+        return `l.created_at DESC, l.id DESC`;
+    }
+  })();
+
   const where: string[] = [`l.status = 'pending'`];
   const params: any[] = [];
   if (kind === "sale") where.push(`l.listing_type = 0`);
@@ -1200,7 +1331,7 @@ SELECT l.id,l.listing_type,l.title,l.category,l.location,l.created_at,l.updated_
 FROM listings l
 JOIN users u ON u.id = l.user_id
 ${whereSql}
-ORDER BY l.created_at DESC, l.id DESC
+ORDER BY ${orderBySql}
 LIMIT ? OFFSET ?
 `
     )
@@ -1300,6 +1431,24 @@ router.get("/reports", (req, res) => {
   const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
 
+  const sortKey = String(req.query.sortKey ?? "").trim();
+  const sortDir = parseSortDir(req.query.sortDir, "desc");
+  const dirSql = sortDirSql(sortDir);
+  const orderBySql = (() => {
+    switch (sortKey) {
+      case "createdAt":
+        return `r.created_at ${dirSql}, r.id ${dirSql}`;
+      case "target":
+        return `lower(COALESCE(r.target_kind,'') || ':' || COALESCE(r.target_id,'')) ${dirSql}, r.id ${dirSql}`;
+      case "reason":
+        return `lower(COALESCE(r.reason,'')) ${dirSql}, r.id ${dirSql}`;
+      case "reporter":
+        return `lower(COALESCE(u.username,'') || '\n' || COALESCE(u.email,'')) ${dirSql}, r.id ${dirSql}`;
+      default:
+        return `r.created_at DESC, r.id DESC`;
+    }
+  })();
+
   const totalRow = db.prepare(`SELECT COUNT(*) as c FROM reports r WHERE r.status = ?`).get(status) as any;
   const total = Number(totalRow?.c ?? 0);
 
@@ -1311,7 +1460,7 @@ SELECT r.*,
 FROM reports r
 JOIN users u ON u.id = r.reporter_user_id
 WHERE r.status = ?
-ORDER BY r.created_at DESC
+ORDER BY ${orderBySql}
 LIMIT ? OFFSET ?
 `
     )
@@ -1539,6 +1688,22 @@ router.get("/users", requireSuperadmin, (req, res) => {
   const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
 
+  const sortKey = String(req.query.sortKey ?? "").trim();
+  const sortDir = parseSortDir(req.query.sortDir, "desc");
+  const dirSql = sortDirSql(sortDir);
+  const orderBySql = (() => {
+    switch (sortKey) {
+      case "user":
+        return `lower(COALESCE(u.username,'') || '\n' || COALESCE(u.email,'')) ${dirSql}, u.id ${dirSql}`;
+      case "admin":
+        return `COALESCE(u.is_admin,0) ${dirSql}, u.id ${dirSql}`;
+      case "superadmin":
+        return `COALESCE(u.is_superadmin,0) ${dirSql}, u.id ${dirSql}`;
+      default:
+        return `u.id DESC`;
+    }
+  })();
+
   const db = getDb(req);
   const where: string[] = [];
   const params: any[] = [];
@@ -1565,7 +1730,7 @@ LEFT JOIN (
   GROUP BY user_id
 ) s ON s.user_id = u.id
 ${whereSql}
-ORDER BY u.id DESC
+ORDER BY ${orderBySql}
 LIMIT ? OFFSET ?
 `
     )

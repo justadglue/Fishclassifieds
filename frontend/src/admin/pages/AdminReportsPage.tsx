@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { adminFetchReports, adminReportAction, type AdminReport, type AdminReportAction } from "../../api";
 import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
-import { stableSort } from "../utils/stableSort";
 
 function fmtIso(iso: string) {
   const t = Date.parse(String(iso));
@@ -22,11 +21,18 @@ export default function AdminReportsPage() {
   const [actionById, setActionById] = useState<Record<string, AdminReportAction>>({});
   const [sort, setSort] = useState<{ key: string; dir: SortDir }>({ key: "createdAt", dir: "desc" });
 
-  async function load(next?: { offset?: number; limit?: number }) {
+  async function load(next?: { offset?: number; limit?: number; sort?: { key: string; dir: SortDir } }) {
+    const s = next?.sort ?? sort;
     setLoading(true);
     setErr(null);
     try {
-      const res = await adminFetchReports({ status, limit: next?.limit ?? limit, offset: next?.offset ?? offset });
+      const res = await adminFetchReports({
+        status,
+        sortKey: s.key,
+        sortDir: s.dir,
+        limit: next?.limit ?? limit,
+        offset: next?.offset ?? offset,
+      });
       setItems(res.items);
       setTotal(res.total);
       setLimit(res.limit);
@@ -56,43 +62,13 @@ export default function AdminReportsPage() {
   function toggleSort(next: string) {
     const same = sort.key === next;
     const dir = same ? (sort.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next] ?? "asc";
-    setSort({ key: next, dir });
+    const nextSort = { key: next, dir };
+    setSort(nextSort);
+    setOffset(0);
+    load({ offset: 0, sort: nextSort });
   }
 
-  function getTime(iso: string) {
-    const t = Date.parse(String(iso));
-    return Number.isFinite(t) ? t : null;
-  }
-
-  const displayItems = useMemo(() => {
-    const dirMul = sort.dir === "asc" ? 1 : -1;
-    return stableSort(items, (a, b) => {
-      switch (sort.key) {
-        case "createdAt": {
-          const at = getTime(a.createdAt);
-          const bt = getTime(b.createdAt);
-          if (at == null && bt == null) return 0;
-          if (at == null) return 1 * dirMul;
-          if (bt == null) return -1 * dirMul;
-          return (at - bt) * dirMul;
-        }
-        case "target": {
-          const ak = `${a.targetKind}:${a.targetId}`.toLowerCase();
-          const bk = `${b.targetKind}:${b.targetId}`.toLowerCase();
-          return ak.localeCompare(bk) * dirMul;
-        }
-        case "reason":
-          return String(a.reason ?? "").localeCompare(String(b.reason ?? "")) * dirMul;
-        case "reporter": {
-          const ak = `${a.reporter.username ?? ""}\n${a.reporter.email ?? ""}`.toLowerCase();
-          const bk = `${b.reporter.username ?? ""}\n${b.reporter.email ?? ""}`.toLowerCase();
-          return ak.localeCompare(bk) * dirMul;
-        }
-        default:
-          return 0;
-      }
-    });
-  }, [items, sort.dir, sort.key]);
+  const displayItems = useMemo(() => items, [items]);
 
   async function doAction(r: AdminReport) {
     const action = actionById[r.id] ?? ("resolve_only" as const);

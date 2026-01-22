@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { MapPin } from "lucide-react";
-import { createPortal } from "react-dom";
 import {
   fetchListings,
   fetchWanted,
@@ -191,24 +190,6 @@ export default function BrowseListings() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [bottomScrollPending, setBottomScrollPending] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-
-  useEffect(() => {
-    if (!filtersOpen) return;
-
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setFiltersOpen(false);
-    }
-    window.addEventListener("keydown", onKeyDown);
-
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [filtersOpen]);
 
   const offset = (page - 1) * per;
   const totalPages = Math.max(1, Math.ceil(total / per));
@@ -426,13 +407,6 @@ export default function BrowseListings() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFiltersOpen(true)}
-                  className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50 md:hidden"
-                >
-                  Filters
-                </button>
                 {/* Keep layout identical between Sale/Wanted to avoid UI "jumping" when toggling listing type. */}
                 <label className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-700">Sort</span>
@@ -475,63 +449,38 @@ export default function BrowseListings() {
               </div>
             </div>
 
-            {filtersOpen &&
-              typeof document !== "undefined" &&
-              createPortal(
-                <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Filters">
-                  <button
-                    type="button"
-                    className="absolute inset-0 bg-black/40"
-                    onClick={() => setFiltersOpen(false)}
-                    aria-label="Close filters"
-                  />
-                  <div className="absolute right-0 top-0 h-full w-[min(24rem,100vw)] overflow-auto bg-slate-50 p-4 shadow-xl">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-extrabold text-slate-900">Filters</div>
-                      <button
-                        type="button"
-                        onClick={() => setFiltersOpen(false)}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50"
-                      >
-                        Done
-                      </button>
-                    </div>
-
-                    <div className="mt-3">
-                      <BrowseFilters
-                        browseType={browseType}
-                        setBrowseType={setBrowseType}
-                        clearFilters={clearFilters}
-                        location={location}
-                        setLocation={(v) => setParam("location", v)}
-                        shippingOnly={shippingOnly}
-                        setShippingOnly={(v) => setParam("ship", v ? "1" : "")}
-                        waterType={waterType}
-                        setWaterType={(v) => setParam("waterType", v)}
-                        waterTypes={waterTypes}
-                        category={category}
-                        setCategory={(v) => setParam("category", v)}
-                        categoryOptions={categoryOptions}
-                        species={species}
-                        setSpecies={(v) => setParam("species", v)}
-                        speciesPresets={[...SPECIES_PRESETS]}
-                        minDollars={minDollars}
-                        setMinDollars={(v) => setParam("min", v)}
-                        maxDollars={maxDollars}
-                        setMaxDollars={(v) => setParam("max", v)}
-                        budgetDollars={budgetDollars}
-                        setBudgetDollars={(v) => setParam("budget", v)}
-                        sex={sex}
-                        setSex={(v) => setParam("sex", v)}
-                        listingSexes={listingSexes}
-                        wantedSexOptions={wantedSexOptions}
-                        bioFieldsDisabled={bioFieldsDisabled}
-                      />
-                    </div>
-                  </div>
-                </div>,
-                document.body
-              )}
+            {/* Mobile: keep filters visible/expanded at the top of the page */}
+            <div className="mt-4 md:hidden">
+              <BrowseFilters
+                browseType={browseType}
+                setBrowseType={setBrowseType}
+                clearFilters={clearFilters}
+                location={location}
+                setLocation={(v) => setParam("location", v)}
+                shippingOnly={shippingOnly}
+                setShippingOnly={(v) => setParam("ship", v ? "1" : "")}
+                waterType={waterType}
+                setWaterType={(v) => setParam("waterType", v)}
+                waterTypes={waterTypes}
+                category={category}
+                setCategory={(v) => setParam("category", v)}
+                categoryOptions={categoryOptions}
+                species={species}
+                setSpecies={(v) => setParam("species", v)}
+                speciesPresets={[...SPECIES_PRESETS]}
+                minDollars={minDollars}
+                setMinDollars={(v) => setParam("min", v)}
+                maxDollars={maxDollars}
+                setMaxDollars={(v) => setParam("max", v)}
+                budgetDollars={budgetDollars}
+                setBudgetDollars={(v) => setParam("budget", v)}
+                sex={sex}
+                setSex={(v) => setParam("sex", v)}
+                listingSexes={listingSexes}
+                wantedSexOptions={wantedSexOptions}
+                bioFieldsDisabled={bioFieldsDisabled}
+              />
+            </div>
 
             {/* Search bar (above the results grid) */}
             <div className="mt-4">

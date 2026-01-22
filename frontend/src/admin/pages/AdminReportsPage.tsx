@@ -5,6 +5,7 @@ import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
 import FloatingHScrollbar from "../../components/FloatingHScrollbar";
 import { MobileCard, MobileCardActions, MobileCardBody, MobileCardList, MobileCardMeta, MobileCardMetaGrid } from "../../components/table/MobileCards";
+import { useDialogs } from "../../components/dialogs/DialogProvider";
 
 function fmtIso(iso: string) {
   const t = Date.parse(String(iso));
@@ -14,6 +15,7 @@ function fmtIso(iso: string) {
 
 export default function AdminReportsPage() {
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const dialogs = useDialogs();
   const [status, setStatus] = useState<"open" | "resolved">("open");
   const [items, setItems] = useState<AdminReport[]>([]);
   const [total, setTotal] = useState(0);
@@ -78,7 +80,16 @@ export default function AdminReportsPage() {
     const action = actionById[r.id] ?? ("resolve_only" as const);
 
     if (action === "resolve_only") {
-      const note = window.prompt("Resolve note (optional):") ?? "";
+      const note = await dialogs.prompt({
+        title: "Resolve report",
+        body: "Resolve note (optional):",
+        placeholder: "Optional note…",
+        defaultValue: "",
+        confirmText: "Resolve",
+        cancelText: "Cancel",
+        multiline: true,
+      });
+      if (note === null) return;
       await adminReportAction(r.id, { action, note: note.trim() ? note.trim() : null });
       setItems((prev) => prev.filter((x) => x.id !== r.id));
       setTotal((t) => Math.max(0, t - 1));
@@ -86,9 +97,24 @@ export default function AdminReportsPage() {
     }
 
     if (action === "hide_listing") {
-      const ok = window.confirm("Hide (delete) this listing now and resolve the report?");
+      const ok = await dialogs.confirm({
+        title: "Hide listing and resolve report?",
+        body: "This will hide (delete) the listing now and resolve the report.",
+        confirmText: "Hide listing",
+        cancelText: "Cancel",
+        destructive: true,
+      });
       if (!ok) return;
-      const note = window.prompt("Action note (optional):") ?? "";
+      const note = await dialogs.prompt({
+        title: "Action note",
+        body: "Action note (optional):",
+        placeholder: "Optional note…",
+        defaultValue: "",
+        confirmText: "Apply",
+        cancelText: "Cancel",
+        multiline: true,
+      });
+      if (note === null) return;
       await adminReportAction(r.id, { action, note: note.trim() ? note.trim() : null });
       setItems((prev) => prev.filter((x) => x.id !== r.id));
       setTotal((t) => Math.max(0, t - 1));
@@ -96,7 +122,16 @@ export default function AdminReportsPage() {
     }
 
     if (action === "warn_user") {
-      const note = window.prompt("Warning note (optional):") ?? "";
+      const note = await dialogs.prompt({
+        title: "Warn user",
+        body: "Warning note (optional):",
+        placeholder: "Optional note…",
+        defaultValue: "",
+        confirmText: "Warn",
+        cancelText: "Cancel",
+        multiline: true,
+      });
+      if (note === null) return;
       await adminReportAction(r.id, { action, note: note.trim() ? note.trim() : null });
       setItems((prev) => prev.filter((x) => x.id !== r.id));
       setTotal((t) => Math.max(0, t - 1));
@@ -104,8 +139,26 @@ export default function AdminReportsPage() {
     }
 
     if (action === "suspend_user") {
-      const note = window.prompt("Suspension reason (optional):") ?? "";
-      const daysRaw = window.prompt("Suspend for how many days? (blank for indefinite)", "7") ?? "";
+      const note = await dialogs.prompt({
+        title: "Suspend user",
+        body: "Suspension reason (optional):",
+        placeholder: "Optional note…",
+        defaultValue: "",
+        confirmText: "Next",
+        cancelText: "Cancel",
+        multiline: true,
+      });
+      if (note === null) return;
+      const daysRaw = await dialogs.prompt({
+        title: "Suspend duration",
+        body: "Suspend for how many days? Leave blank for indefinite.",
+        placeholder: "7",
+        defaultValue: "7",
+        confirmText: "Apply",
+        cancelText: "Cancel",
+        inputMode: "numeric",
+      });
+      if (daysRaw === null) return;
       const days = daysRaw.trim() ? Math.max(1, Math.min(3650, Math.floor(Number(daysRaw)))) : null;
       const suspendDays = days == null || !Number.isFinite(days) ? null : days;
       await adminReportAction(r.id, { action, note: note.trim() ? note.trim() : null, suspendDays });
@@ -115,9 +168,24 @@ export default function AdminReportsPage() {
     }
 
     if (action === "ban_user") {
-      const ok = window.confirm("Ban the user who owns this listing and resolve the report?");
+      const ok = await dialogs.confirm({
+        title: "Ban user and resolve report?",
+        body: "This will ban the user who owns this listing and resolve the report.",
+        confirmText: "Ban user",
+        cancelText: "Cancel",
+        destructive: true,
+      });
       if (!ok) return;
-      const note = window.prompt("Ban reason (optional):") ?? "";
+      const note = await dialogs.prompt({
+        title: "Ban reason",
+        body: "Ban reason (optional):",
+        placeholder: "Optional note…",
+        defaultValue: "",
+        confirmText: "Apply",
+        cancelText: "Cancel",
+        multiline: true,
+      });
+      if (note === null) return;
       await adminReportAction(r.id, { action, note: note.trim() ? note.trim() : null });
       setItems((prev) => prev.filter((x) => x.id !== r.id));
       setTotal((t) => Math.max(0, t - 1));

@@ -31,6 +31,7 @@ import { LocationTypeaheadAU } from "../components/LocationTypeaheadAU";
 import PhotoUploader, { type PhotoUploaderHandle } from "../components/PhotoUploader";
 import { MAX_MONEY_INPUT_LEN, sanitizeMoneyInput } from "../utils/money";
 import { listingDetailPath, listingPostPath, parseListingKind, type ListingKind } from "../utils/listingRoutes";
+import { useDialogs } from "../components/dialogs/DialogProvider";
 
 function dollarsToCentsMaybe(s: string) {
     const t = String(s ?? "").trim();
@@ -85,6 +86,7 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
     const isWanted = kind === "wanted";
     const nav = useNavigate();
     const { user, loading: authLoading } = useAuth();
+    const dialogs = useDialogs();
 
     type BaselineSnapshot = {
         kind: ListingKind;
@@ -458,11 +460,14 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
 
         const photoCounts = photoUploaderRef.current?.getCounts() ?? { total: 0, uploaded: 0 };
         if (strict && photoCounts.total === 0) {
-            const ok = window.confirm(
-                isWanted
+            const ok = await dialogs.confirm({
+                title: "Post without photos?",
+                body: isWanted
                     ? "You haven't added any photos. Post this wanted listing without photos?"
                     : "You haven't added any photos. Post this listing without photos?",
-            );
+                confirmText: "Post",
+                cancelText: "Cancel",
+            });
             if (!ok) return;
         }
 

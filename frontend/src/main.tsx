@@ -5,6 +5,7 @@ import "./index.css";
 import App from "./App";
 import { AuthProvider } from "./auth";
 import { initImageFadeIn } from "./imageFade";
+import { DialogProvider } from "./components/dialogs/DialogProvider";
 
 initImageFadeIn();
 
@@ -17,9 +18,11 @@ if ("scrollRestoration" in window.history) {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <AuthProvider>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <DialogProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </DialogProvider>
     </AuthProvider>
   </StrictMode>
 );

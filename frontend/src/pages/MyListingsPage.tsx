@@ -38,6 +38,7 @@ import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 import FloatingHScrollbar from "../components/FloatingHScrollbar";
 import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
 import { MobileCard, MobileCardActions, MobileCardBody, MobileCardList } from "../components/table/MobileCards";
+import { useDialogs } from "../components/dialogs/DialogProvider";
 
 function centsToDollars(cents: number) {
   const s = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -147,7 +148,7 @@ function statusRankWanted(w: WantedPost) {
       return 8;
   }
 }
-function StatusText({ l }: { l: Listing }) {
+function StatusText({ l, variant = "plain" }: { l: Listing; variant?: "plain" | "pill" }) {
   const s = l.status;
 
   const cls =
@@ -166,14 +167,25 @@ function StatusText({ l }: { l: Listing }) {
                 : s === "deleted"
                   ? "text-red-700"
                   : "text-slate-700";
+
+  const label = statusLabel(l);
+
+  if (variant === "pill") {
+    return (
+      <span className={`inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold ${cls}`}>
+        {label}
+      </span>
+    );
+  }
+
   return (
     <div className={`text-sm font-semibold ${cls}`}>
-      <div>{statusLabel(l)}</div>
+      <div>{label}</div>
     </div>
   );
 }
 
-function WantedStatusText({ w }: { w: WantedPost }) {
+function WantedStatusText({ w, variant = "plain" }: { w: WantedPost; variant?: "plain" | "pill" }) {
   const s = w.status;
   const cls =
     s === "active"
@@ -191,9 +203,20 @@ function WantedStatusText({ w }: { w: WantedPost }) {
                 : s === "deleted"
                   ? "text-red-700"
                   : "text-slate-700";
+
+  const label = s === "sold" ? "Sold" : s === "closed" ? "Closed" : cap1(String(s));
+
+  if (variant === "pill") {
+    return (
+      <span className={`inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold ${cls}`}>
+        {label}
+      </span>
+    );
+  }
+
   return (
     <div className={`text-sm font-semibold ${cls}`}>
-      <div>{s === "sold" ? "Sold" : s === "closed" ? "Closed" : cap1(String(s))}</div>
+      <div>{label}</div>
     </div>
   );
 }
@@ -397,6 +420,7 @@ export default function MyListingsPage() {
   const routerLocation = useLocation();
   const [sp, setSp] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
+  const dialogs = useDialogs();
 
   const [includeResolved, setIncludeResolved] = useState(false);
 
@@ -652,7 +676,13 @@ export default function MyListingsPage() {
 
   async function onDelete(l: Listing) {
     setErr(null);
-    const ok = window.confirm(l.status === "draft" ? "Delete this Draft? This cannot be undone." : "Delete this listing? This cannot be undone.");
+    const ok = await dialogs.confirm({
+      title: "Delete listing?",
+      body: l.status === "draft" ? "Delete this Draft? This cannot be undone." : "Delete this listing? This cannot be undone.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      destructive: true,
+    });
     if (!ok) return;
 
     try {
@@ -677,7 +707,12 @@ export default function MyListingsPage() {
   async function onCloseWanted(w: WantedPost) {
     setErr(null);
     try {
-      const ok = window.confirm("Mark this wanted post as closed? It will be hidden from public browsing.");
+      const ok = await dialogs.confirm({
+        title: "Mark wanted post as closed?",
+        body: "It will be hidden from public browsing.",
+        confirmText: "Mark closed",
+        cancelText: "Cancel",
+      });
       if (!ok) return;
       const updated = await closeWantedPost(w.id);
       setWantedItems((prev) => prev.map((x) => (x.id === w.id ? updated : x)));
@@ -689,7 +724,13 @@ export default function MyListingsPage() {
 
   async function onDeleteWanted(w: WantedPost) {
     setErr(null);
-    const ok = window.confirm(w.status === "draft" ? "Delete this Draft? This cannot be undone." : "Delete this wanted post? This cannot be undone.");
+    const ok = await dialogs.confirm({
+      title: "Delete wanted post?",
+      body: w.status === "draft" ? "Delete this Draft? This cannot be undone." : "Delete this wanted post? This cannot be undone.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      destructive: true,
+    });
     if (!ok) return;
     try {
       await deleteWantedPost(w.id);
@@ -713,7 +754,12 @@ export default function MyListingsPage() {
   async function doSold(id: string) {
     setErr(null);
     try {
-      const ok = window.confirm("Mark this listing as sold? This will deactivate it and hide it from browsing.");
+      const ok = await dialogs.confirm({
+        title: "Mark listing as sold?",
+        body: "This will deactivate it and hide it from browsing.",
+        confirmText: "Mark sold",
+        cancelText: "Cancel",
+      });
       if (!ok) return;
       const updated = await markSold(id);
       setItems((prev) => prev.map((x) => (x.id === id ? updated : x)));
@@ -1063,7 +1109,7 @@ export default function MyListingsPage() {
                                 >
                                   <span className="min-w-0 truncate">{qtyText}</span>
                                 </span>
-                                <StatusText l={l} />
+                                <StatusText l={l} variant="pill" />
                               </div>
                               <div className="mt-1">{renderFeaturedText(l)}</div>
                             </div>
@@ -1253,7 +1299,7 @@ export default function MyListingsPage() {
                               >
                                 <span className="min-w-0 truncate">{qtyText}</span>
                               </span>
-                              <WantedStatusText w={w} />
+                              <WantedStatusText w={w} variant="pill" />
                             </div>
                             <div className="mt-1">{renderFeaturedTextAny(w.featuredUntil ?? null)}</div>
                           </div>

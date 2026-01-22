@@ -4,6 +4,7 @@ import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
 import FloatingHScrollbar from "../../components/FloatingHScrollbar";
 import { MobileCard, MobileCardActions, MobileCardBody, MobileCardList, MobileCardMeta, MobileCardMetaGrid } from "../../components/table/MobileCards";
+import { useDialogs } from "../../components/dialogs/DialogProvider";
 
 function fmtIso(iso: string) {
   const t = Date.parse(String(iso));
@@ -13,6 +14,7 @@ function fmtIso(iso: string) {
 
 export default function AdminAuditPage() {
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const dialogs = useDialogs();
   const [actorUserId, setActorUserId] = useState("");
   const [action, setAction] = useState("");
   const [targetKind, setTargetKind] = useState("");
@@ -189,7 +191,12 @@ export default function AdminAuditPage() {
                   {it.metaJson ? (
                     <button
                       type="button"
-                      onClick={() => window.alert(it.metaJson)}
+                      onClick={async () => {
+                        await dialogs.alert({
+                          title: "Audit meta",
+                          body: <pre className="whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-xs font-mono text-slate-800">{it.metaJson}</pre>,
+                        });
+                      }}
                       className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-50"
                     >
                       View meta
@@ -235,7 +242,12 @@ export default function AdminAuditPage() {
                   {it.metaJson ? (
                     <button
                       type="button"
-                      onClick={() => window.alert(it.metaJson)}
+                      onClick={async () => {
+                        await dialogs.alert({
+                          title: "Audit meta",
+                          body: <pre className="whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-xs font-mono text-slate-800">{it.metaJson}</pre>,
+                        });
+                      }}
                       className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-50"
                     >
                       View

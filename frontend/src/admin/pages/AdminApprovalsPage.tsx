@@ -5,6 +5,7 @@ import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
 import FloatingHScrollbar from "../../components/FloatingHScrollbar";
 import { MobileCard, MobileCardActions, MobileCardBody, MobileCardList, MobileCardMeta, MobileCardMetaGrid } from "../../components/table/MobileCards";
+import { useDialogs } from "../../components/dialogs/DialogProvider";
 
 function kindLabel(k: "sale" | "wanted") {
   return k === "sale" ? "For sale" : "Wanted";
@@ -18,6 +19,7 @@ function fmtIso(iso: string) {
 
 export default function AdminApprovalsPage() {
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const dialogs = useDialogs();
   const [kind, setKind] = useState<"all" | "sale" | "wanted">("all");
   const [items, setItems] = useState<AdminApprovalItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -85,7 +87,16 @@ export default function AdminApprovalsPage() {
   }
 
   async function doReject(it: AdminApprovalItem) {
-    const note = window.prompt("Reject note (optional):") ?? "";
+    const note = await dialogs.prompt({
+      title: "Reject listing",
+      body: "Reject note (optional):",
+      placeholder: "Optional note…",
+      defaultValue: "",
+      confirmText: "Reject",
+      cancelText: "Cancel",
+      multiline: false,
+    });
+    if (note === null) return;
     await adminReject(it.kind, it.id, note.trim() ? note.trim() : undefined);
     setItems((prev) => prev.filter((x) => x.id !== it.id));
     setTotal((t) => Math.max(0, t - 1));

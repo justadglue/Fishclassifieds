@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { adminDeleteUserAccount, adminGetUser, adminRevokeUserSessions, adminSetUserModeration, resolveImageUrl, type AdminUserDetail } from "../../api";
 import { useAuth } from "../../auth";
+import { useDialogs } from "../../components/dialogs/DialogProvider";
 
 function fmtIso(iso: string | null | undefined) {
   if (!iso) return "";
@@ -38,6 +39,7 @@ function DefaultAvatar({ sizeClassName }: { sizeClassName: string }) {
 export default function AdminUserDetailPage() {
   const { id } = useParams();
   const { user: me } = useAuth();
+  const dialogs = useDialogs();
   const [data, setData] = useState<AdminUserDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -173,7 +175,13 @@ export default function AdminUserDetailPage() {
     }
 
     if (modDraftAction === "revokeSessions") {
-      const ok = window.confirm("Revoke all sessions for this user (force logout everywhere)?");
+      const ok = await dialogs.confirm({
+        title: "Revoke all sessions?",
+        body: "Force logout everywhere for this user.",
+        confirmText: "Revoke",
+        cancelText: "Cancel",
+        destructive: true,
+      });
       if (!ok) return;
       await adminRevokeUserSessions(u.id);
       await load();
@@ -183,7 +191,13 @@ export default function AdminUserDetailPage() {
 
     if (modDraftAction === "deleteAccount") {
       if (!isSuper) return;
-      const ok = window.confirm("Permanently delete this account? This cannot be undone.");
+      const ok = await dialogs.confirm({
+        title: "Delete account permanently?",
+        body: "This cannot be undone.",
+        confirmText: "Delete",
+        cancelText: "Cancel",
+        destructive: true,
+      });
       if (!ok) return;
       const reason = modDraftDeleteReason.trim() ? modDraftDeleteReason.trim() : undefined;
       await adminDeleteUserAccount(u.id, reason);
@@ -194,7 +208,13 @@ export default function AdminUserDetailPage() {
     const reason = modDraftReason.trim() ? modDraftReason.trim() : null;
 
     if (modDraftAction === "ban") {
-      const ok = window.confirm("Ban this user? This will revoke their sessions immediately.");
+      const ok = await dialogs.confirm({
+        title: "Ban user?",
+        body: "This will revoke their sessions immediately.",
+        confirmText: "Ban",
+        cancelText: "Cancel",
+        destructive: true,
+      });
       if (!ok) return;
       await adminSetUserModeration(u.id, { status: "banned", reason });
       await load();

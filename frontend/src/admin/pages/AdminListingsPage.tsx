@@ -13,6 +13,7 @@ import {
 import { useAuth } from "../../auth";
 import NoPhotoPlaceholder from "../../components/NoPhotoPlaceholder";
 import { MobileCard, MobileCardActions, MobileCardBody, MobileCardList, MobileCardMeta, MobileCardMetaGrid } from "../../components/table/MobileCards";
+import { useDialogs } from "../../components/dialogs/DialogProvider";
 
 type KindFilter = "all" | "sale" | "wanted";
 type StatusFilter = "all" | ListingStatus;
@@ -228,6 +229,7 @@ function renderFeaturedTextAny(until: number | null) {
 
 export default function AdminListingsPage() {
     const { user } = useAuth();
+    const dialogs = useDialogs();
     const routerLocation = useLocation();
     const [q, setQ] = useState("");
     const [userQ, setUserQ] = useState("");
@@ -1098,7 +1100,16 @@ export default function AdminListingsPage() {
                                                                     title="Feature"
                                                                     variant="feature"
                                                                     onClick={async () => {
-                                                                        const daysRaw = window.prompt("Feature for how many days?", "7") ?? "";
+                                                                        const daysRaw = await dialogs.prompt({
+                                                                            title: "Feature listing",
+                                                                            body: "Feature for how many days?",
+                                                                            placeholder: "7",
+                                                                            defaultValue: "7",
+                                                                            inputMode: "numeric",
+                                                                            confirmText: "Set",
+                                                                            cancelText: "Cancel",
+                                                                        });
+                                                                        if (daysRaw === null) return;
                                                                         const days = Math.max(1, Math.min(3650, Math.floor(Number(daysRaw))));
                                                                         if (!Number.isFinite(days)) return;
                                                                         setRestrictionsDraft((p) =>
@@ -1182,9 +1193,20 @@ export default function AdminListingsPage() {
                                                                 if (desiredStatus !== it.status) {
                                                                     const ok =
                                                                         desiredStatus === "deleted"
-                                                                            ? window.confirm("Delete this listing? It will be hidden from the site.")
+                                                                            ? await dialogs.confirm({
+                                                                                title: "Delete listing?",
+                                                                                body: "It will be hidden from the site.",
+                                                                                confirmText: "Delete",
+                                                                                cancelText: "Cancel",
+                                                                                destructive: true,
+                                                                            })
                                                                             : desiredStatus === "active" && it.status === "deleted"
-                                                                                ? window.confirm("Restore this listing to active?")
+                                                                                ? await dialogs.confirm({
+                                                                                    title: "Restore listing?",
+                                                                                    body: "Restore this listing to active?",
+                                                                                    confirmText: "Restore",
+                                                                                    cancelText: "Cancel",
+                                                                                })
                                                                                 : true;
                                                                     if (!ok) return;
                                                                     await adminSetListingStatus(it.id, desiredStatus);
@@ -1579,7 +1601,16 @@ export default function AdminListingsPage() {
                                                                                 title="Feature"
                                                                                 variant="feature"
                                                                                 onClick={async () => {
-                                                                                    const daysRaw = window.prompt("Feature for how many days?", "7") ?? "";
+                                                                                    const daysRaw = await dialogs.prompt({
+                                                                                        title: "Feature listing",
+                                                                                        body: "Feature for how many days?",
+                                                                                        placeholder: "7",
+                                                                                        defaultValue: "7",
+                                                                                        inputMode: "numeric",
+                                                                                        confirmText: "Set",
+                                                                                        cancelText: "Cancel",
+                                                                                    });
+                                                                                    if (daysRaw === null) return;
                                                                                     const days = Math.max(1, Math.min(3650, Math.floor(Number(daysRaw))));
                                                                                     if (!Number.isFinite(days)) return;
                                                                                     setRestrictionsDraft((p) =>
@@ -1668,9 +1699,20 @@ export default function AdminListingsPage() {
                                                                             if (desiredStatus !== it.status) {
                                                                                 const ok =
                                                                                     desiredStatus === "deleted"
-                                                                                        ? window.confirm("Delete this listing? It will be hidden from the site.")
+                                                                                        ? await dialogs.confirm({
+                                                                                            title: "Delete listing?",
+                                                                                            body: "It will be hidden from the site.",
+                                                                                            confirmText: "Delete",
+                                                                                            cancelText: "Cancel",
+                                                                                            destructive: true,
+                                                                                        })
                                                                                         : desiredStatus === "active" && it.status === "deleted"
-                                                                                            ? window.confirm("Restore this listing to active?")
+                                                                                            ? await dialogs.confirm({
+                                                                                                title: "Restore listing?",
+                                                                                                body: "Restore this listing to active?",
+                                                                                                confirmText: "Restore",
+                                                                                                cancelText: "Cancel",
+                                                                                            })
                                                                                             : true;
                                                                                 if (!ok) return;
                                                                                 await adminSetListingStatus(it.id, desiredStatus);

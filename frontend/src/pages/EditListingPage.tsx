@@ -36,6 +36,7 @@ import { LocationTypeaheadAU } from "../components/LocationTypeaheadAU";
 import PhotoUploader, { type PhotoUploaderHandle } from "../components/PhotoUploader";
 import { MAX_MONEY_INPUT_LEN, sanitizeMoneyInput } from "../utils/money";
 import { listingDetailPath, listingEditPath, parseListingKind, type ListingKind } from "../utils/listingRoutes";
+import { useDialogs } from "../components/dialogs/DialogProvider";
 
 function dollarsToCents(v: string) {
   const n = Number(v);
@@ -108,6 +109,7 @@ function SaleEditForm() {
   const { id } = useParams();
   const nav = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const dialogs = useDialogs();
   const [sp] = useSearchParams();
   const relistMode = sp.get("relist") === "1";
 
@@ -346,7 +348,12 @@ function SaleEditForm() {
 
     const photoCounts = photoUploaderRef.current?.getCounts() ?? { total: 0, uploaded: 0 };
     if (photoCounts.total === 0) {
-      const ok = window.confirm("You haven't added any photos. Update this listing without photos?");
+      const ok = await dialogs.confirm({
+        title: "Update without photos?",
+        body: "You haven't added any photos. Update this listing without photos?",
+        confirmText: "Update",
+        cancelText: "Cancel",
+      });
       if (!ok) return;
     }
 
@@ -436,7 +443,13 @@ function SaleEditForm() {
     if (!id) return;
     setErr(null);
 
-    const ok = window.confirm("Delete this listing? This cannot be undone.");
+    const ok = await dialogs.confirm({
+      title: "Delete listing?",
+      body: "This cannot be undone.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      destructive: true,
+    });
     if (!ok) return;
 
     setLoading(true);
@@ -471,6 +484,15 @@ function SaleEditForm() {
   async function doSold() {
     if (!id) return;
     setErr(null);
+
+    const ok = await dialogs.confirm({
+      title: "Mark listing as sold?",
+      body: "This will deactivate it and hide it from browsing.",
+      confirmText: "Mark sold",
+      cancelText: "Cancel",
+    });
+    if (!ok) return;
+
     setLoading(true);
     try {
       await markSold(id);
@@ -1037,6 +1059,7 @@ function WantedEditForm() {
   const { id } = useParams();
   const nav = useNavigate();
   const { user, loading } = useAuth();
+  const dialogs = useDialogs();
   const [sp] = useSearchParams();
   const relistMode = sp.get("relist") === "1";
   const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
@@ -1203,7 +1226,12 @@ function WantedEditForm() {
 
       const photoCounts = photoUploaderRef.current?.getCounts() ?? { total: 0, uploaded: 0 };
       if (photoCounts.total === 0) {
-        const ok = window.confirm("You haven't added any photos. Update this wanted listing without photos?");
+        const ok = await dialogs.confirm({
+          title: "Update without photos?",
+          body: "You haven't added any photos. Update this wanted listing without photos?",
+          confirmText: "Update",
+          cancelText: "Cancel",
+        });
         if (!ok) return;
       }
 

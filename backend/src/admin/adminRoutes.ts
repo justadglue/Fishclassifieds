@@ -1169,11 +1169,28 @@ router.get("/approvals", (req, res) => {
   const kind = kindRaw === "sale" || kindRaw === "wanted" ? kindRaw : "all";
 
   const db = getDb(req);
+
+  const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 50;
+  const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
+  const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
+
   const where: string[] = [`l.status = 'pending'`];
   const params: any[] = [];
   if (kind === "sale") where.push(`l.listing_type = 0`);
   if (kind === "wanted") where.push(`l.listing_type = 1`);
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  const totalRow = db
+    .prepare(
+      `
+SELECT COUNT(*) as c
+FROM listings l
+${whereSql}
+`
+    )
+    .get(...params) as any;
+  const total = Number(totalRow?.c ?? 0);
 
   const rows = db
     .prepare(
@@ -1184,10 +1201,10 @@ FROM listings l
 JOIN users u ON u.id = l.user_id
 ${whereSql}
 ORDER BY l.created_at DESC, l.id DESC
-LIMIT 500
+LIMIT ? OFFSET ?
 `
     )
-    .all(...params) as any[];
+    .all(...params, limit, offset) as any[];
 
   const items = rows.map((r) => ({
     kind: Number(r.listing_type) === 1 ? ("wanted" as const) : ("sale" as const),
@@ -1204,7 +1221,7 @@ LIMIT 500
     },
   }));
 
-  return res.json({ items });
+  return res.json({ items, total, limit, offset });
 });
 
 router.post("/approvals/:kind/:id/approve", (req, res) => {
@@ -1277,6 +1294,15 @@ router.get("/reports", (req, res) => {
   const status = statusRaw === "resolved" ? "resolved" : "open";
 
   const db = getDb(req);
+
+  const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 50;
+  const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
+  const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
+
+  const totalRow = db.prepare(`SELECT COUNT(*) as c FROM reports r WHERE r.status = ?`).get(status) as any;
+  const total = Number(totalRow?.c ?? 0);
+
   const rows = db
     .prepare(
       `
@@ -1286,10 +1312,10 @@ FROM reports r
 JOIN users u ON u.id = r.reporter_user_id
 WHERE r.status = ?
 ORDER BY r.created_at DESC
-LIMIT 500
+LIMIT ? OFFSET ?
 `
     )
-    .all(status) as any[];
+    .all(status, limit, offset) as any[];
 
   const items = rows.map((r) => ({
     id: String(r.id),
@@ -1305,7 +1331,7 @@ LIMIT 500
     resolvedNote: r.resolved_note != null ? String(r.resolved_note) : null,
   }));
 
-  return res.json({ items });
+  return res.json({ items, total, limit, offset });
 });
 
 router.get("/reports/:id", (req, res) => {

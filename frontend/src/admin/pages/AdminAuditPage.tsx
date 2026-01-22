@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { adminFetchAudit, type AdminAuditItem } from "../../api";
+import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
+import { PaginationMeta, PrevNext } from "../components/PaginationControls";
+import { stableSort } from "../utils/stableSort";
 
 function fmtIso(iso: string) {
   const t = Date.parse(String(iso));
@@ -19,6 +22,7 @@ export default function AdminAuditPage() {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [sort, setSort] = useState<{ key: string; dir: SortDir }>({ key: "when", dir: "desc" });
 
   async function load(next?: { offset?: number }) {
     setLoading(true);
@@ -67,6 +71,61 @@ export default function AdminAuditPage() {
   const canPrev = offset > 0;
   const canNext = offset + limit < total;
 
+  const defaultDirByKey: Record<string, SortDir> = {
+    when: "desc",
+    actor: "asc",
+    action: "asc",
+    target: "asc",
+    meta: "desc",
+  };
+
+  function toggleSort(next: string) {
+    const same = sort.key === next;
+    const dir = same ? (sort.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next] ?? "asc";
+    setSort({ key: next, dir });
+  }
+
+  function getTime(iso: string) {
+    const t = Date.parse(String(iso));
+    return Number.isFinite(t) ? t : null;
+  }
+
+  const displayItems = useMemo(() => {
+    const dirMul = sort.dir === "asc" ? 1 : -1;
+    return stableSort(items, (a, b) => {
+      switch (sort.key) {
+        case "when": {
+          const at = getTime(a.createdAt);
+          const bt = getTime(b.createdAt);
+          if (at == null && bt == null) return 0;
+          if (at == null) return 1 * dirMul;
+          if (bt == null) return -1 * dirMul;
+          return (at - bt) * dirMul;
+        }
+        case "actor": {
+          const ak = `${a.actor.username ?? ""}\n${a.actor.email ?? ""}`.toLowerCase();
+          const bk = `${b.actor.username ?? ""}\n${b.actor.email ?? ""}`.toLowerCase();
+          return ak.localeCompare(bk) * dirMul;
+        }
+        case "action": {
+          return String(a.action ?? "").localeCompare(String(b.action ?? "")) * dirMul;
+        }
+        case "target": {
+          const ak = `${a.targetKind}:${a.targetId}`.toLowerCase();
+          const bk = `${b.targetKind}:${b.targetId}`.toLowerCase();
+          return ak.localeCompare(bk) * dirMul;
+        }
+        case "meta": {
+          const av = a.metaJson ? 1 : 0;
+          const bv = b.metaJson ? 1 : 0;
+          return (av - bv) * dirMul;
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [items, sort.dir, sort.key]);
+
   return (
     <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -74,7 +133,6 @@ export default function AdminAuditPage() {
           <div className="text-sm font-bold text-slate-900">Audit log</div>
           <div className="mt-1 text-sm text-slate-600">Every admin mutation is recorded here.</div>
         </div>
-        <div className="text-xs font-semibold text-slate-600">{pageText}</div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -130,21 +188,34 @@ export default function AdminAuditPage() {
         >
           Filter
         </button>
+
+        <PaginationMeta
+          className="ml-auto"
+          total={total}
+          limit={limit}
+          offset={offset}
+          currentCount={items.length}
+          loading={loading}
+          onChangeLimit={(next) => {
+            setLimit(next);
+            setOffset(0);
+          }}
+        />
       </div>
 
       {err ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div> : null}
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="grid grid-cols-[180px_220px_1fr_1fr_160px] gap-3 border-b border-slate-200 p-4 text-xs font-bold text-slate-600">
-          <div>When</div>
-          <div>Actor</div>
-          <div>Action</div>
-          <div>Target</div>
-          <div>Meta</div>
+        <div className="grid grid-cols-[180px_220px_1fr_1fr_160px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
+          <SortHeaderCell label="When" k="when" sort={sort} onToggle={toggleSort} />
+          <SortHeaderCell label="Actor" k="actor" sort={sort} onToggle={toggleSort} />
+          <SortHeaderCell label="Action" k="action" sort={sort} onToggle={toggleSort} />
+          <SortHeaderCell label="Target" k="target" sort={sort} onToggle={toggleSort} />
+          <SortHeaderCell label="Meta" k="meta" sort={sort} onToggle={toggleSort} align="center" />
         </div>
         <div className="divide-y divide-slate-200">
           {!loading && items.length === 0 ? <div className="p-4 text-sm text-slate-600">No audit entries.</div> : null}
-          {items.map((it) => (
+          {displayItems.map((it) => (
             <div key={it.id} className="grid grid-cols-[180px_220px_1fr_1fr_160px] gap-3 p-4">
               <div className="text-xs font-semibold text-slate-700">{fmtIso(it.createdAt)}</div>
               <div className="min-w-0">
@@ -177,24 +248,13 @@ export default function AdminAuditPage() {
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-2">
-        <button
-          type="button"
-          disabled={!canPrev || loading}
-          onClick={() => load({ offset: Math.max(0, offset - limit) })}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 disabled:opacity-50"
-        >
-          Prev
-        </button>
-        <button
-          type="button"
-          disabled={!canNext || loading}
-          onClick={() => load({ offset: offset + limit })}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 disabled:opacity-50"
-        >
-          Next
-        </button>
-      </div>
+      <PrevNext
+        canPrev={canPrev}
+        canNext={canNext}
+        loading={loading}
+        onPrev={() => load({ offset: Math.max(0, offset - limit) })}
+        onNext={() => load({ offset: offset + limit })}
+      />
     </div>
   );
 }

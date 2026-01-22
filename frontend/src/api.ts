@@ -230,11 +230,13 @@ export function adminFetchStats(params?: { days?: number }) {
   return apiFetch<AdminStats>(`/api/admin/stats${suffix}`);
 }
 
-export function adminFetchApprovals(params?: { kind?: "all" | "sale" | "wanted" }) {
+export function adminFetchApprovals(params?: { kind?: "all" | "sale" | "wanted"; limit?: number; offset?: number }) {
   const qs = new URLSearchParams();
   if (params?.kind) qs.set("kind", params.kind);
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
-  return apiFetch<{ items: AdminApprovalItem[] }>(`/api/admin/approvals${suffix}`);
+  return apiFetch<{ items: AdminApprovalItem[]; total: number; limit: number; offset: number }>(`/api/admin/approvals${suffix}`);
 }
 
 export function adminApprove(kind: "sale" | "wanted", id: string) {
@@ -263,11 +265,13 @@ export type AdminReport = {
   resolvedNote: string | null;
 };
 
-export function adminFetchReports(params?: { status?: "open" | "resolved" }) {
+export function adminFetchReports(params?: { status?: "open" | "resolved"; limit?: number; offset?: number }) {
   const qs = new URLSearchParams();
   if (params?.status) qs.set("status", params.status);
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
-  return apiFetch<{ items: AdminReport[] }>(`/api/admin/reports${suffix}`);
+  return apiFetch<{ items: AdminReport[]; total: number; limit: number; offset: number }>(`/api/admin/reports${suffix}`);
 }
 
 export function adminResolveReport(id: string, note?: string) {

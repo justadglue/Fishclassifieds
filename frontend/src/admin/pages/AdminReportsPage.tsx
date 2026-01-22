@@ -1,34 +1,98 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminFetchReports, adminReportAction, type AdminReport, type AdminReportAction } from "../../api";
+import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
+import { PaginationMeta, PrevNext } from "../components/PaginationControls";
+import { stableSort } from "../utils/stableSort";
+
+function fmtIso(iso: string) {
+  const t = Date.parse(String(iso));
+  if (!Number.isFinite(t)) return iso;
+  return new Date(t).toLocaleString();
+}
 
 export default function AdminReportsPage() {
   const [status, setStatus] = useState<"open" | "resolved">("open");
   const [items, setItems] = useState<AdminReport[]>([]);
+  const [total, setTotal] = useState(0);
+  const [limit, setLimit] = useState(50);
+  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [actionById, setActionById] = useState<Record<string, AdminReportAction>>({});
+  const [sort, setSort] = useState<{ key: string; dir: SortDir }>({ key: "createdAt", dir: "desc" });
+
+  async function load(next?: { offset?: number; limit?: number }) {
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await adminFetchReports({ status, limit: next?.limit ?? limit, offset: next?.offset ?? offset });
+      setItems(res.items);
+      setTotal(res.total);
+      setLimit(res.limit);
+      setOffset(res.offset);
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to load reports");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setErr(null);
-      try {
-        const res = await adminFetchReports({ status });
-        if (!cancelled) setItems(res.items);
-      } catch (e: any) {
-        if (!cancelled) setErr(e?.message ?? "Failed to load reports");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    load({ offset: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  const countText = useMemo(() => (loading ? "Loading…" : items.length === 0 ? "No reports." : `${items.length} report(s)`), [items.length, loading]);
+  const canPrev = offset > 0;
+  const canNext = offset + limit < total;
+
+  const defaultDirByKey: Record<string, SortDir> = {
+    createdAt: "desc",
+    target: "asc",
+    reason: "asc",
+    reporter: "asc",
+  };
+
+  function toggleSort(next: string) {
+    const same = sort.key === next;
+    const dir = same ? (sort.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next] ?? "asc";
+    setSort({ key: next, dir });
+  }
+
+  function getTime(iso: string) {
+    const t = Date.parse(String(iso));
+    return Number.isFinite(t) ? t : null;
+  }
+
+  const displayItems = useMemo(() => {
+    const dirMul = sort.dir === "asc" ? 1 : -1;
+    return stableSort(items, (a, b) => {
+      switch (sort.key) {
+        case "createdAt": {
+          const at = getTime(a.createdAt);
+          const bt = getTime(b.createdAt);
+          if (at == null && bt == null) return 0;
+          if (at == null) return 1 * dirMul;
+          if (bt == null) return -1 * dirMul;
+          return (at - bt) * dirMul;
+        }
+        case "target": {
+          const ak = `${a.targetKind}:${a.targetId}`.toLowerCase();
+          const bk = `${b.targetKind}:${b.targetId}`.toLowerCase();
+          return ak.localeCompare(bk) * dirMul;
+        }
+        case "reason":
+          return String(a.reason ?? "").localeCompare(String(b.reason ?? "")) * dirMul;
+        case "reporter": {
+          const ak = `${a.reporter.username ?? ""}\n${a.reporter.email ?? ""}`.toLowerCase();
+          const bk = `${b.reporter.username ?? ""}\n${b.reporter.email ?? ""}`.toLowerCase();
+          return ak.localeCompare(bk) * dirMul;
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [items, sort.dir, sort.key]);
 
   async function doAction(r: AdminReport) {
     const action = actionById[r.id] ?? ("resolve_only" as const);
@@ -37,6 +101,7 @@ export default function AdminReportsPage() {
       const note = window.prompt("Resolve note (optional):") ?? "";
       await adminReportAction(r.id, { action, note: note.trim() ? note.trim() : null });
       setItems((prev) => prev.filter((x) => x.id !== r.id));
+      setTotal((t) => Math.max(0, t - 1));
       return;
     }
 
@@ -46,6 +111,7 @@ export default function AdminReportsPage() {
       const note = window.prompt("Action note (optional):") ?? "";
       await adminReportAction(r.id, { action, note: note.trim() ? note.trim() : null });
       setItems((prev) => prev.filter((x) => x.id !== r.id));
+      setTotal((t) => Math.max(0, t - 1));
       return;
     }
 
@@ -53,6 +119,7 @@ export default function AdminReportsPage() {
       const note = window.prompt("Warning note (optional):") ?? "";
       await adminReportAction(r.id, { action, note: note.trim() ? note.trim() : null });
       setItems((prev) => prev.filter((x) => x.id !== r.id));
+      setTotal((t) => Math.max(0, t - 1));
       return;
     }
 
@@ -63,6 +130,7 @@ export default function AdminReportsPage() {
       const suspendDays = days == null || !Number.isFinite(days) ? null : days;
       await adminReportAction(r.id, { action, note: note.trim() ? note.trim() : null, suspendDays });
       setItems((prev) => prev.filter((x) => x.id !== r.id));
+      setTotal((t) => Math.max(0, t - 1));
       return;
     }
 
@@ -72,6 +140,7 @@ export default function AdminReportsPage() {
       const note = window.prompt("Ban reason (optional):") ?? "";
       await adminReportAction(r.id, { action, note: note.trim() ? note.trim() : null });
       setItems((prev) => prev.filter((x) => x.id !== r.id));
+      setTotal((t) => Math.max(0, t - 1));
       return;
     }
   }
@@ -95,54 +164,119 @@ export default function AdminReportsPage() {
 
       {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 p-4 text-sm text-slate-600">{countText}</div>
-        <div className="divide-y divide-slate-200">
-          {items.map((r) => (
-            <div key={r.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="text-sm font-extrabold text-slate-900">{r.reason}</div>
-                <div className="mt-1 text-xs font-semibold text-slate-600">
-                  {r.targetKind} • {r.targetId} • by {r.reporter.username}
-                </div>
-                {r.details ? <div className="mt-2 text-sm text-slate-700">{r.details}</div> : null}
-                <div className="mt-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => load({ offset: 0 })}
+          disabled={loading}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+        >
+          Refresh
+        </button>
+        <PaginationMeta
+          className="ml-auto"
+          total={total}
+          limit={limit}
+          offset={offset}
+          currentCount={items.length}
+          loading={loading}
+          onChangeLimit={(next) => {
+            setLimit(next);
+            setOffset(0);
+            load({ limit: next, offset: 0 });
+          }}
+        />
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="overflow-x-auto">
+          <div className="grid min-w-[980px] grid-cols-[160px_170px_220px_220px_1fr_260px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
+            <SortHeaderCell label="Created" k="createdAt" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Target" k="target" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Reason" k="reason" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Reporter" k="reporter" sort={sort} onToggle={toggleSort} />
+            <div className="px-2 py-1">Details</div>
+            <div className="px-2 py-1 text-center">Actions</div>
+          </div>
+
+          <div className="divide-y divide-slate-200">
+            {!loading && displayItems.length === 0 ? <div className="p-4 text-sm text-slate-600">No reports.</div> : null}
+            {displayItems.map((r) => (
+              <div key={r.id} className="grid min-w-[980px] grid-cols-[160px_170px_220px_220px_1fr_260px] gap-3 p-4">
+                <div className="text-xs font-semibold text-slate-700">{fmtIso(r.createdAt)}</div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-slate-800">
+                    {r.targetKind} • {r.targetId}
+                  </div>
                   <Link
                     to={`/listing/${r.targetKind}/${r.targetId}?viewContext=admin`}
-                    className="text-xs font-bold text-slate-700 underline underline-offset-4 hover:text-slate-900"
+                    className="mt-1 inline-block text-xs font-bold text-slate-700 underline underline-offset-4 hover:text-slate-900"
                   >
                     Open target
                   </Link>
                 </div>
-              </div>
-              {status === "open" ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={actionById[r.id] ?? "resolve_only"}
-                    onChange={(e) => setActionById((prev) => ({ ...prev, [r.id]: e.target.value as any }))}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-slate-400"
-                    title="Choose an action and apply it (this resolves the report)."
-                  >
-                    <option value="resolve_only">Resolve only</option>
-                    <option value="hide_listing">Hide listing</option>
-                    <option value="warn_user">Warn user (audit only)</option>
-                    <option value="suspend_user">Suspend user</option>
-                    <option value="ban_user">Ban user</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => doAction(r)}
-                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
-                    disabled={loading}
-                  >
-                    Apply
-                  </button>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-extrabold text-slate-900">{r.reason}</div>
                 </div>
-              ) : null}
-            </div>
-          ))}
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-slate-800">{r.reporter.username}</div>
+                  <div className="truncate text-xs font-semibold text-slate-600">{r.reporter.email}</div>
+                </div>
+                <div className="min-w-0">
+                  {r.details ? <div className="line-clamp-2 text-sm text-slate-700">{r.details}</div> : <div className="text-sm text-slate-500">—</div>}
+                  {status === "resolved" && r.resolvedNote ? (
+                    <div className="mt-1 line-clamp-2 text-xs font-semibold text-slate-600">Resolved note: {r.resolvedNote}</div>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {status === "open" ? (
+                    <>
+                      <select
+                        value={actionById[r.id] ?? "resolve_only"}
+                        onChange={(e) => setActionById((prev) => ({ ...prev, [r.id]: e.target.value as any }))}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-slate-400"
+                        title="Choose an action and apply it (this resolves the report)."
+                      >
+                        <option value="resolve_only">Resolve only</option>
+                        <option value="hide_listing">Hide listing</option>
+                        <option value="warn_user">Warn user (audit only)</option>
+                        <option value="suspend_user">Suspend user</option>
+                        <option value="ban_user">Ban user</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => doAction(r)}
+                        className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+                        disabled={loading}
+                      >
+                        Apply
+                      </button>
+                    </>
+                  ) : (
+                    <div className="text-xs font-semibold text-slate-600">Resolved</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+
+      <PrevNext
+        canPrev={canPrev}
+        canNext={canNext}
+        loading={loading}
+        onPrev={() => {
+          const next = Math.max(0, offset - limit);
+          setOffset(next);
+          load({ offset: next });
+        }}
+        onNext={() => {
+          const next = offset + limit;
+          setOffset(next);
+          load({ offset: next });
+        }}
+      />
     </div>
   );
 }

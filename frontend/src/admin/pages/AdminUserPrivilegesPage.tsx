@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { adminFetchUsers, adminSetAdmin, adminSetSuperadmin, authReauth, resolveImageUrl, type AdminUser } from "../../api";
 import { useAuth } from "../../auth";
+import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
+import { PaginationMeta, PrevNext } from "../components/PaginationControls";
+import { stableSort } from "../utils/stableSort";
 
 function DefaultAvatar() {
   return (
@@ -17,9 +20,13 @@ export default function AdminUserPrivilegesPage() {
   const { user } = useAuth();
   const [q, setQ] = useState("");
   const [items, setItems] = useState<AdminUser[]>([]);
+  const [total, setTotal] = useState(0);
+  const [limit, setLimit] = useState(50);
+  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [sort, setSort] = useState<{ key: string; dir: SortDir }>({ key: "user", dir: "asc" });
 
   const [reauthOpen, setReauthOpen] = useState(false);
   const [reauthPassword, setReauthPassword] = useState("");
@@ -66,12 +73,19 @@ export default function AdminUserPrivilegesPage() {
     }
   }
 
-  async function load() {
+  async function load(next?: { offset?: number; limit?: number }) {
     setLoading(true);
     setErr(null);
     try {
-      const res = await adminFetchUsers({ query: q.trim() ? q.trim() : undefined, limit: 50, offset: 0 });
+      const res = await adminFetchUsers({
+        query: q.trim() ? q.trim() : undefined,
+        limit: next?.limit ?? limit,
+        offset: next?.offset ?? offset,
+      });
       setItems(res.items);
+      setTotal(res.total);
+      setLimit(res.limit);
+      setOffset(res.offset);
     } catch (e: any) {
       setErr(e?.message ?? "Failed to load users");
     } finally {
@@ -83,6 +97,46 @@ export default function AdminUserPrivilegesPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const canPrev = offset > 0;
+  const canNext = offset + limit < total;
+
+  const defaultDirByKey: Record<string, SortDir> = {
+    user: "asc",
+    admin: "desc",
+    superadmin: "desc",
+  };
+
+  function toggleSort(next: string) {
+    const same = sort.key === next;
+    const dir = same ? (sort.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next] ?? "asc";
+    setSort({ key: next, dir });
+  }
+
+  const displayItems = useMemo(() => {
+    const dirMul = sort.dir === "asc" ? 1 : -1;
+    return stableSort(items, (a, b) => {
+      switch (sort.key) {
+        case "user": {
+          const ak = `${a.username ?? ""}\n${a.email ?? ""}`.toLowerCase();
+          const bk = `${b.username ?? ""}\n${b.email ?? ""}`.toLowerCase();
+          return ak.localeCompare(bk) * dirMul;
+        }
+        case "admin": {
+          const av = a.isAdmin ? 1 : 0;
+          const bv = b.isAdmin ? 1 : 0;
+          return (av - bv) * dirMul;
+        }
+        case "superadmin": {
+          const av = a.isSuperadmin ? 1 : 0;
+          const bv = b.isSuperadmin ? 1 : 0;
+          return (av - bv) * dirMul;
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [items, sort.dir, sort.key]);
 
   async function toggleAdmin(u: AdminUser) {
     const next = !u.isAdmin;
@@ -188,39 +242,58 @@ export default function AdminUserPrivilegesPage() {
           <div className="text-sm font-bold text-slate-900">User privileges</div>
           <div className="mt-1 text-sm text-slate-600">Superadmin: manage admin/superadmin roles.</div>
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key !== "Enter") return;
-              e.preventDefault();
-              load();
-            }}
-            placeholder="Search…"
-            className="w-64 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-slate-400"
-          />
-          <button
-            type="button"
-            onClick={load}
-            disabled={loading}
-            className="rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-60"
-          >
-            Search
-          </button>
-        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            setOffset(0);
+            load();
+          }}
+          placeholder="Search…"
+          className="w-64 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-slate-400"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            setOffset(0);
+            load({ offset: 0 });
+          }}
+          disabled={loading}
+          className="rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-60"
+        >
+          Search
+        </button>
+
+        <PaginationMeta
+          className="ml-auto"
+          total={total}
+          limit={limit}
+          offset={offset}
+          currentCount={items.length}
+          loading={loading}
+          onChangeLimit={(next) => {
+            setLimit(next);
+            setOffset(0);
+            load({ limit: next, offset: 0 });
+          }}
+        />
       </div>
 
       {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="grid grid-cols-[1fr_120px_140px] gap-3 border-b border-slate-200 p-4 text-xs font-bold text-slate-600">
-          <div>User</div>
-          <div>Admin</div>
-          <div>Superadmin</div>
+        <div className="grid grid-cols-[1fr_120px_140px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
+          <SortHeaderCell label="User" k="user" sort={sort} onToggle={toggleSort} />
+          <SortHeaderCell label="Admin" k="admin" sort={sort} onToggle={toggleSort} />
+          <SortHeaderCell label="Superadmin" k="superadmin" sort={sort} onToggle={toggleSort} />
         </div>
         <div className="divide-y divide-slate-200">
-          {items.map((u) => (
+          {displayItems.map((u) => (
             <div key={u.id} className="grid grid-cols-[1fr_120px_140px] gap-3 p-4">
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
@@ -274,6 +347,22 @@ export default function AdminUserPrivilegesPage() {
           {!loading && items.length === 0 ? <div className="p-4 text-sm text-slate-600">No users found.</div> : null}
         </div>
       </div>
+
+      <PrevNext
+        canPrev={canPrev}
+        canNext={canNext}
+        loading={loading}
+        onPrev={() => {
+          const next = Math.max(0, offset - limit);
+          setOffset(next);
+          load({ offset: next });
+        }}
+        onNext={() => {
+          const next = offset + limit;
+          setOffset(next);
+          load({ offset: next });
+        }}
+      />
     </div>
   );
 }

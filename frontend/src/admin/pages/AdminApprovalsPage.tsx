@@ -1,49 +1,116 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminApprove, adminFetchApprovals, adminReject, type AdminApprovalItem } from "../../api";
+import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
+import { PaginationMeta, PrevNext } from "../components/PaginationControls";
+import { stableSort } from "../utils/stableSort";
 
 function kindLabel(k: "sale" | "wanted") {
   return k === "sale" ? "For sale" : "Wanted";
 }
 
+function fmtIso(iso: string) {
+  const t = Date.parse(String(iso));
+  if (!Number.isFinite(t)) return iso;
+  return new Date(t).toLocaleString();
+}
+
 export default function AdminApprovalsPage() {
   const [kind, setKind] = useState<"all" | "sale" | "wanted">("all");
   const [items, setItems] = useState<AdminApprovalItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [limit, setLimit] = useState(50);
+  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [sort, setSort] = useState<{ key: string; dir: SortDir }>({ key: "createdAt", dir: "desc" });
+
+  async function load(next?: { offset?: number; limit?: number }) {
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await adminFetchApprovals({ kind, limit: next?.limit ?? limit, offset: next?.offset ?? offset });
+      setItems(res.items);
+      setTotal(res.total);
+      setLimit(res.limit);
+      setOffset(res.offset);
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to load approvals");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setErr(null);
-      try {
-        const res = await adminFetchApprovals({ kind });
-        if (!cancelled) setItems(res.items);
-      } catch (e: any) {
-        if (!cancelled) setErr(e?.message ?? "Failed to load approvals");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    load({ offset: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind]);
 
-  const grouped = useMemo(() => {
-    return items;
-  }, [items]);
+  const canPrev = offset > 0;
+  const canNext = offset + limit < total;
+
+  const defaultDirByKey: Record<string, SortDir> = {
+    createdAt: "desc",
+    kind: "asc",
+    title: "asc",
+    category: "asc",
+    location: "asc",
+    user: "asc",
+  };
+
+  function toggleSort(next: string) {
+    const same = sort.key === next;
+    const dir = same ? (sort.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next] ?? "asc";
+    setSort({ key: next, dir });
+  }
+
+  function getTime(iso: string) {
+    const t = Date.parse(String(iso));
+    return Number.isFinite(t) ? t : null;
+  }
+
+  const displayItems = useMemo(() => {
+    const dirMul = sort.dir === "asc" ? 1 : -1;
+    return stableSort(items, (a, b) => {
+      switch (sort.key) {
+        case "createdAt": {
+          const at = getTime(a.createdAt);
+          const bt = getTime(b.createdAt);
+          if (at == null && bt == null) return 0;
+          if (at == null) return 1 * dirMul;
+          if (bt == null) return -1 * dirMul;
+          return (at - bt) * dirMul;
+        }
+        case "kind":
+          return kindLabel(a.kind).localeCompare(kindLabel(b.kind)) * dirMul;
+        case "title":
+          return String(a.title ?? "").localeCompare(String(b.title ?? "")) * dirMul;
+        case "category":
+          return String(a.category ?? "").localeCompare(String(b.category ?? "")) * dirMul;
+        case "location":
+          return String(a.location ?? "").localeCompare(String(b.location ?? "")) * dirMul;
+        case "user": {
+          const ak = `${a.user.username ?? ""}\n${a.user.email ?? ""}`.toLowerCase();
+          const bk = `${b.user.username ?? ""}\n${b.user.email ?? ""}`.toLowerCase();
+          return ak.localeCompare(bk) * dirMul;
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [items, sort.dir, sort.key]);
 
   async function doApprove(it: AdminApprovalItem) {
     await adminApprove(it.kind, it.id);
     setItems((prev) => prev.filter((x) => x.id !== it.id));
+    setTotal((t) => Math.max(0, t - 1));
   }
 
   async function doReject(it: AdminApprovalItem) {
     const note = window.prompt("Reject note (optional):") ?? "";
     await adminReject(it.kind, it.id, note.trim() ? note.trim() : undefined);
     setItems((prev) => prev.filter((x) => x.id !== it.id));
+    setTotal((t) => Math.max(0, t - 1));
   }
 
   return (
@@ -66,52 +133,107 @@ export default function AdminApprovalsPage() {
 
       {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 p-4 text-sm text-slate-600">
-          {loading ? "Loading…" : grouped.length === 0 ? "No pending items." : `${grouped.length} item(s)`}
-        </div>
-        <div className="divide-y divide-slate-200">
-          {grouped.map((it) => (
-            <div key={`${it.kind}-${it.id}`} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="text-sm font-extrabold text-slate-900">{it.title}</div>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => load({ offset: 0 })}
+          disabled={loading}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+        >
+          Refresh
+        </button>
+        <PaginationMeta
+          className="ml-auto"
+          total={total}
+          limit={limit}
+          offset={offset}
+          currentCount={items.length}
+          loading={loading}
+          onChangeLimit={(next) => {
+            setLimit(next);
+            setOffset(0);
+            load({ limit: next, offset: 0 });
+          }}
+        />
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="overflow-x-auto">
+          <div className="grid min-w-[980px] grid-cols-[160px_110px_1fr_160px_200px_220px_160px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
+            <SortHeaderCell label="Created" k="createdAt" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Type" k="kind" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Title" k="title" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Category" k="category" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Location" k="location" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="User" k="user" sort={sort} onToggle={toggleSort} />
+            <div className="px-2 py-1 text-center">Actions</div>
+          </div>
+
+          <div className="divide-y divide-slate-200">
+            {!loading && displayItems.length === 0 ? <div className="p-4 text-sm text-slate-600">No pending items.</div> : null}
+            {displayItems.map((it) => (
+              <div
+                key={`${it.kind}-${it.id}`}
+                className="grid min-w-[980px] grid-cols-[160px_110px_1fr_160px_200px_220px_160px] gap-3 p-4"
+              >
+                <div className="text-xs font-semibold text-slate-700">{fmtIso(it.createdAt)}</div>
+                <div>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-bold text-slate-700">
                     {kindLabel(it.kind)}
                   </span>
                 </div>
-                <div className="mt-1 text-xs font-semibold text-slate-600">
-                  {it.category} • {it.location} • by {it.user.username}
-                </div>
-                <div className="mt-2">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-extrabold text-slate-900">{it.title}</div>
                   <Link
                     to={`/listing/${it.kind}/${it.id}?viewContext=admin`}
-                    className="text-xs font-bold text-slate-700 underline underline-offset-4 hover:text-slate-900"
+                    className="mt-1 inline-block text-xs font-bold text-slate-700 underline underline-offset-4 hover:text-slate-900"
                   >
                     Open listing
                   </Link>
                 </div>
+                <div className="text-sm font-semibold text-slate-700">{it.category}</div>
+                <div className="text-sm font-semibold text-slate-700">{it.location}</div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-slate-800">{it.user.username}</div>
+                  <div className="truncate text-xs font-semibold text-slate-600">{it.user.email}</div>
+                </div>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => doApprove(it)}
+                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => doReject(it)}
+                    className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100"
+                  >
+                    Reject
+                  </button>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => doApprove(it)}
-                  className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  onClick={() => doReject(it)}
-                  className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100"
-                >
-                  Reject
-                </button>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
+
+      <PrevNext
+        canPrev={canPrev}
+        canNext={canNext}
+        loading={loading}
+        onPrev={() => {
+          const next = Math.max(0, offset - limit);
+          setOffset(next);
+          load({ offset: next });
+        }}
+        onNext={() => {
+          const next = offset + limit;
+          setOffset(next);
+          load({ offset: next });
+        }}
+      />
     </div>
   );
 }

@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminFetchUserDirectory, resolveImageUrl, type AdminUserDirectoryItem } from "../../api";
+import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
+import { PaginationMeta, PrevNext } from "../components/PaginationControls";
+import { stableSort } from "../utils/stableSort";
 
 function DefaultAvatar() {
   return (
@@ -50,6 +53,7 @@ export default function AdminUserDirectoryPage() {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [sort, setSort] = useState<{ key: string; dir: SortDir }>({ key: "lastActive", dir: "desc" });
 
   async function load(next?: { offset?: number; silent?: boolean }) {
     const silent = Boolean(next?.silent);
@@ -82,16 +86,65 @@ export default function AdminUserDirectoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [limit]);
 
-  const pageText = useMemo(() => {
-    if (loading) return "Loading…";
-    if (!total) return "0";
-    const start = Math.min(total, offset + 1);
-    const end = Math.min(total, offset + items.length);
-    return `${start.toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()}`;
-  }, [items.length, loading, offset, total]);
-
   const canPrev = offset > 0;
   const canNext = offset + limit < total;
+
+  const defaultDirByKey: Record<string, SortDir> = {
+    user: "asc",
+    lastActive: "desc",
+    moderation: "asc",
+    admin: "desc",
+    superadmin: "desc",
+  };
+
+  function toggleSort(next: string) {
+    const same = sort.key === next;
+    const dir = same ? (sort.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next] ?? "asc";
+    setSort({ key: next, dir });
+  }
+
+  function getTime(iso: string | null | undefined) {
+    const t = Date.parse(String(iso ?? ""));
+    return Number.isFinite(t) ? t : null;
+  }
+
+  const displayItems = useMemo(() => {
+    const dirMul = sort.dir === "asc" ? 1 : -1;
+    return stableSort(items, (a, b) => {
+      switch (sort.key) {
+        case "user": {
+          const ak = `${a.username ?? ""}\n${a.email ?? ""}`.toLowerCase();
+          const bk = `${b.username ?? ""}\n${b.email ?? ""}`.toLowerCase();
+          return ak.localeCompare(bk) * dirMul;
+        }
+        case "lastActive": {
+          const at = getTime(a.lastActiveAt);
+          const bt = getTime(b.lastActiveAt);
+          if (at == null && bt == null) return 0;
+          if (at == null) return 1 * dirMul;
+          if (bt == null) return -1 * dirMul;
+          return (at - bt) * dirMul;
+        }
+        case "moderation": {
+          const ak = `${a.moderation?.status ?? "active"}`;
+          const bk = `${b.moderation?.status ?? "active"}`;
+          return ak.localeCompare(bk) * dirMul;
+        }
+        case "admin": {
+          const av = a.isAdmin ? 1 : 0;
+          const bv = b.isAdmin ? 1 : 0;
+          return (av - bv) * dirMul;
+        }
+        case "superadmin": {
+          const av = a.isSuperadmin ? 1 : 0;
+          const bv = b.isSuperadmin ? 1 : 0;
+          return (av - bv) * dirMul;
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [items, sort.dir, sort.key]);
 
   return (
     <div>
@@ -100,7 +153,6 @@ export default function AdminUserDirectoryPage() {
           <div className="text-sm font-bold text-slate-900">Users</div>
           <div className="mt-1 text-sm text-slate-600">Search and open a user to manage moderation, sessions, and account deletion.</div>
         </div>
-        <div className="text-xs font-semibold text-slate-600">{pageText}</div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -113,7 +165,7 @@ export default function AdminUserDirectoryPage() {
             load({ offset: 0 });
           }}
           placeholder="Search username/email…"
-          className="w-80 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-slate-400"
+          className="w-64 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-slate-400"
         />
         <button
           type="button"
@@ -123,21 +175,34 @@ export default function AdminUserDirectoryPage() {
         >
           Search
         </button>
+
+        <PaginationMeta
+          className="ml-auto"
+          total={total}
+          limit={limit}
+          offset={offset}
+          currentCount={items.length}
+          loading={loading}
+          onChangeLimit={(next) => {
+            setLimit(next);
+            setOffset(0);
+          }}
+        />
       </div>
 
       {err ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div> : null}
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="grid grid-cols-[1fr_200px_180px_110px_140px] gap-3 border-b border-slate-200 p-4 text-xs font-bold text-slate-600">
-          <div>User</div>
-          <div>Last active</div>
-          <div>Moderation</div>
-          <div>Admin</div>
-          <div>Superadmin</div>
+        <div className="grid grid-cols-[1fr_200px_180px_110px_140px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
+          <SortHeaderCell label="User" k="user" sort={sort} onToggle={toggleSort} />
+          <SortHeaderCell label="Last active" k="lastActive" sort={sort} onToggle={toggleSort} />
+          <SortHeaderCell label="Moderation" k="moderation" sort={sort} onToggle={toggleSort} />
+          <SortHeaderCell label="Admin" k="admin" sort={sort} onToggle={toggleSort} />
+          <SortHeaderCell label="Superadmin" k="superadmin" sort={sort} onToggle={toggleSort} />
         </div>
         <div className="divide-y divide-slate-200">
           {!loading && items.length === 0 ? <div className="p-4 text-sm text-slate-600">No users found.</div> : null}
-          {items.map((u) => {
+          {displayItems.map((u) => {
             const mod = u.moderation?.status ?? "active";
             const modText =
               mod === "active"
@@ -182,24 +247,13 @@ export default function AdminUserDirectoryPage() {
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-2">
-        <button
-          type="button"
-          disabled={!canPrev || loading}
-          onClick={() => load({ offset: Math.max(0, offset - limit) })}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 disabled:opacity-50"
-        >
-          Prev
-        </button>
-        <button
-          type="button"
-          disabled={!canNext || loading}
-          onClick={() => load({ offset: offset + limit })}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 disabled:opacity-50"
-        >
-          Next
-        </button>
-      </div>
+      <PrevNext
+        canPrev={canPrev}
+        canNext={canNext}
+        loading={loading}
+        onPrev={() => load({ offset: Math.max(0, offset - limit) })}
+        onNext={() => load({ offset: offset + limit })}
+      />
     </div>
   );
 }

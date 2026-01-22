@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { adminFetchAudit, type AdminAuditItem } from "../../api";
 import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
+import FloatingHScrollbar from "../../components/FloatingHScrollbar";
 
 function fmtIso(iso: string) {
   const t = Date.parse(String(iso));
@@ -10,6 +11,7 @@ function fmtIso(iso: string) {
 }
 
 export default function AdminAuditPage() {
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const [actorUserId, setActorUserId] = useState("");
   const [action, setAction] = useState("");
   const [targetKind, setTargetKind] = useState("");
@@ -163,7 +165,7 @@ export default function AdminAuditPage() {
       {err ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div> : null}
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" ref={tableScrollRef}>
           <div className="grid w-max min-w-full grid-cols-[180px_220px_1fr_1fr_160px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
             <SortHeaderCell label="When" k="when" sort={sort} onToggle={toggleSort} />
             <SortHeaderCell label="Actor" k="actor" sort={sort} onToggle={toggleSort} />
@@ -206,6 +208,7 @@ export default function AdminAuditPage() {
           </div>
         </div>
       </div>
+      <FloatingHScrollbar scrollRef={tableScrollRef} deps={[items.length, actorUserId, action, targetKind, targetId, limit, offset]} />
 
       <PrevNext
         canPrev={canPrev}

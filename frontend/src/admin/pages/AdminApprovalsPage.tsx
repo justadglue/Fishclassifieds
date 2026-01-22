@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminApprove, adminFetchApprovals, adminReject, type AdminApprovalItem } from "../../api";
 import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
+import FloatingHScrollbar from "../../components/FloatingHScrollbar";
 
 function kindLabel(k: "sale" | "wanted") {
   return k === "sale" ? "For sale" : "Wanted";
@@ -15,6 +16,7 @@ function fmtIso(iso: string) {
 }
 
 export default function AdminApprovalsPage() {
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const [kind, setKind] = useState<"all" | "sale" | "wanted">("all");
   const [items, setItems] = useState<AdminApprovalItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -133,7 +135,7 @@ export default function AdminApprovalsPage() {
       </div>
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" ref={tableScrollRef}>
           <div className="grid w-max min-w-full grid-cols-[160px_110px_1fr_160px_200px_220px_160px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
             <SortHeaderCell label="Created" k="createdAt" sort={sort} onToggle={toggleSort} />
             <SortHeaderCell label="Type" k="kind" sort={sort} onToggle={toggleSort} />
@@ -193,6 +195,7 @@ export default function AdminApprovalsPage() {
           </div>
         </div>
       </div>
+      <FloatingHScrollbar scrollRef={tableScrollRef} deps={[items.length, kind, limit, offset]} />
 
       <PrevNext
         canPrev={canPrev}

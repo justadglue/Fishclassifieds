@@ -32,6 +32,7 @@ import {
 import Header from "../components/Header";
 import { useAuth } from "../auth";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
+import FloatingHScrollbar from "../components/FloatingHScrollbar";
 import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
 
 function centsToDollars(cents: number) {
@@ -768,6 +769,27 @@ export default function MyListingsPage() {
     );
   }
 
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const [tableScrollEl, setTableScrollEl] = useState<HTMLDivElement | null>(null);
+  const [tableViewportWidth, setTableViewportWidth] = useState<number | null>(null);
+
+  // Track the visible width of the table scroller so expanded-row actions can remain usable
+  // even while horizontally scrolling (match Admin "All listings" behavior).
+  //
+  // Important: the table scroller is conditionally rendered, so we observe it once it exists.
+  useEffect(() => {
+    const el = tableScrollEl;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    const scroller = el;
+    const measure = () => setTableViewportWidth(scroller.clientWidth);
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(scroller);
+    return () => ro.disconnect();
+  }, [tableScrollEl]);
+
   return (
     <div className="min-h-full">
       <Header maxWidth="7xl" />
@@ -898,47 +920,267 @@ export default function MyListingsPage() {
           (viewType === "wanted" && wantedItems.length > 0) ||
           (viewType === "drafts" && (items.length > 0 || wantedItems.length > 0)) ||
           (viewType === "all" && (items.length > 0 || wantedItems.length > 0)) ? (
-          <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <div className="overflow-x-auto ">
-              <table className="w-full min-w-[1180px] table-fixed lg:min-w-0">
-                <thead className="bg-slate-100/80 border-b border-slate-200 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.06)]">
-                  <tr className="text-xs font-bold tracking-wider text-slate-600">
-                    <SortTh label="Listing" k="listing" className="w-[20%] px-2 py-3" align="left" />
-                    <SortTh label="Price" k="price" className="w-[6%] px-2 py-3" align="right" />
-                    <SortTh label="Views" k="views" className="w-[6%] px-2 py-3" align="right" />
-                    <SortTh label="Status" k="status" className="w-[6%] px-2 py-3" title="Default: Status then Updated" align="left" />
-                    <SortTh label="Published" k="published" className="w-[7.5%] px-2 py-3" align="left" />
-                    <SortTh label="Created" k="created" className="w-[6.5%] px-2 py-3" align="left" />
-                    <SortTh label="Updated" k="updated" className="w-[7%] px-2 py-3" align="left" />
-                    <SortTh label="Expiry" k="expiresIn" className="w-[6%] px-2 py-3" align="right" />
-                    <th className="w-[6%] px-2 py-3 text-center">Actions</th>
-                  </tr>
-                </thead>
+          <>
+            <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <div
+                className="overflow-x-auto"
+                ref={(el) => {
+                  tableScrollRef.current = el;
+                  setTableScrollEl(el);
+                }}
+              >
+                <table className="w-full min-w-[1180px] table-fixed lg:min-w-0">
+                  <thead className="bg-slate-100/80 border-b border-slate-200 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.06)]">
+                    <tr className="text-xs font-bold tracking-wider text-slate-600">
+                      <SortTh label="Listing" k="listing" className="w-[20%] px-2 py-3" align="left" />
+                      <SortTh label="Price" k="price" className="w-[6%] px-2 py-3" align="right" />
+                      <SortTh label="Views" k="views" className="w-[6%] px-2 py-3" align="right" />
+                      <SortTh label="Status" k="status" className="w-[6%] px-2 py-3" title="Default: Status then Updated" align="left" />
+                      <SortTh label="Published" k="published" className="w-[7.5%] px-2 py-3" align="left" />
+                      <SortTh label="Created" k="created" className="w-[6.5%] px-2 py-3" align="left" />
+                      <SortTh label="Updated" k="updated" className="w-[7%] px-2 py-3" align="left" />
+                      <SortTh label="Expiry" k="expiresIn" className="w-[6%] px-2 py-3" align="right" />
+                      <th className="w-[6%] px-2 py-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
 
-                {displayRows.map((row, idx) => {
-                  const rowBorder = idx === 0 ? "" : "border-t border-slate-200";
-                  const isExpanded = expandedId === row.key;
+                  {displayRows.map((row, idx) => {
+                    const rowBorder = idx === 0 ? "" : "border-t border-slate-200";
+                    const isExpanded = expandedId === row.key;
 
-                  if (row.kind === "sale") {
-                    const l = row.sale!;
-                    const assets = resolveAssets(l.images ?? []);
+                    if (row.kind === "sale") {
+                      const l = row.sale!;
+                      const assets = resolveAssets(l.images ?? []);
+                      const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+                      const saleDetails = decodeSaleDetailsFromDescription(l.description).details;
+                      const salePriceText =
+                        saleDetails.priceType === "free"
+                          ? "Free"
+                          : saleDetails.priceType === "offer"
+                            ? "Make an Offer"
+                            : centsToDollars(l.priceCents);
+                      const openHref = l.status === "draft" ? `/post/sale?draft=${encodeURIComponent(l.id)}` : `/listing/sale/${l.id}`;
+                      const isDraft = l.status === "draft";
+
+                      const canToggle = (l.status === "active" || l.status === "paused") && !l.ownerBlockPauseResume;
+                      const canResolve = (l.status === "active" || l.status === "paused") && !l.ownerBlockStatusChanges;
+
+                      const toggleTitle = l.status === "paused" ? "Resume" : "Pause";
+                      const canFeature = l.status === "active" && !l.ownerBlockFeaturing;
+                      const isSold = l.status === "sold";
+
+                      return (
+                        <tbody key={row.key} className="group">
+                          <tr
+                            className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")}
+                            data-row-key={row.key}
+                            onClick={() => expandRow(row.key)}
+                          >
+                            <td className="px-4 py-4 align-top text-left">
+                              <div className="flex min-h-20 items-center gap-3">
+                                <Link
+                                  to={openHref}
+                                  state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+                                >
+                                  {hero ? (
+                                    <img src={hero} alt={l.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                                  ) : (
+                                    <NoPhotoPlaceholder variant="tile" className="px-1 text-center" />
+                                  )}
+                                </Link>
+
+                                <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
+                                  <Link
+                                    to={openHref}
+                                    state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
+                                  >
+                                    {l.title}
+                                  </Link>
+                                  <div className="mt-1 flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-600">
+                                    <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                      For sale
+                                    </span>
+                                  </div>
+                                  <div className="mt-1">{renderFeaturedText(l)}</div>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="px-4 py-4 align-top text-right">
+                              <div className="text-sm font-extrabold text-slate-900">{salePriceText}</div>
+                            </td>
+
+                            <td className="px-4 py-4 align-top text-right">
+                              <div className="text-sm font-semibold text-slate-700">{Number(l.views ?? 0).toLocaleString()}</div>
+                            </td>
+
+                            <td className="px-4 py-4 align-top text-left">
+                              <StatusText l={l} />
+                            </td>
+
+                            <td className="px-4 py-4 align-top text-left">
+                              {l.publishedAt ? (
+                                <div className="text-sm font-semibold leading-tight text-slate-700">
+                                  <div>{new Date(l.publishedAt).toLocaleDateString()}</div>
+                                  <div className="text-xs font-semibold text-slate-600">
+                                    {new Date(l.publishedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-sm font-semibold text-slate-700">—</div>
+                              )}
+                            </td>
+
+                            <td className="px-4 py-4 align-top text-left">
+                              <div className="text-sm font-semibold leading-tight text-slate-700">
+                                <div>{new Date(l.createdAt).toLocaleDateString()}</div>
+                                <div className="text-xs font-semibold text-slate-600">
+                                  {new Date(l.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="px-4 py-4 align-top text-left">
+                              <div className="text-sm font-semibold text-slate-700" title={new Date(l.updatedAt).toLocaleString()}>
+                                {relativeTime(l.updatedAt)}
+                              </div>
+                            </td>
+
+                            <td className="px-4 py-4 align-top text-right">
+                              <div className="text-sm font-semibold text-slate-700" title={l.expiresAt ? new Date(l.expiresAt).toLocaleString() : ""}>
+                                {expiresInShort(l.expiresAt)}
+                              </div>
+                            </td>
+
+                            <td className="px-4 py-4 align-top text-center">
+                              <div
+                                className="flex justify-center"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isExpanded) setExpandedId(null);
+                                  else expandRow(row.key);
+                                }}
+                              >
+                                <ActionButton label={isExpanded ? "Hide" : "Actions"} title={isExpanded ? "Hide actions" : "Show actions"} />
+                              </div>
+                            </td>
+                          </tr>
+
+                          {isExpanded && (
+                            <tr className="transition-colors group-hover:bg-slate-50/70" data-row-key={row.key}>
+                              <td colSpan={9} className="pb-4 pt-0" data-row-key={row.key} onClick={(e) => e.stopPropagation()}>
+                                <div
+                                  className="sticky left-0 flex justify-center"
+                                  style={{ width: tableViewportWidth != null ? `${tableViewportWidth}px` : "100%" }}
+                                  data-row-key={row.key}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <div className="w-full px-4">
+                                    <div className="mx-auto max-w-4xl" data-row-key={row.key} onClick={(e) => e.stopPropagation()}>
+                                      <div className="flex flex-wrap items-center justify-center gap-2">
+                                        {isDraft ? (
+                                          <ActionLink
+                                            to={openHref}
+                                            label="Resume draft"
+                                            icon={<Pencil aria-hidden="true" className="h-4 w-4" />}
+                                            disabled={Boolean(l.ownerBlockEdit)}
+                                          />
+                                        ) : !isSold ? (
+                                          <>
+                                            <ActionButton
+                                              label={l.featured ? "Manage featuring" : "Feature this listing"}
+                                              title={
+                                                !canFeature
+                                                  ? "Only active, unsold listings can be featured."
+                                                  : l.featured
+                                                    ? "Manage featuring"
+                                                    : "Feature this listing"
+                                              }
+                                              variant="feature"
+                                              disabled={!canFeature}
+                                              onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
+                                              icon={l.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
+                                            />
+
+                                            <ActionLink
+                                              to={`/edit/sale/${l.id}`}
+                                              label="Edit"
+                                              icon={<Pencil aria-hidden="true" className="h-4 w-4" />}
+                                              disabled={Boolean(l.ownerBlockEdit)}
+                                            />
+
+                                            <ActionButton
+                                              label={toggleTitle}
+                                              title={toggleTitle}
+                                              disabled={!canToggle}
+                                              onClick={() => doTogglePauseResume(l)}
+                                              icon={l.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
+                                            />
+
+                                            <ActionButton
+                                              label="Mark sold"
+                                              title="Mark as sold"
+                                              variant="primary"
+                                              disabled={!canResolve}
+                                              onClick={() => doSold(l.id)}
+                                              icon={<Check aria-hidden="true" className="h-4 w-4" />}
+                                            />
+                                          </>
+                                        ) : (
+                                          <ActionButton
+                                            label="Relist"
+                                            title="Relist"
+                                            variant="primary"
+                                            disabled={Boolean(l.ownerBlockStatusChanges)}
+                                            onClick={() => doRelist(l.id)}
+                                            icon={<RotateCcw aria-hidden="true" className="h-4 w-4" />}
+                                          />
+                                        )}
+
+                                        <ActionButton
+                                          label="Delete"
+                                          title="Delete"
+                                          variant="danger"
+                                          onClick={() => onDelete(l)}
+                                          icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
+                                        />
+                                      </div>
+
+                                      {(Boolean(l.ownerBlockEdit) ||
+                                        Boolean(l.ownerBlockPauseResume) ||
+                                        Boolean(l.ownerBlockStatusChanges) ||
+                                        Boolean(l.ownerBlockFeaturing) ||
+                                        Boolean(l.ownerBlockReason)) && (
+                                          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                                            <div className="font-extrabold">Moderation restrictions</div>
+                                            <div className="mt-1 text-sm font-semibold">
+                                              {l.ownerBlockEdit ? "Edit disabled. " : ""}
+                                              {l.ownerBlockPauseResume ? "Pause/Resume disabled. " : ""}
+                                              {l.ownerBlockStatusChanges ? "Status changes disabled. " : ""}
+                                              {l.ownerBlockFeaturing ? "Featuring disabled. " : ""}
+                                            </div>
+                                            {l.ownerBlockReason ? <div className="mt-2 text-sm font-semibold">Reason: {l.ownerBlockReason}</div> : null}
+                                          </div>
+                                        )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      );
+                    }
+
+                    const w = row.wanted!;
+                    const assets = resolveAssets(w.images ?? []);
                     const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
-                    const saleDetails = decodeSaleDetailsFromDescription(l.description).details;
-                    const salePriceText =
-                      saleDetails.priceType === "free"
-                        ? "Free"
-                        : saleDetails.priceType === "offer"
-                          ? "Make an Offer"
-                          : centsToDollars(l.priceCents);
-                    const openHref = l.status === "draft" ? `/post/sale?draft=${encodeURIComponent(l.id)}` : `/listing/sale/${l.id}`;
-                    const isDraft = l.status === "draft";
-
-                    const canToggle = (l.status === "active" || l.status === "paused") && !l.ownerBlockPauseResume;
-                    const canResolve = (l.status === "active" || l.status === "paused") && !l.ownerBlockStatusChanges;
-
-                    const toggleTitle = l.status === "paused" ? "Resume" : "Pause";
-                    const canFeature = l.status === "active" && !l.ownerBlockFeaturing;
-                    const isSold = l.status === "sold";
+                    const openHref = w.status === "draft" ? `/post/wanted?draft=${encodeURIComponent(w.id)}` : `/listing/wanted/${w.id}`;
+                    const isDraft = w.status === "draft";
 
                     return (
                       <tbody key={row.key} className="group">
@@ -956,7 +1198,7 @@ export default function MyListingsPage() {
                                 className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
                               >
                                 {hero ? (
-                                  <img src={hero} alt={l.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                                  <img src={hero} alt={w.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                                 ) : (
                                   <NoPhotoPlaceholder variant="tile" className="px-1 text-center" />
                                 )}
@@ -969,36 +1211,36 @@ export default function MyListingsPage() {
                                   onClick={(e) => e.stopPropagation()}
                                   className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
                                 >
-                                  {l.title}
+                                  {w.title}
                                 </Link>
                                 <div className="mt-1 flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-600">
                                   <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
-                                    For sale
+                                    Wanted
                                   </span>
                                 </div>
-                                <div className="mt-1">{renderFeaturedText(l)}</div>
+                                <div className="mt-1">{renderFeaturedTextAny(w.featuredUntil ?? null)}</div>
                               </div>
                             </div>
                           </td>
 
                           <td className="px-4 py-4 align-top text-right">
-                            <div className="text-sm font-extrabold text-slate-900">{salePriceText}</div>
+                            <div className="text-sm font-extrabold text-slate-900">{budgetLabel(w)}</div>
                           </td>
 
                           <td className="px-4 py-4 align-top text-right">
-                            <div className="text-sm font-semibold text-slate-700">{Number(l.views ?? 0).toLocaleString()}</div>
+                            <div className="text-sm font-semibold text-slate-700">{Number(w.views ?? 0).toLocaleString()}</div>
                           </td>
 
                           <td className="px-4 py-4 align-top text-left">
-                            <StatusText l={l} />
+                            <WantedStatusText w={w} />
                           </td>
 
                           <td className="px-4 py-4 align-top text-left">
-                            {l.publishedAt ? (
+                            {w.publishedAt ? (
                               <div className="text-sm font-semibold leading-tight text-slate-700">
-                                <div>{new Date(l.publishedAt).toLocaleDateString()}</div>
+                                <div>{new Date(w.publishedAt).toLocaleDateString()}</div>
                                 <div className="text-xs font-semibold text-slate-600">
-                                  {new Date(l.publishedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                                  {new Date(w.publishedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
                                 </div>
                               </div>
                             ) : (
@@ -1008,22 +1250,22 @@ export default function MyListingsPage() {
 
                           <td className="px-4 py-4 align-top text-left">
                             <div className="text-sm font-semibold leading-tight text-slate-700">
-                              <div>{new Date(l.createdAt).toLocaleDateString()}</div>
+                              <div>{new Date(w.createdAt).toLocaleDateString()}</div>
                               <div className="text-xs font-semibold text-slate-600">
-                                {new Date(l.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                                {new Date(w.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
                               </div>
                             </div>
                           </td>
 
                           <td className="px-4 py-4 align-top text-left">
-                            <div className="text-sm font-semibold text-slate-700" title={new Date(l.updatedAt).toLocaleString()}>
-                              {relativeTime(l.updatedAt)}
+                            <div className="text-sm font-semibold text-slate-700" title={new Date(w.updatedAt).toLocaleString()}>
+                              {relativeTime(w.updatedAt)}
                             </div>
                           </td>
 
                           <td className="px-4 py-4 align-top text-right">
-                            <div className="text-sm font-semibold text-slate-700" title={l.expiresAt ? new Date(l.expiresAt).toLocaleString() : ""}>
-                              {expiresInShort(l.expiresAt)}
+                            <div className="text-sm font-semibold text-slate-700" title={w.expiresAt ? new Date(w.expiresAt).toLocaleString() : ""}>
+                              {expiresInShort(w.expiresAt)}
                             </div>
                           </td>
 
@@ -1043,307 +1285,106 @@ export default function MyListingsPage() {
 
                         {isExpanded && (
                           <tr className="transition-colors group-hover:bg-slate-50/70" data-row-key={row.key}>
-                            <td colSpan={9} className="px-4 pb-4 pt-0" data-row-key={row.key} onClick={(e) => e.stopPropagation()}>
+                            <td colSpan={9} className="pb-4 pt-0" data-row-key={row.key} onClick={(e) => e.stopPropagation()}>
                               <div
-                                className="mx-auto max-w-4xl"
+                                className="sticky left-0 flex justify-center"
+                                style={{ width: tableViewportWidth != null ? `${tableViewportWidth}px` : "100%" }}
                                 data-row-key={row.key}
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <div className="flex flex-wrap items-center justify-center gap-2">
-                                  {isDraft ? (
-                                    <ActionLink
-                                      to={openHref}
-                                      label="Resume draft"
-                                      icon={<Pencil aria-hidden="true" className="h-4 w-4" />}
-                                      disabled={Boolean(l.ownerBlockEdit)}
-                                    />
-                                  ) : !isSold ? (
-                                    <>
+                                <div className="w-full px-4">
+                                  <div className="mx-auto max-w-4xl" data-row-key={row.key} onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex flex-wrap items-center justify-center gap-2">
+                                      {isDraft ? (
+                                        <ActionLink
+                                          to={openHref}
+                                          label="Resume draft"
+                                          icon={<Pencil aria-hidden="true" className="h-4 w-4" />}
+                                          disabled={Boolean(w.ownerBlockEdit)}
+                                        />
+                                      ) : (
+                                        <>
+                                          {(() => {
+                                            const canFeature = w.status === "active" && !w.ownerBlockFeaturing;
+                                            return (
+                                              <ActionButton
+                                                label={w.featured ? "Manage featuring" : "Feature this listing"}
+                                                title={
+                                                  !canFeature
+                                                    ? "Only active wanted posts can be featured."
+                                                    : w.featured
+                                                      ? "Manage featuring"
+                                                      : "Feature this listing"
+                                                }
+                                                variant="feature"
+                                                disabled={!canFeature}
+                                                onClick={() => nav(`/feature/${encodeURIComponent(w.id)}`)}
+                                                icon={w.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
+                                              />
+                                            );
+                                          })()}
+                                          <ActionLink
+                                            to={`/edit/wanted/${w.id}`}
+                                            label="Edit"
+                                            icon={<Pencil aria-hidden="true" className="h-4 w-4" />}
+                                            disabled={Boolean(w.ownerBlockEdit)}
+                                          />
+                                          <ActionButton
+                                            label={w.status === "paused" ? "Resume" : "Pause"}
+                                            title={w.status === "paused" ? "Resume" : "Pause"}
+                                            disabled={(w.status !== "active" && w.status !== "paused") || Boolean(w.ownerBlockPauseResume)}
+                                            onClick={() => onPauseResumeWanted(w)}
+                                            icon={w.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
+                                          />
+                                          <ActionButton
+                                            label="Mark as Closed"
+                                            title="Mark as Closed"
+                                            variant="primary"
+                                            disabled={(w.status !== "active" && w.status !== "paused") || Boolean(w.ownerBlockStatusChanges)}
+                                            onClick={() => onCloseWanted(w)}
+                                            icon={<Check aria-hidden="true" className="h-4 w-4" />}
+                                          />
+                                        </>
+                                      )}
                                       <ActionButton
-                                        label={l.featured ? "Manage featuring" : "Feature this listing"}
-                                        title={
-                                          !canFeature
-                                            ? "Only active, unsold listings can be featured."
-                                            : l.featured
-                                              ? "Manage featuring"
-                                              : "Feature this listing"
-                                        }
-                                        variant="feature"
-                                        disabled={!canFeature}
-                                        onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
-                                        icon={l.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
+                                        label="Delete"
+                                        title="Delete wanted post"
+                                        variant="danger"
+                                        onClick={() => onDeleteWanted(w)}
+                                        icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
                                       />
-
-                                      <ActionLink
-                                        to={`/edit/sale/${l.id}`}
-                                        label="Edit"
-                                        icon={<Pencil aria-hidden="true" className="h-4 w-4" />}
-                                        disabled={Boolean(l.ownerBlockEdit)}
-                                      />
-
-                                      <ActionButton
-                                        label={toggleTitle}
-                                        title={toggleTitle}
-                                        disabled={!canToggle}
-                                        onClick={() => doTogglePauseResume(l)}
-                                        icon={l.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
-                                      />
-
-                                      <ActionButton
-                                        label="Mark sold"
-                                        title="Mark as sold"
-                                        variant="primary"
-                                        disabled={!canResolve}
-                                        onClick={() => doSold(l.id)}
-                                        icon={<Check aria-hidden="true" className="h-4 w-4" />}
-                                      />
-                                    </>
-                                  ) : (
-                                    <ActionButton
-                                      label="Relist"
-                                      title="Relist"
-                                      variant="primary"
-                                      disabled={Boolean(l.ownerBlockStatusChanges)}
-                                      onClick={() => doRelist(l.id)}
-                                      icon={<RotateCcw aria-hidden="true" className="h-4 w-4" />}
-                                    />
-                                  )}
-
-                                  <ActionButton
-                                    label="Delete"
-                                    title="Delete"
-                                    variant="danger"
-                                    onClick={() => onDelete(l)}
-                                    icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
-                                  />
-                                </div>
-
-                                {(Boolean(l.ownerBlockEdit) ||
-                                  Boolean(l.ownerBlockPauseResume) ||
-                                  Boolean(l.ownerBlockStatusChanges) ||
-                                  Boolean(l.ownerBlockFeaturing) ||
-                                  Boolean(l.ownerBlockReason)) && (
-                                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                                      <div className="font-extrabold">Moderation restrictions</div>
-                                      <div className="mt-1 text-sm font-semibold">
-                                        {l.ownerBlockEdit ? "Edit disabled. " : ""}
-                                        {l.ownerBlockPauseResume ? "Pause/Resume disabled. " : ""}
-                                        {l.ownerBlockStatusChanges ? "Status changes disabled. " : ""}
-                                        {l.ownerBlockFeaturing ? "Featuring disabled. " : ""}
-                                      </div>
-                                      {l.ownerBlockReason ? <div className="mt-2 text-sm font-semibold">Reason: {l.ownerBlockReason}</div> : null}
                                     </div>
-                                  )}
+
+                                    {(Boolean(w.ownerBlockEdit) ||
+                                      Boolean(w.ownerBlockPauseResume) ||
+                                      Boolean(w.ownerBlockStatusChanges) ||
+                                      Boolean(w.ownerBlockFeaturing) ||
+                                      Boolean(w.ownerBlockReason)) && (
+                                        <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                                          <div className="font-extrabold">Moderation restrictions</div>
+                                          <div className="mt-1 text-sm font-semibold">
+                                            {w.ownerBlockEdit ? "Edit disabled. " : ""}
+                                            {w.ownerBlockPauseResume ? "Pause/Resume disabled. " : ""}
+                                            {w.ownerBlockStatusChanges ? "Status changes disabled. " : ""}
+                                            {w.ownerBlockFeaturing ? "Featuring disabled. " : ""}
+                                          </div>
+                                          {w.ownerBlockReason ? <div className="mt-2 text-sm font-semibold">Reason: {w.ownerBlockReason}</div> : null}
+                                        </div>
+                                      )}
+                                  </div>
+                                </div>
                               </div>
                             </td>
                           </tr>
                         )}
                       </tbody>
                     );
-                  }
-
-                  const w = row.wanted!;
-                  const assets = resolveAssets(w.images ?? []);
-                  const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
-                  const openHref = w.status === "draft" ? `/post/wanted?draft=${encodeURIComponent(w.id)}` : `/listing/wanted/${w.id}`;
-                  const isDraft = w.status === "draft";
-
-                  return (
-                    <tbody key={row.key} className="group">
-                      <tr
-                        className={["cursor-pointer transition-colors group-hover:bg-slate-50/70", rowBorder].join(" ")}
-                        data-row-key={row.key}
-                        onClick={() => expandRow(row.key)}
-                      >
-                        <td className="px-4 py-4 align-top text-left">
-                          <div className="flex min-h-20 items-center gap-3">
-                            <Link
-                              to={openHref}
-                              state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
-                              onClick={(e) => e.stopPropagation()}
-                              className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
-                            >
-                              {hero ? (
-                                <img src={hero} alt={w.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                              ) : (
-                                <NoPhotoPlaceholder variant="tile" className="px-1 text-center" />
-                              )}
-                            </Link>
-
-                            <div className="flex h-20 min-w-0 flex-1 flex-col justify-center">
-                              <Link
-                                to={openHref}
-                                state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
-                              >
-                                {w.title}
-                              </Link>
-                              <div className="mt-1 flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-600">
-                                <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
-                                  Wanted
-                                </span>
-                              </div>
-                              <div className="mt-1">{renderFeaturedTextAny(w.featuredUntil ?? null)}</div>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 align-top text-right">
-                          <div className="text-sm font-extrabold text-slate-900">{budgetLabel(w)}</div>
-                        </td>
-
-                        <td className="px-4 py-4 align-top text-right">
-                          <div className="text-sm font-semibold text-slate-700">{Number(w.views ?? 0).toLocaleString()}</div>
-                        </td>
-
-                        <td className="px-4 py-4 align-top text-left">
-                          <WantedStatusText w={w} />
-                        </td>
-
-                        <td className="px-4 py-4 align-top text-left">
-                          {w.publishedAt ? (
-                            <div className="text-sm font-semibold leading-tight text-slate-700">
-                              <div>{new Date(w.publishedAt).toLocaleDateString()}</div>
-                              <div className="text-xs font-semibold text-slate-600">
-                                {new Date(w.publishedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-sm font-semibold text-slate-700">—</div>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-4 align-top text-left">
-                          <div className="text-sm font-semibold leading-tight text-slate-700">
-                            <div>{new Date(w.createdAt).toLocaleDateString()}</div>
-                            <div className="text-xs font-semibold text-slate-600">
-                              {new Date(w.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 align-top text-left">
-                          <div className="text-sm font-semibold text-slate-700" title={new Date(w.updatedAt).toLocaleString()}>
-                            {relativeTime(w.updatedAt)}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 align-top text-right">
-                          <div className="text-sm font-semibold text-slate-700" title={w.expiresAt ? new Date(w.expiresAt).toLocaleString() : ""}>
-                            {expiresInShort(w.expiresAt)}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 align-top text-center">
-                          <div
-                            className="flex justify-center"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (isExpanded) setExpandedId(null);
-                              else expandRow(row.key);
-                            }}
-                          >
-                            <ActionButton label={isExpanded ? "Hide" : "Actions"} title={isExpanded ? "Hide actions" : "Show actions"} />
-                          </div>
-                        </td>
-                      </tr>
-
-                      {isExpanded && (
-                        <tr className="transition-colors group-hover:bg-slate-50/70" data-row-key={row.key}>
-                          <td colSpan={9} className="px-4 pb-4 pt-0" data-row-key={row.key} onClick={(e) => e.stopPropagation()}>
-                            <div
-                              className="mx-auto max-w-4xl"
-                              data-row-key={row.key}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div className="flex flex-wrap items-center justify-center gap-2">
-                                {isDraft ? (
-                                  <ActionLink
-                                    to={openHref}
-                                    label="Resume draft"
-                                    icon={<Pencil aria-hidden="true" className="h-4 w-4" />}
-                                    disabled={Boolean(w.ownerBlockEdit)}
-                                  />
-                                ) : (
-                                  <>
-                                    {(() => {
-                                      const canFeature = w.status === "active" && !w.ownerBlockFeaturing;
-                                      return (
-                                        <ActionButton
-                                          label={w.featured ? "Manage featuring" : "Feature this listing"}
-                                          title={
-                                            !canFeature
-                                              ? "Only active wanted posts can be featured."
-                                              : w.featured
-                                                ? "Manage featuring"
-                                                : "Feature this listing"
-                                          }
-                                          variant="feature"
-                                          disabled={!canFeature}
-                                          onClick={() => nav(`/feature/${encodeURIComponent(w.id)}`)}
-                                          icon={w.featured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : undefined}
-                                        />
-                                      );
-                                    })()}
-                                    <ActionLink
-                                      to={`/edit/wanted/${w.id}`}
-                                      label="Edit"
-                                      icon={<Pencil aria-hidden="true" className="h-4 w-4" />}
-                                      disabled={Boolean(w.ownerBlockEdit)}
-                                    />
-                                    <ActionButton
-                                      label={w.status === "paused" ? "Resume" : "Pause"}
-                                      title={w.status === "paused" ? "Resume" : "Pause"}
-                                      disabled={(w.status !== "active" && w.status !== "paused") || Boolean(w.ownerBlockPauseResume)}
-                                      onClick={() => onPauseResumeWanted(w)}
-                                      icon={w.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
-                                    />
-                                    <ActionButton
-                                      label="Mark as Closed"
-                                      title="Mark as Closed"
-                                      variant="primary"
-                                      disabled={(w.status !== "active" && w.status !== "paused") || Boolean(w.ownerBlockStatusChanges)}
-                                      onClick={() => onCloseWanted(w)}
-                                      icon={<Check aria-hidden="true" className="h-4 w-4" />}
-                                    />
-                                  </>
-                                )}
-                                <ActionButton
-                                  label="Delete"
-                                  title="Delete wanted post"
-                                  variant="danger"
-                                  onClick={() => onDeleteWanted(w)}
-                                  icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
-                                />
-                              </div>
-
-                              {(Boolean(w.ownerBlockEdit) ||
-                                Boolean(w.ownerBlockPauseResume) ||
-                                Boolean(w.ownerBlockStatusChanges) ||
-                                Boolean(w.ownerBlockFeaturing) ||
-                                Boolean(w.ownerBlockReason)) && (
-                                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                                    <div className="font-extrabold">Moderation restrictions</div>
-                                    <div className="mt-1 text-sm font-semibold">
-                                      {w.ownerBlockEdit ? "Edit disabled. " : ""}
-                                      {w.ownerBlockPauseResume ? "Pause/Resume disabled. " : ""}
-                                      {w.ownerBlockStatusChanges ? "Status changes disabled. " : ""}
-                                      {w.ownerBlockFeaturing ? "Featuring disabled. " : ""}
-                                    </div>
-                                    {w.ownerBlockReason ? <div className="mt-2 text-sm font-semibold">Reason: {w.ownerBlockReason}</div> : null}
-                                  </div>
-                                )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  );
-                })}
-              </table>
+                  })}
+                </table>
+              </div>
             </div>
-          </div>
+            <FloatingHScrollbar scrollRef={tableScrollRef} deps={[displayRows.length, viewType, includeResolved, expandedId]} />
+          </>
         ) : null}
       </main>
     </div>

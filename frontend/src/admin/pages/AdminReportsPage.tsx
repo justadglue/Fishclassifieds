@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminFetchReports, adminReportAction, type AdminReport, type AdminReportAction } from "../../api";
 import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
+import FloatingHScrollbar from "../../components/FloatingHScrollbar";
 
 function fmtIso(iso: string) {
   const t = Date.parse(String(iso));
@@ -11,6 +12,7 @@ function fmtIso(iso: string) {
 }
 
 export default function AdminReportsPage() {
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<"open" | "resolved">("open");
   const [items, setItems] = useState<AdminReport[]>([]);
   const [total, setTotal] = useState(0);
@@ -166,7 +168,7 @@ export default function AdminReportsPage() {
       </div>
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" ref={tableScrollRef}>
           <div className="grid w-max min-w-full grid-cols-[120px_140px_170px_170px_170px_1fr_220px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
             <SortHeaderCell label="Created" k="createdAt" sort={sort} onToggle={toggleSort} />
             <SortHeaderCell label="Target" k="target" sort={sort} onToggle={toggleSort} />
@@ -251,6 +253,7 @@ export default function AdminReportsPage() {
           </div>
         </div>
       </div>
+      <FloatingHScrollbar scrollRef={tableScrollRef} deps={[items.length, status, limit, offset]} />
 
       <PrevNext
         canPrev={canPrev}

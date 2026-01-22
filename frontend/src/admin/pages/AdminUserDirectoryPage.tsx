@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminFetchUserDirectory, resolveImageUrl, type AdminUserDirectoryItem } from "../../api";
 import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
+import FloatingHScrollbar from "../../components/FloatingHScrollbar";
 
 function DefaultAvatar() {
   return (
@@ -45,6 +46,7 @@ function fmtAgo(iso: string | null | undefined) {
 }
 
 export default function AdminUserDirectoryPage() {
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const [q, setQ] = useState("");
   const [items, setItems] = useState<AdminUserDirectoryItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -161,7 +163,7 @@ export default function AdminUserDirectoryPage() {
       {err ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div> : null}
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" ref={tableScrollRef}>
           <div className="grid w-max min-w-full grid-cols-[1fr_200px_180px_110px_140px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
             <SortHeaderCell label="User" k="user" sort={sort} onToggle={toggleSort} />
             <SortHeaderCell label="Last active" k="lastActive" sort={sort} onToggle={toggleSort} />
@@ -216,6 +218,7 @@ export default function AdminUserDirectoryPage() {
           </div>
         </div>
       </div>
+      <FloatingHScrollbar scrollRef={tableScrollRef} deps={[items.length, q, limit, offset]} />
 
       <PrevNext
         canPrev={canPrev}

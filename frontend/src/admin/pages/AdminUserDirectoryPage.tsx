@@ -161,57 +161,59 @@ export default function AdminUserDirectoryPage() {
       {err ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div> : null}
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="grid grid-cols-[1fr_200px_180px_110px_140px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
-          <SortHeaderCell label="User" k="user" sort={sort} onToggle={toggleSort} />
-          <SortHeaderCell label="Last active" k="lastActive" sort={sort} onToggle={toggleSort} />
-          <SortHeaderCell label="Moderation" k="moderation" sort={sort} onToggle={toggleSort} />
-          <SortHeaderCell label="Admin" k="admin" sort={sort} onToggle={toggleSort} />
-          <SortHeaderCell label="Superadmin" k="superadmin" sort={sort} onToggle={toggleSort} />
-        </div>
-        <div className="divide-y divide-slate-200">
-          {!loading && items.length === 0 ? <div className="p-4 text-sm text-slate-600">No users found.</div> : null}
-          {displayItems.map((u) => {
-            const mod = u.moderation?.status ?? "active";
-            const modText =
-              mod === "active"
-                ? "Active"
-                : mod === "banned"
-                  ? "Banned"
-                  : u.moderation.suspendedUntil
-                    ? `Suspended until ${fmtUntil(u.moderation.suspendedUntil)}`
-                    : "Suspended";
-            return (
-              <div key={u.id} className="grid grid-cols-[1fr_200px_180px_110px_140px] gap-3 p-4">
-                <div className="min-w-0">
-                  <div className="flex min-w-0 items-start gap-3">
-                    {u.avatarUrl ? (
-                      <img
-                        src={resolveImageUrl(u.avatarUrl) ?? u.avatarUrl}
-                        alt=""
-                        className="h-10 w-10 shrink-0 rounded-full border border-slate-200 object-cover"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : (
-                      <DefaultAvatar />
-                    )}
-                    <div className="min-w-0">
-                      <Link to={`/admin/users/${u.id}`} className="block truncate text-sm font-extrabold text-slate-900 underline underline-offset-4">
-                        {u.username}
-                      </Link>
-                      <div className="truncate text-xs font-semibold text-slate-600">{u.email}</div>
+        <div className="overflow-x-auto">
+          <div className="grid w-max min-w-full grid-cols-[1fr_200px_180px_110px_140px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
+            <SortHeaderCell label="User" k="user" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Last active" k="lastActive" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Moderation" k="moderation" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Admin" k="admin" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Superadmin" k="superadmin" sort={sort} onToggle={toggleSort} />
+          </div>
+          <div className="divide-y divide-slate-200">
+            {!loading && items.length === 0 ? <div className="p-4 text-sm text-slate-600">No users found.</div> : null}
+            {displayItems.map((u) => {
+              const mod = u.moderation?.status ?? "active";
+              const modText =
+                mod === "active"
+                  ? "Active"
+                  : mod === "banned"
+                    ? "Banned"
+                    : u.moderation.suspendedUntil
+                      ? `Suspended until ${fmtUntil(u.moderation.suspendedUntil)}`
+                      : "Suspended";
+              return (
+                <div key={u.id} className="grid w-max min-w-full grid-cols-[1fr_200px_180px_110px_140px] gap-3 p-4">
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-start gap-3">
+                      {u.avatarUrl ? (
+                        <img
+                          src={resolveImageUrl(u.avatarUrl) ?? u.avatarUrl}
+                          alt=""
+                          className="h-10 w-10 shrink-0 rounded-full border border-slate-200 object-cover"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : (
+                        <DefaultAvatar />
+                      )}
+                      <div className="min-w-0">
+                        <Link to={`/admin/users/${u.id}`} className="block truncate text-sm font-extrabold text-slate-900 underline underline-offset-4">
+                          {u.username}
+                        </Link>
+                        <div className="truncate text-xs font-semibold text-slate-600">{u.email}</div>
+                      </div>
                     </div>
                   </div>
+                  <div className="text-sm font-semibold text-slate-700" title={fmtIso(u.lastActiveAt)}>
+                    {fmtAgo(u.lastActiveAt)}
+                  </div>
+                  <div className="text-sm font-semibold text-slate-700">{modText}</div>
+                  <div className="text-sm font-semibold text-slate-700">{u.isAdmin ? "On" : "Off"}</div>
+                  <div className="text-sm font-semibold text-slate-700">{u.isSuperadmin ? "On" : "Off"}</div>
                 </div>
-                <div className="text-sm font-semibold text-slate-700" title={fmtIso(u.lastActiveAt)}>
-                  {fmtAgo(u.lastActiveAt)}
-                </div>
-                <div className="text-sm font-semibold text-slate-700">{modText}</div>
-                <div className="text-sm font-semibold text-slate-700">{u.isAdmin ? "On" : "Off"}</div>
-                <div className="text-sm font-semibold text-slate-700">{u.isSuperadmin ? "On" : "Off"}</div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
 

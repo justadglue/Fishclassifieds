@@ -163,45 +163,47 @@ export default function AdminAuditPage() {
       {err ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div> : null}
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="grid grid-cols-[180px_220px_1fr_1fr_160px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
-          <SortHeaderCell label="When" k="when" sort={sort} onToggle={toggleSort} />
-          <SortHeaderCell label="Actor" k="actor" sort={sort} onToggle={toggleSort} />
-          <SortHeaderCell label="Action" k="action" sort={sort} onToggle={toggleSort} />
-          <SortHeaderCell label="Target" k="target" sort={sort} onToggle={toggleSort} />
-          <SortHeaderCell label="Meta" k="meta" sort={sort} onToggle={toggleSort} align="center" />
-        </div>
-        <div className="divide-y divide-slate-200">
-          {!loading && items.length === 0 ? <div className="p-4 text-sm text-slate-600">No audit entries.</div> : null}
-          {displayItems.map((it) => (
-            <div key={it.id} className="grid grid-cols-[180px_220px_1fr_1fr_160px] gap-3 p-4">
-              <div className="text-xs font-semibold text-slate-700">{fmtIso(it.createdAt)}</div>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-extrabold text-slate-900">{it.actor.username ?? `User ${it.actor.userId}`}</div>
-                <div className="truncate text-xs font-semibold text-slate-600">{it.actor.email ?? ""}</div>
-              </div>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-slate-800">{it.action}</div>
-              </div>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-slate-800">
-                  {it.targetKind} • {it.targetId}
+        <div className="overflow-x-auto">
+          <div className="grid w-max min-w-full grid-cols-[180px_220px_1fr_1fr_160px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
+            <SortHeaderCell label="When" k="when" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Actor" k="actor" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Action" k="action" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Target" k="target" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Meta" k="meta" sort={sort} onToggle={toggleSort} align="center" />
+          </div>
+          <div className="divide-y divide-slate-200">
+            {!loading && items.length === 0 ? <div className="p-4 text-sm text-slate-600">No audit entries.</div> : null}
+            {displayItems.map((it) => (
+              <div key={it.id} className="grid w-max min-w-full grid-cols-[180px_220px_1fr_1fr_160px] gap-3 p-4">
+                <div className="text-xs font-semibold text-slate-700">{fmtIso(it.createdAt)}</div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-extrabold text-slate-900">{it.actor.username ?? `User ${it.actor.userId}`}</div>
+                  <div className="truncate text-xs font-semibold text-slate-600">{it.actor.email ?? ""}</div>
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-slate-800">{it.action}</div>
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-slate-800">
+                    {it.targetKind} • {it.targetId}
+                  </div>
+                </div>
+                <div>
+                  {it.metaJson ? (
+                    <button
+                      type="button"
+                      onClick={() => window.alert(it.metaJson)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-50"
+                    >
+                      View
+                    </button>
+                  ) : (
+                    <div className="text-xs font-semibold text-slate-500">—</div>
+                  )}
                 </div>
               </div>
-              <div>
-                {it.metaJson ? (
-                  <button
-                    type="button"
-                    onClick={() => window.alert(it.metaJson)}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-50"
-                  >
-                    View
-                  </button>
-                ) : (
-                  <div className="text-xs font-semibold text-slate-500">—</div>
-                )}
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 

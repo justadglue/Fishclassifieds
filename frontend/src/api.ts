@@ -269,6 +269,7 @@ export type AdminReport = {
   createdAt: string;
   updatedAt: string;
   reporter: { userId: number; username: string; email: string };
+  owner: { userId: number; username: string; email: string } | null;
   resolvedByUserId: number | null;
   resolvedNote: string | null;
 };

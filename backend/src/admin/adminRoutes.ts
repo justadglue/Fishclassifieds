@@ -1460,6 +1460,8 @@ router.get("/reports", (req, res) => {
         return `lower(COALESCE(r.reason,'')) ${dirSql}, r.id ${dirSql}`;
       case "reporter":
         return `lower(COALESCE(u.username,'') || '\n' || COALESCE(u.email,'')) ${dirSql}, r.id ${dirSql}`;
+      case "owner":
+        return `lower(COALESCE(ou.username,'') || '\n' || COALESCE(ou.email,'')) ${dirSql}, r.id ${dirSql}`;
       default:
         return `r.created_at DESC, r.id DESC`;
     }
@@ -1472,9 +1474,12 @@ router.get("/reports", (req, res) => {
     .prepare(
       `
 SELECT r.*,
-       u.username as reporter_username,u.email as reporter_email
+       u.username as reporter_username,u.email as reporter_email,
+       ou.id as owner_user_id, ou.username as owner_username, ou.email as owner_email
 FROM reports r
 JOIN users u ON u.id = r.reporter_user_id
+LEFT JOIN listings l ON l.id = r.target_id AND l.listing_type = (CASE WHEN r.target_kind = 'wanted' THEN 1 ELSE 0 END)
+LEFT JOIN users ou ON ou.id = l.user_id
 WHERE r.status = ?
 ORDER BY ${orderBySql}
 LIMIT ? OFFSET ?
@@ -1492,6 +1497,10 @@ LIMIT ? OFFSET ?
     createdAt: String(r.created_at),
     updatedAt: String(r.updated_at),
     reporter: { userId: Number(r.reporter_user_id), username: String(r.reporter_username ?? ""), email: String(r.reporter_email ?? "") },
+    owner:
+      r.owner_user_id != null
+        ? { userId: Number(r.owner_user_id), username: String(r.owner_username ?? ""), email: String(r.owner_email ?? "") }
+        : null,
     resolvedByUserId: r.resolved_by_user_id != null ? Number(r.resolved_by_user_id) : null,
     resolvedNote: r.resolved_note != null ? String(r.resolved_note) : null,
   }));
@@ -1507,9 +1516,12 @@ router.get("/reports/:id", (req, res) => {
     .prepare(
       `
 SELECT r.*,
-       u.username as reporter_username,u.email as reporter_email
+       u.username as reporter_username,u.email as reporter_email,
+       ou.id as owner_user_id, ou.username as owner_username, ou.email as owner_email
 FROM reports r
 JOIN users u ON u.id = r.reporter_user_id
+LEFT JOIN listings l ON l.id = r.target_id AND l.listing_type = (CASE WHEN r.target_kind = 'wanted' THEN 1 ELSE 0 END)
+LEFT JOIN users ou ON ou.id = l.user_id
 WHERE r.id = ?
 `
     )
@@ -1526,6 +1538,10 @@ WHERE r.id = ?
       createdAt: String(r.created_at),
       updatedAt: String(r.updated_at),
       reporter: { userId: Number(r.reporter_user_id), username: String(r.reporter_username ?? ""), email: String(r.reporter_email ?? "") },
+      owner:
+        r.owner_user_id != null
+          ? { userId: Number(r.owner_user_id), username: String(r.owner_username ?? ""), email: String(r.owner_email ?? "") }
+          : null,
       resolvedByUserId: r.resolved_by_user_id != null ? Number(r.resolved_by_user_id) : null,
       resolvedNote: r.resolved_note != null ? String(r.resolved_note) : null,
     },

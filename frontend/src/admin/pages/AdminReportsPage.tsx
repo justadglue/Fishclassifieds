@@ -57,6 +57,7 @@ export default function AdminReportsPage() {
     target: "asc",
     reason: "asc",
     reporter: "asc",
+    owner: "asc",
   };
 
   function toggleSort(next: string) {
@@ -166,11 +167,12 @@ export default function AdminReportsPage() {
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
-          <div className="grid min-w-[980px] grid-cols-[160px_170px_220px_220px_1fr_260px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
+          <div className="grid w-max min-w-full grid-cols-[120px_140px_170px_170px_170px_1fr_220px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
             <SortHeaderCell label="Created" k="createdAt" sort={sort} onToggle={toggleSort} />
             <SortHeaderCell label="Target" k="target" sort={sort} onToggle={toggleSort} />
             <SortHeaderCell label="Reason" k="reason" sort={sort} onToggle={toggleSort} />
             <SortHeaderCell label="Reporter" k="reporter" sort={sort} onToggle={toggleSort} />
+            <SortHeaderCell label="Owner" k="owner" sort={sort} onToggle={toggleSort} />
             <div className="px-2 py-1">Details</div>
             <div className="px-2 py-1 text-center">Actions</div>
           </div>
@@ -178,8 +180,10 @@ export default function AdminReportsPage() {
           <div className="divide-y divide-slate-200">
             {!loading && displayItems.length === 0 ? <div className="p-4 text-sm text-slate-600">No reports.</div> : null}
             {displayItems.map((r) => (
-              <div key={r.id} className="grid min-w-[980px] grid-cols-[160px_170px_220px_220px_1fr_260px] gap-3 p-4">
-                <div className="text-xs font-semibold text-slate-700">{fmtIso(r.createdAt)}</div>
+              <div key={r.id} className="grid w-max min-w-full grid-cols-[120px_140px_170px_170px_170px_1fr_220px] gap-3 p-4">
+                <div className="text-xs font-semibold text-slate-700" title={fmtIso(r.createdAt)}>
+                  {fmtIso(r.createdAt)}
+                </div>
                 <div className="min-w-0">
                   <div className="truncate text-sm font-semibold text-slate-800">
                     {r.targetKind} • {r.targetId}
@@ -196,7 +200,17 @@ export default function AdminReportsPage() {
                 </div>
                 <div className="min-w-0">
                   <div className="truncate text-sm font-semibold text-slate-800">{r.reporter.username}</div>
-                  <div className="truncate text-xs font-semibold text-slate-600">{r.reporter.email}</div>
+                  <div className="truncate text-xs font-semibold text-slate-600 hidden lg:block">{r.reporter.email}</div>
+                </div>
+                <div className="min-w-0">
+                  {r.owner ? (
+                    <>
+                      <div className="truncate text-sm font-semibold text-slate-800">{r.owner.username}</div>
+                      <div className="truncate text-xs font-semibold text-slate-600 hidden lg:block">{r.owner.email}</div>
+                    </>
+                  ) : (
+                    <div className="text-sm text-slate-500">—</div>
+                  )}
                 </div>
                 <div className="min-w-0">
                   {r.details ? <div className="line-clamp-2 text-sm text-slate-700">{r.details}</div> : <div className="text-sm text-slate-500">—</div>}
@@ -204,13 +218,13 @@ export default function AdminReportsPage() {
                     <div className="mt-1 line-clamp-2 text-xs font-semibold text-slate-600">Resolved note: {r.resolvedNote}</div>
                   ) : null}
                 </div>
-                <div className="flex flex-wrap justify-center gap-2">
+                <div className="flex flex-col items-center justify-center gap-2 sm:flex-row sm:justify-center">
                   {status === "open" ? (
                     <>
                       <select
                         value={actionById[r.id] ?? "resolve_only"}
                         onChange={(e) => setActionById((prev) => ({ ...prev, [r.id]: e.target.value as any }))}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-slate-400"
+                        className="w-full max-w-[200px] rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-bold text-slate-800 outline-none focus:border-slate-400 sm:w-auto"
                         title="Choose an action and apply it (this resolves the report)."
                       >
                         <option value="resolve_only">Resolve only</option>
@@ -222,7 +236,7 @@ export default function AdminReportsPage() {
                       <button
                         type="button"
                         onClick={() => doAction(r)}
-                        className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+                        className="w-full max-w-[200px] rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60 sm:w-auto"
                         disabled={loading}
                       >
                         Apply

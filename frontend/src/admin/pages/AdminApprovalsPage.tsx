@@ -134,7 +134,7 @@ export default function AdminApprovalsPage() {
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
-          <div className="grid min-w-[980px] grid-cols-[160px_110px_1fr_160px_200px_220px_160px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
+          <div className="grid w-max min-w-full grid-cols-[160px_110px_1fr_160px_200px_220px_160px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
             <SortHeaderCell label="Created" k="createdAt" sort={sort} onToggle={toggleSort} />
             <SortHeaderCell label="Type" k="kind" sort={sort} onToggle={toggleSort} />
             <SortHeaderCell label="Title" k="title" sort={sort} onToggle={toggleSort} />
@@ -149,7 +149,7 @@ export default function AdminApprovalsPage() {
             {displayItems.map((it) => (
               <div
                 key={`${it.kind}-${it.id}`}
-                className="grid min-w-[980px] grid-cols-[160px_110px_1fr_160px_200px_220px_160px] gap-3 p-4"
+                className="grid w-max min-w-full grid-cols-[160px_110px_1fr_160px_200px_220px_160px] gap-3 p-4"
               >
                 <div className="text-xs font-semibold text-slate-700">{fmtIso(it.createdAt)}</div>
                 <div>

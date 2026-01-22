@@ -233,7 +233,7 @@ export default function AdminListingsPage() {
     const [kind, setKind] = useState<KindFilter>("all");
     const [status, setStatus] = useState<StatusFilter>("all");
     const [featuredOnly, setFeaturedOnly] = useState(false);
-    const [includeDeleted, setIncludeDeleted] = useState(false);
+    const [includeDeleted, setIncludeDeleted] = useState(true);
     const [restrictions, setRestrictions] = useState<RestrictionsFilter>("all");
 
     const [items, setItems] = useState<AdminListingListItem[]>([]);

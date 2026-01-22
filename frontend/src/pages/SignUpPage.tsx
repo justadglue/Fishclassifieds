@@ -62,7 +62,7 @@ export default function SignUpPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <button
             onClick={() => navigate("/")}
             className="text-sm font-semibold text-slate-600 hover:text-slate-900"
@@ -81,7 +81,7 @@ export default function SignUpPage() {
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-6xl justify-center px-6 py-10">
+      <main className="mx-auto flex max-w-7xl justify-center px-6 py-10">
         <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Create account</h1>
           <p className="mt-1 text-sm text-slate-600">Sign up to manage your listings.</p>

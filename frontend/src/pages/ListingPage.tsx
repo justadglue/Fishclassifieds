@@ -267,8 +267,8 @@ export default function ListingPage() {
 
   return (
     <div className="min-h-full">
-      <Header maxWidth="5xl" />
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <Header maxWidth="7xl" />
+      <main className="mx-auto max-w-7xl px-4 py-6">
         {(() => {
           const from = (location.state as any)?.from as
             | { pathname: string; search?: string; label?: string }
@@ -729,7 +729,7 @@ export default function ListingPage() {
           role="dialog"
         >
           <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="relative w-full max-w-6xl">
+            <div className="relative w-full max-w-7xl">
               <button
                 type="button"
                 onClick={closeLightbox}

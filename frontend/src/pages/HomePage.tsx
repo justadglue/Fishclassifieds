@@ -322,7 +322,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-full">
-      <Header maxWidth="6xl" />
+      <Header maxWidth="7xl" />
 
       {/* Hero Section with Quick Actions */}
       <div className="relative">
@@ -356,7 +356,7 @@ export default function HomePage() {
           aria-hidden="true"
         />
 
-        <main className="mx-auto max-w-6xl px-4 py-14 sm:py-20">
+        <main className="mx-auto max-w-7xl px-4 py-14 sm:py-20">
           <div className="max-w-3xl">
             <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl">Australia's aquarium marketplace</h1>
           </div>
@@ -458,7 +458,7 @@ export default function HomePage() {
 
       {/* Featured Listings Section with Gradient Background */}
       <div className="relative bg-slate-50">
-        <main className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
+        <main className="mx-auto max-w-7xl px-4 py-10 sm:py-14">
           <section>
             <div className="flex items-end justify-between gap-4">
               <div>
@@ -797,7 +797,7 @@ export default function HomePage() {
         </main>
 
         <footer className="border-t border-slate-200">
-          <div className="mx-auto max-w-6xl px-4 py-10">
+          <div className="mx-auto max-w-7xl px-4 py-10">
             <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
               <div className="text-center">
                 <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Explore</div>

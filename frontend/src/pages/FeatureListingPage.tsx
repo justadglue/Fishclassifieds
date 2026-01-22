@@ -90,8 +90,8 @@ export default function FeatureListingPage() {
 
   return (
     <div className="min-h-full">
-      <Header maxWidth="5xl" />
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <Header maxWidth="7xl" />
+      <main className="mx-auto max-w-7xl px-4 py-6">
         <Link to="/me" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
           ← Back to My listings
         </Link>

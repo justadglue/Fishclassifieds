@@ -308,8 +308,8 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-full">
-      <Header maxWidth="5xl" />
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <Header maxWidth="7xl" />
+      <main className="mx-auto max-w-7xl px-4 py-6">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-extrabold text-slate-900">My profile</h1>

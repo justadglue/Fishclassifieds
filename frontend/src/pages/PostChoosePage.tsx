@@ -50,7 +50,7 @@ export default function PostChoosePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <Header maxWidth="6xl" />
+      <Header maxWidth="7xl" />
       <main className="mx-auto grid w-full max-w-4xl flex-1 grid-rows-[1fr_auto_1fr] px-4 py-10">
         {/* Heading sits above, but the *buttons* are what get vertically centered */}
         <div className="flex items-end justify-center pb-6">

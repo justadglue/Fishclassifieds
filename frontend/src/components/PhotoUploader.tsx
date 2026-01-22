@@ -511,7 +511,7 @@ export default forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
             role="dialog"
           >
             <div className="absolute inset-0 flex items-center justify-center p-4">
-              <div className="relative w-full max-w-6xl">
+              <div className="relative w-full max-w-7xl">
                 <button
                   type="button"
                   onClick={closeLightbox}

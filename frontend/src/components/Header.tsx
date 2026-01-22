@@ -5,10 +5,11 @@ import { User, Search, X, Bell } from "lucide-react";
 import { createPortal } from "react-dom";
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "../api";
 
-export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
+export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" | "7xl" }) {
   const { user, loading, logout } = useAuth();
   const nav = useNavigate();
-  const maxWidth = props.maxWidth ?? "6xl";
+  // Site-standard width (matches My Listings page content width).
+  const maxWidth = props.maxWidth ?? "7xl";
 
   const NOTIF_INITIAL = 5;
   const NOTIF_PAGE = 6;
@@ -225,7 +226,14 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
     nav("/");
   }
 
-  const shell = maxWidth === "3xl" ? "max-w-3xl" : maxWidth === "5xl" ? "max-w-5xl" : "max-w-6xl";
+  const shell =
+    maxWidth === "3xl"
+      ? "max-w-3xl"
+      : maxWidth === "5xl"
+        ? "max-w-5xl"
+        : maxWidth === "6xl"
+          ? "max-w-6xl"
+          : "max-w-7xl";
 
   return (
     <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
@@ -461,62 +469,62 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" }) {
                 <span className="sr-only">{accountLabel}</span>
               </button>
 
-            {open &&
-              typeof document !== "undefined" &&
-              createPortal(
-                <div
-                  ref={menuPanelRef}
-                  role="menu"
-                  className="fixed z-50 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
-                  style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
-                >
-                  <div className="border-b border-slate-100 px-4 py-3">
-                    <div className="text-xs font-semibold text-slate-500">Signed in as</div>
-                    <div className="mt-1 truncate text-sm font-bold text-slate-900">{accountLabel}</div>
-                  </div>
+              {open &&
+                typeof document !== "undefined" &&
+                createPortal(
+                  <div
+                    ref={menuPanelRef}
+                    role="menu"
+                    className="fixed z-50 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+                    style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
+                  >
+                    <div className="border-b border-slate-100 px-4 py-3">
+                      <div className="text-xs font-semibold text-slate-500">Signed in as</div>
+                      <div className="mt-1 truncate text-sm font-bold text-slate-900">{accountLabel}</div>
+                    </div>
 
-                  <div className="p-2">
-                    <Link
-                      to="/me"
-                      onClick={() => setOpen(false)}
-                      className="block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                      role="menuitem"
-                    >
-                      My listings
-                    </Link>
-
-                    {user && (user.isAdmin || user.isSuperadmin) ? (
+                    <div className="p-2">
                       <Link
-                        to="/admin"
+                        to="/me"
+                        onClick={() => setOpen(false)}
+                        className="block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                        role="menuitem"
+                      >
+                        My listings
+                      </Link>
+
+                      {user && (user.isAdmin || user.isSuperadmin) ? (
+                        <Link
+                          to="/admin"
+                          onClick={() => setOpen(false)}
+                          className="mt-1 block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                          role="menuitem"
+                        >
+                          Admin dashboard
+                        </Link>
+                      ) : null}
+
+                      <Link
+                        to="/profile"
                         onClick={() => setOpen(false)}
                         className="mt-1 block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
                         role="menuitem"
                       >
-                        Admin dashboard
+                        My profile
                       </Link>
-                    ) : null}
 
-                    <Link
-                      to="/profile"
-                      onClick={() => setOpen(false)}
-                      className="mt-1 block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                      role="menuitem"
-                    >
-                      My profile
-                    </Link>
-
-                    <button
-                      type="button"
-                      onClick={doLogout}
-                      className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-50"
-                      role="menuitem"
-                    >
-                      Log out
-                    </button>
-                  </div>
-                </div>,
-                document.body
-              )}
+                      <button
+                        type="button"
+                        onClick={doLogout}
+                        className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-50"
+                        role="menuitem"
+                      >
+                        Log out
+                      </button>
+                    </div>
+                  </div>,
+                  document.body
+                )}
             </div>
           </div>
         ) : (

@@ -23,8 +23,8 @@ export default function AdminLayout() {
   const { user } = useAuth();
   return (
     <div className="min-h-full">
-      <Header maxWidth="6xl" />
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      <Header maxWidth="7xl" />
+      <main className="mx-auto max-w-7xl px-4 py-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Admin</div>

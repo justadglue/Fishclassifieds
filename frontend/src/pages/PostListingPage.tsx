@@ -676,7 +676,7 @@ function PostForm({ kind, draftId }: { kind: ListingKind; draftId?: string | nul
 
     return (
         <div className="min-h-full">
-            <Header maxWidth={isWanted ? "6xl" : "3xl"} />
+            <Header maxWidth="7xl" />
             <main className="mx-auto max-w-3xl px-4 py-6">
                 <h1 className={["text-2xl font-extrabold text-slate-900", isWanted ? "tracking-tight" : ""].join(" ")}>
                     {isWanted ? "Create a wanted listing" : "Create a sale listing"}

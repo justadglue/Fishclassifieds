@@ -23,7 +23,7 @@ export default function FaqPage() {
 
   return (
     <div className="min-h-full bg-slate-950 text-white">
-      <Header maxWidth="6xl" />
+      <Header maxWidth="7xl" />
       <main className="mx-auto max-w-3xl px-4 py-10 sm:py-14">
         <div className="text-xs font-bold uppercase tracking-wider text-white/60">Support</div>
         <h1 className="mt-2 text-3xl font-black tracking-tight">FAQ</h1>

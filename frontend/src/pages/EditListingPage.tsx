@@ -497,7 +497,7 @@ function SaleEditForm() {
 
   return (
     <div className="min-h-full">
-      <Header maxWidth="3xl" />
+      <Header maxWidth="7xl" />
       <main className="mx-auto max-w-3xl px-4 py-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-extrabold text-slate-900">{relistMode ? "Relist sale listing" : "Edit sale listing"}</h1>
@@ -1261,7 +1261,7 @@ function WantedEditForm() {
 
   return (
     <div className="min-h-full">
-      <Header maxWidth="6xl" />
+      <Header maxWidth="7xl" />
       <main className="mx-auto max-w-3xl px-4 py-8">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">{relistMode ? "Relist wanted listing" : "Edit wanted listing"}</h1>

@@ -770,7 +770,7 @@ export default function MyListingsPage() {
 
   return (
     <div className="min-h-full">
-      <Header maxWidth="6xl" />
+      <Header maxWidth="7xl" />
       <main className="mx-auto max-w-7xl px-4 py-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>

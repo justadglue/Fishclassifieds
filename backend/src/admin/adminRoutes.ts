@@ -1529,8 +1529,10 @@ router.get("/users", requireSuperadmin, (req, res) => {
     .prepare(
       `
 SELECT u.id,u.email,u.username,u.is_admin,u.is_superadmin,u.created_at,u.updated_at,
+       p.avatar_url as avatar_url,
        s.last_active_at as last_active_at
 FROM users u
+LEFT JOIN user_profiles p ON p.user_id = u.id
 LEFT JOIN (
   SELECT user_id, MAX(last_used_at) as last_active_at
   FROM sessions
@@ -1553,6 +1555,7 @@ LIMIT ? OFFSET ?
       createdAt: String(u.created_at ?? ""),
       updatedAt: String(u.updated_at ?? ""),
       lastActiveAt: u.last_active_at ? String(u.last_active_at) : null,
+      avatarUrl: u.avatar_url ? String(u.avatar_url) : null,
     })),
     total,
     limit,

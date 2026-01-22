@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { adminFetchUserDirectory, type AdminUserDirectoryItem } from "../../api";
+import { adminFetchUserDirectory, resolveImageUrl, type AdminUserDirectoryItem } from "../../api";
+
+function DefaultAvatar() {
+  return (
+    <div className="grid h-10 w-10 place-items-center rounded-full border border-slate-200 bg-slate-50 text-slate-600">
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M20 21a8 8 0 0 0-16 0" />
+        <circle cx="12" cy="8" r="4" />
+      </svg>
+    </div>
+  );
+}
 
 function fmtUntil(ms: number | null) {
   if (ms == null) return "";
@@ -139,10 +150,25 @@ export default function AdminUserDirectoryPage() {
             return (
               <div key={u.id} className="grid grid-cols-[1fr_200px_180px_110px_140px] gap-3 p-4">
                 <div className="min-w-0">
-                  <Link to={`/admin/users/${u.id}`} className="truncate text-sm font-extrabold text-slate-900 underline underline-offset-4">
-                    {u.username}
-                  </Link>
-                  <div className="truncate text-xs font-semibold text-slate-600">{u.email}</div>
+                  <div className="flex min-w-0 items-start gap-3">
+                    {u.avatarUrl ? (
+                      <img
+                        src={resolveImageUrl(u.avatarUrl) ?? u.avatarUrl}
+                        alt=""
+                        className="h-10 w-10 shrink-0 rounded-full border border-slate-200 object-cover"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <DefaultAvatar />
+                    )}
+                    <div className="min-w-0">
+                      <Link to={`/admin/users/${u.id}`} className="block truncate text-sm font-extrabold text-slate-900 underline underline-offset-4">
+                        {u.username}
+                      </Link>
+                      <div className="truncate text-xs font-semibold text-slate-600">{u.email}</div>
+                    </div>
+                  </div>
                 </div>
                 <div className="text-sm font-semibold text-slate-700" title={fmtIso(u.lastActiveAt)}>
                   {fmtAgo(u.lastActiveAt)}

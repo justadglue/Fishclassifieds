@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { adminFetchUsers, adminSetAdmin, adminSetSuperadmin, authReauth, type AdminUser } from "../../api";
+import { adminFetchUsers, adminSetAdmin, adminSetSuperadmin, authReauth, resolveImageUrl, type AdminUser } from "../../api";
 import { useAuth } from "../../auth";
+
+function DefaultAvatar() {
+  return (
+    <div className="grid h-10 w-10 place-items-center rounded-full border border-slate-200 bg-slate-50 text-slate-600">
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M20 21a8 8 0 0 0-16 0" />
+        <circle cx="12" cy="8" r="4" />
+      </svg>
+    </div>
+  );
+}
 
 export default function AdminUserPrivilegesPage() {
   const { user } = useAuth();
@@ -212,8 +223,23 @@ export default function AdminUserPrivilegesPage() {
           {items.map((u) => (
             <div key={u.id} className="grid grid-cols-[1fr_120px_140px] gap-3 p-4">
               <div className="min-w-0">
-                <div className="truncate text-sm font-extrabold text-slate-900">{u.username}</div>
-                <div className="truncate text-xs font-semibold text-slate-600">{u.email}</div>
+                <div className="flex min-w-0 items-center gap-2">
+                  {u.avatarUrl ? (
+                    <img
+                      src={resolveImageUrl(u.avatarUrl) ?? u.avatarUrl}
+                      alt=""
+                      className="h-10 w-10 shrink-0 rounded-full border border-slate-200 object-cover"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <DefaultAvatar />
+                  )}
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-extrabold text-slate-900">{u.username}</div>
+                    <div className="truncate text-xs font-semibold text-slate-600">{u.email}</div>
+                  </div>
+                </div>
               </div>
               <div>
                 <button

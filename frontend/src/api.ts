@@ -297,6 +297,7 @@ export type AdminUser = {
   createdAt: string;
   updatedAt: string;
   lastActiveAt: string | null;
+  avatarUrl?: string | null;
 };
 
 export type AdminUserDirectoryItem = AdminUser & {

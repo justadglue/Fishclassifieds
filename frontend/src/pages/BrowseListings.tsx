@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { MapPin } from "lucide-react";
 import {
@@ -54,32 +54,71 @@ function budgetPillText(w: WantedPost) {
   return `Up to ${centsToDollars(budget)}`;
 }
 
-function buildPageButtons(current: number, totalPages: number) {
-  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+/**
+ * Builds an array of page buttons to display, constrained to `maxButtons` total slots.
+ * Ellipses count toward the slot limit. Always shows first/last pages when there are gaps.
+ */
+function buildPageButtons(current: number, totalPages: number, maxButtons: number = 7): (number | "…")[] {
+  // If we can show all pages, just return them
+  if (totalPages <= maxButtons) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+
+  // Minimum 3 buttons needed: [1] [...] [last] or just show what we can
+  if (maxButtons < 3) {
+    return [current];
+  }
 
   const out: (number | "…")[] = [];
-  const show = new Set<number>();
-  show.add(1);
-  show.add(totalPages);
 
-  for (let p = current - 2; p <= current + 2; p++) {
-    if (p >= 1 && p <= totalPages) show.add(p);
+  // Reserve slots for first and last page
+  // Remaining slots are for current neighborhood + ellipses
+  const slotsForMiddle = maxButtons - 2; // minus first and last
+
+  // Calculate how many pages around current we can show
+  // We need at least 1 slot for ellipsis on each side potentially
+  const neighborhoodSize = Math.max(1, slotsForMiddle - 2); // minus potential ellipses
+  const halfNeighbor = Math.floor(neighborhoodSize / 2);
+
+  // Calculate the range around current
+  let rangeStart = Math.max(2, current - halfNeighbor);
+  let rangeEnd = Math.min(totalPages - 1, current + halfNeighbor);
+
+  // Adjust if we're near the edges
+  if (current <= halfNeighbor + 1) {
+    rangeStart = 2;
+    rangeEnd = Math.min(totalPages - 1, rangeStart + neighborhoodSize - 1);
+  } else if (current >= totalPages - halfNeighbor) {
+    rangeEnd = totalPages - 1;
+    rangeStart = Math.max(2, rangeEnd - neighborhoodSize + 1);
   }
 
-  show.add(2);
-  show.add(3);
-  show.add(totalPages - 1);
-  show.add(totalPages - 2);
+  // Build the output
+  out.push(1);
 
-  const pages = Array.from(show).sort((a, b) => a - b);
-  let prev = 0;
-  for (const p of pages) {
-    if (prev && p - prev > 1) out.push("…");
+  if (rangeStart > 2) {
+    out.push("…");
+  } else if (rangeStart === 2) {
+    // No ellipsis needed, just include 2
+  }
+
+  for (let p = rangeStart; p <= rangeEnd; p++) {
     out.push(p);
-    prev = p;
   }
+
+  if (rangeEnd < totalPages - 1) {
+    out.push("…");
+  }
+
+  out.push(totalPages);
+
   return out;
 }
+
+// Constants for adaptive pagination sizing (conservative estimates)
+const PAGINATION_BUTTON_WIDTH = 48; // approx width of a page number button (px3 py2 + border + some margin)
+const PAGINATION_PREV_NEXT_WIDTH = 60; // approx width of Prev/Next buttons
+const PAGINATION_GAP = 8; // gap-2 = 0.5rem = 8px
 
 function PaginationBar(props: {
   page: number;
@@ -87,53 +126,94 @@ function PaginationBar(props: {
   loading: boolean;
   canPrev: boolean;
   canNext: boolean;
-  pageButtons: (number | "…")[];
   onPrev: () => void;
   onNext: () => void;
   onGoPage: (p: number) => void;
 }) {
-  const { page, totalPages, loading, canPrev, canNext, pageButtons, onPrev, onNext, onGoPage } = props;
+  const { page, totalPages, loading, canPrev, canNext, onPrev, onNext, onGoPage } = props;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [maxButtons, setMaxButtons] = useState(5); // Start conservative
+
+  // Measure container and calculate how many buttons fit
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    function measure() {
+      const containerWidth = container!.offsetWidth;
+      // Available space for page buttons = total width - prev/next buttons - padding
+      const reservedWidth =
+        PAGINATION_PREV_NEXT_WIDTH * 2 + // Prev + Next
+        PAGINATION_GAP * 4; // gaps and px-2 padding on middle container
+
+      const availableForButtons = containerWidth - reservedWidth;
+
+      // Each button takes its width plus a gap (except the last one)
+      const buttonsWithGaps = Math.floor(
+        (availableForButtons + PAGINATION_GAP) / (PAGINATION_BUTTON_WIDTH + PAGINATION_GAP)
+      );
+
+      // Minimum of 3 (first, current, last), max reasonable is 7
+      const clamped = Math.max(3, Math.min(7, buttonsWithGaps));
+      setMaxButtons(clamped);
+    }
+
+    measure();
+
+    const ro = new ResizeObserver(measure);
+    ro.observe(container);
+
+    return () => ro.disconnect();
+  }, []);
+
   if (totalPages <= 1) return null;
 
+  const pageButtons = buildPageButtons(page, totalPages, maxButtons);
+
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+    <div
+      ref={containerRef}
+      className="mt-4 flex w-full max-w-full items-center justify-between overflow-hidden"
+    >
       <button
         type="button"
         onClick={onPrev}
         disabled={!canPrev || loading}
-        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
+        className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
       >
         Prev
       </button>
 
-      {pageButtons.map((p, i) =>
-        p === "…" ? (
-          <div key={`dots-${i}`} className="px-2 text-sm font-semibold text-slate-500">
-            …
-          </div>
-        ) : (
-          <button
-            key={`page-${p}`}
-            type="button"
-            onClick={() => onGoPage(p)}
-            disabled={loading}
-            className={[
-              "rounded-xl border px-3 py-2 text-sm font-semibold",
-              p === page ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
-              loading ? "opacity-60" : "",
-            ].join(" ")}
-            aria-current={p === page ? "page" : undefined}
-          >
-            {p}
-          </button>
-        )
-      )}
+      <div className="flex flex-1 items-center justify-center gap-2 overflow-hidden px-2">
+        {pageButtons.map((p, i) =>
+          p === "…" ? (
+            <div key={`dots-${i}`} className="shrink-0 px-1 text-sm font-semibold text-slate-500">
+              …
+            </div>
+          ) : (
+            <button
+              key={`page-${p}`}
+              type="button"
+              onClick={() => onGoPage(p)}
+              disabled={loading}
+              className={[
+                "shrink-0 rounded-xl border px-3 py-2 text-sm font-semibold",
+                p === page ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
+                loading ? "opacity-60" : "",
+              ].join(" ")}
+              aria-current={p === page ? "page" : undefined}
+            >
+              {p}
+            </button>
+          )
+        )}
+      </div>
 
       <button
         type="button"
         onClick={onNext}
         disabled={!canNext || loading}
-        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
+        className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
       >
         Next
       </button>
@@ -193,7 +273,6 @@ export default function BrowseListings() {
 
   const offset = (page - 1) * per;
   const totalPages = Math.max(1, Math.ceil(total / per));
-  const pageButtons = buildPageButtons(page, totalPages);
 
   useEffect(() => {
     let cancelled = false;
@@ -395,7 +474,7 @@ export default function BrowseListings() {
             />
           </div>
 
-          <section className="md:min-h-[calc(100vh-6rem)]">
+          <section className="min-w-0 md:min-h-[calc(100vh-6rem)]">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -514,7 +593,6 @@ export default function BrowseListings() {
               loading={loading}
               canPrev={canPrev}
               canNext={canNext}
-              pageButtons={pageButtons}
               onPrev={() => goPage(page - 1)}
               onNext={() => goPage(page + 1)}
               onGoPage={goPage}
@@ -660,7 +738,6 @@ export default function BrowseListings() {
                 loading={loading}
                 canPrev={canPrev}
                 canNext={canNext}
-                pageButtons={pageButtons}
                 onPrev={() => goPageFromBottom(page - 1)}
                 onNext={() => goPageFromBottom(page + 1)}
                 onGoPage={goPageFromBottom}

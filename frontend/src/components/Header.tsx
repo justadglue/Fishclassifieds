@@ -226,6 +226,11 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" | "7xl"
     nav("/");
   }
 
+  function closeAllOverlays() {
+    setOpen(false);
+    setNotifOpen(false);
+  }
+
   const shell =
     maxWidth === "3xl"
       ? "max-w-3xl"
@@ -235,45 +240,69 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" | "7xl"
           ? "max-w-6xl"
           : "max-w-7xl";
 
+  const collapseForSearch = searchOpen;
+
   return (
     <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
       <div className={`mx-auto flex ${shell} items-center gap-3 px-4 py-3`}>
-        <Link to="/" className="font-extrabold tracking-tight text-slate-900">
+        <Link
+          to="/"
+          className="max-w-40 min-w-0 truncate font-extrabold tracking-tight text-slate-900 sm:max-w-none"
+        >
           Fishclassifieds
         </Link>
 
         <div className="flex-1" />
 
-        <Link to="/browse?type=sale" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-          For sale
-        </Link>
-
-        <Link to="/browse?type=wanted" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-          Wanted
-        </Link>
-
-        <Link to="/post" className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
-          Post a listing
-        </Link>
-
-        {user ? (
-          <Link to="/me" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-            My listings
+        {/* Desktop nav (full) */}
+        <div className={["hidden items-center gap-3 md:flex", collapseForSearch ? "md:hidden lg:flex" : ""].join(" ")}>
+          <Link to="/browse?type=sale" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+            For sale
           </Link>
-        ) : null}
 
-        {user && (user.isAdmin || user.isSuperadmin) ? (
-          <Link to="/admin" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-            Admin dashboard
+          <Link to="/browse?type=wanted" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+            Wanted
           </Link>
-        ) : null}
+
+          <Link to="/post" className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+            Post a listing
+          </Link>
+
+          {user ? (
+            <Link to="/me" className="hidden text-sm font-semibold text-slate-700 hover:text-slate-900 lg:inline-flex">
+              My listings
+            </Link>
+          ) : null}
+
+          {user && (user.isAdmin || user.isSuperadmin) ? (
+            <Link to="/admin" className="hidden text-sm font-semibold text-slate-700 hover:text-slate-900 lg:inline-flex">
+              Admin dashboard
+            </Link>
+          ) : null}
+        </div>
+
+        {/* Mobile nav: collapse "For sale" + "Wanted" into a single Browse link (defaults to For sale) */}
+        <div className={["flex items-center gap-2 md:hidden", collapseForSearch ? "hidden" : ""].join(" ")}>
+          <Link
+            to="/browse?type=sale"
+            className="inline-flex h-10 items-center rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+          >
+            Browse
+          </Link>
+          <Link to="/post" className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+            Post
+          </Link>
+        </div>
 
         {/* Top-right search: icon-only until clicked */}
         <div className="relative" ref={searchRef}>
           {!searchOpen ? (
             <button
               type="button"
-              onClick={() => setSearchOpen(true)}
+              onClick={() => {
+                closeAllOverlays();
+                setSearchOpen(true);
+              }}
               className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900"
               aria-label="Search listings"
             >
@@ -293,7 +322,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" | "7xl"
               }}
               className="flex"
             >
-              <div className="flex w-72 items-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex w-[min(18rem,calc(100vw-6.5rem))] items-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:w-72">
                 <div className="pl-3 text-slate-500">
                   <Search aria-hidden="true" className="h-4 w-4" />
                 </div>
@@ -320,224 +349,227 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" | "7xl"
           )}
         </div>
 
-        {loading ? (
-          <div className="text-sm font-semibold text-slate-500">Checking session…</div>
-        ) : user ? (
-          <div className="flex items-center gap-2">
-            {/* Notifications */}
-            <div className="relative" ref={notifAnchorRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setNotifOpen((v) => {
-                    const next = !v;
-                    if (next) {
-                      const pos = computeNotifPos();
-                      if (pos) setNotifPos(pos);
-                    } else {
-                      setNotifPos(null);
-                    }
-                    return next;
-                  });
-                }}
-                className="relative inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 focus:outline-none"
-                aria-label="Notifications"
-                title="Notifications"
-              >
-                <Bell aria-hidden="true" className="h-5 w-5" />
-                {notifUnread > 0 ? (
-                  <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-extrabold leading-none text-white">
-                    {notifUnread > 99 ? "99+" : notifUnread}
-                  </span>
-                ) : null}
-              </button>
+        <div className={["items-center gap-2", collapseForSearch ? "hidden md:flex" : "flex"].join(" ")}>
+          {loading ? <div className="text-sm font-semibold text-slate-500">Checking session…</div> : null}
+          {!loading && user ? (
+            <div className="flex items-center gap-2">
+              {/* Notifications */}
+              <div className="relative" ref={notifAnchorRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNotifOpen((v) => {
+                      const next = !v;
+                      if (next) {
+                        setOpen(false);
+                        const pos = computeNotifPos();
+                        if (pos) setNotifPos(pos);
+                      } else {
+                        setNotifPos(null);
+                      }
+                      return next;
+                    });
+                  }}
+                  className="relative inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 focus:outline-none"
+                  aria-label="Notifications"
+                  title="Notifications"
+                >
+                  <Bell aria-hidden="true" className="h-5 w-5" />
+                  {notifUnread > 0 ? (
+                    <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-extrabold leading-none text-white">
+                      {notifUnread > 99 ? "99+" : notifUnread}
+                    </span>
+                  ) : null}
+                </button>
 
-              {notifOpen &&
-                typeof document !== "undefined" &&
-                createPortal(
-                  <div
-                    ref={notifPanelRef}
-                    className="fixed z-50 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
-                    style={notifPos ? { top: notifPos.top, left: notifPos.left } : undefined}
-                    role="dialog"
-                    aria-label="Notifications"
-                  >
-                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                      <div className="text-base font-black tracking-tight text-slate-900">Notifications</div>
-                      <button
-                        type="button"
-                        className="text-xs font-bold text-slate-700 hover:text-slate-900"
-                        disabled={notifUnread === 0}
-                        onClick={async () => {
-                          await markAllNotificationsRead();
-                          await refreshNotifications();
-                        }}
-                      >
-                        Mark all read
-                      </button>
-                    </div>
-
-                    <div className="max-h-[70vh] overflow-auto p-2">
-                      {notifLoading ? <div className="px-3 py-2 text-sm font-semibold text-slate-600">Loading…</div> : null}
-                      {!notifLoading && notifItems.length === 0 ? (
-                        <div className="px-3 py-6 text-center text-sm font-semibold text-slate-600">No notifications yet.</div>
-                      ) : null}
-
-                      {notifItems.map((n) => {
-                        const navTo = extractNavFromNotification(n);
-                        return (
-                          <button
-                            key={n.id}
-                            type="button"
-                            className={[
-                              "w-full rounded-xl px-3 py-2 text-left hover:bg-slate-50",
-                              n.isRead ? "" : "bg-slate-50/60",
-                            ].join(" ")}
-                            onClick={async () => {
-                              if (!n.isRead) {
-                                await markNotificationRead(n.id);
-                              }
-                              setNotifOpen(false);
-                              if (navTo) nav(navTo.href);
-                              await refreshNotifications();
-                            }}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex min-w-0 items-start gap-3">
-                                {n.imageUrl ? (
-                                  <img
-                                    src={n.imageUrl}
-                                    alt=""
-                                    loading="lazy"
-                                    className="h-10 w-10 shrink-0 rounded-xl border border-slate-200 bg-slate-50 object-cover"
-                                  />
-                                ) : null}
-                                <div className="min-w-0">
-                                  <div className="truncate text-sm font-bold text-slate-900">{n.title}</div>
-                                  {n.body ? <div className="mt-0.5 line-clamp-2 text-xs font-semibold text-slate-600">{n.body}</div> : null}
-                                  {navTo ? <div className="mt-1 text-[11px] font-bold text-slate-700 underline underline-offset-4">{navTo.label}</div> : null}
-                                </div>
-                              </div>
-                              {!n.isRead ? <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-red-600" aria-hidden="true" /> : null}
-                            </div>
-                          </button>
-                        );
-                      })}
-
-                      {!notifLoading && notifItems.length > 0 && notifHasMore ? (
+                {notifOpen &&
+                  typeof document !== "undefined" &&
+                  createPortal(
+                    <div
+                      ref={notifPanelRef}
+                      className="fixed z-50 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+                      style={notifPos ? { top: notifPos.top, left: notifPos.left } : undefined}
+                      role="dialog"
+                      aria-label="Notifications"
+                    >
+                      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                        <div className="text-base font-black tracking-tight text-slate-900">Notifications</div>
                         <button
                           type="button"
-                          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                          className="text-xs font-bold text-slate-700 hover:text-slate-900"
+                          disabled={notifUnread === 0}
                           onClick={async () => {
-                            const nextLimit = notifLimit + NOTIF_PAGE;
-                            setNotifLimit(nextLimit);
-                            await refreshNotifications(nextLimit);
+                            await markAllNotificationsRead();
+                            await refreshNotifications();
                           }}
                         >
-                          See previous
+                          Mark all read
                         </button>
-                      ) : null}
-                    </div>
-                  </div>,
-                  document.body
-                )}
-            </div>
+                      </div>
 
-            {/* Account */}
-            <div className="relative" ref={menuAnchorRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen((v) => {
-                    const next = !v;
-                    if (next) {
-                      const pos = computeMenuPos();
-                      if (pos) setMenuPos(pos);
-                    } else {
-                      setMenuPos(null);
-                    }
-                    return next;
-                  });
-                }}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 focus:outline-none"
-                aria-haspopup="menu"
-                aria-expanded={open}
-                aria-label={`Account menu for ${accountLabel}`}
-                title={accountLabel}
-              >
-                <User aria-hidden="true" className="h-5 w-5" />
-                <span className="sr-only">{accountLabel}</span>
-              </button>
+                      <div className="max-h-[70vh] overflow-auto p-2">
+                        {notifLoading ? <div className="px-3 py-2 text-sm font-semibold text-slate-600">Loading…</div> : null}
+                        {!notifLoading && notifItems.length === 0 ? (
+                          <div className="px-3 py-6 text-center text-sm font-semibold text-slate-600">No notifications yet.</div>
+                        ) : null}
 
-              {open &&
-                typeof document !== "undefined" &&
-                createPortal(
-                  <div
-                    ref={menuPanelRef}
-                    role="menu"
-                    className="fixed z-50 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
-                    style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
-                  >
-                    <div className="border-b border-slate-100 px-4 py-3">
-                      <div className="text-xs font-semibold text-slate-500">Signed in as</div>
-                      <div className="mt-1 truncate text-sm font-bold text-slate-900">{accountLabel}</div>
-                    </div>
+                        {notifItems.map((n) => {
+                          const navTo = extractNavFromNotification(n);
+                          return (
+                            <button
+                              key={n.id}
+                              type="button"
+                              className={[
+                                "w-full rounded-xl px-3 py-2 text-left hover:bg-slate-50",
+                                n.isRead ? "" : "bg-slate-50/60",
+                              ].join(" ")}
+                              onClick={async () => {
+                                if (!n.isRead) {
+                                  await markNotificationRead(n.id);
+                                }
+                                setNotifOpen(false);
+                                if (navTo) nav(navTo.href);
+                                await refreshNotifications();
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex min-w-0 items-start gap-3">
+                                  {n.imageUrl ? (
+                                    <img
+                                      src={n.imageUrl}
+                                      alt=""
+                                      loading="lazy"
+                                      className="h-10 w-10 shrink-0 rounded-xl border border-slate-200 bg-slate-50 object-cover"
+                                    />
+                                  ) : null}
+                                  <div className="min-w-0">
+                                    <div className="truncate text-sm font-bold text-slate-900">{n.title}</div>
+                                    {n.body ? <div className="mt-0.5 line-clamp-2 text-xs font-semibold text-slate-600">{n.body}</div> : null}
+                                    {navTo ? <div className="mt-1 text-[11px] font-bold text-slate-700 underline underline-offset-4">{navTo.label}</div> : null}
+                                  </div>
+                                </div>
+                                {!n.isRead ? <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-red-600" aria-hidden="true" /> : null}
+                              </div>
+                            </button>
+                          );
+                        })}
 
-                    <div className="p-2">
-                      <Link
-                        to="/me"
-                        onClick={() => setOpen(false)}
-                        className="block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                        role="menuitem"
-                      >
-                        My listings
-                      </Link>
+                        {!notifLoading && notifItems.length > 0 && notifHasMore ? (
+                          <button
+                            type="button"
+                            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                            onClick={async () => {
+                              const nextLimit = notifLimit + NOTIF_PAGE;
+                              setNotifLimit(nextLimit);
+                              await refreshNotifications(nextLimit);
+                            }}
+                          >
+                            See previous
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>,
+                    document.body
+                  )}
+              </div>
 
-                      {user && (user.isAdmin || user.isSuperadmin) ? (
+              {/* Account */}
+              <div className="relative" ref={menuAnchorRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen((v) => {
+                      const next = !v;
+                      if (next) {
+                        setNotifOpen(false);
+                        const pos = computeMenuPos();
+                        if (pos) setMenuPos(pos);
+                      } else {
+                        setMenuPos(null);
+                      }
+                      return next;
+                    });
+                  }}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 focus:outline-none"
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  aria-label={`Account menu for ${accountLabel}`}
+                  title={accountLabel}
+                >
+                  <User aria-hidden="true" className="h-5 w-5" />
+                  <span className="sr-only">{accountLabel}</span>
+                </button>
+
+                {open &&
+                  typeof document !== "undefined" &&
+                  createPortal(
+                    <div
+                      ref={menuPanelRef}
+                      role="menu"
+                      className="fixed z-50 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+                      style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
+                    >
+                      <div className="border-b border-slate-100 px-4 py-3">
+                        <div className="text-xs font-semibold text-slate-500">Signed in as</div>
+                        <div className="mt-1 truncate text-sm font-bold text-slate-900">{accountLabel}</div>
+                      </div>
+
+                      <div className="p-2">
                         <Link
-                          to="/admin"
+                          to="/me"
+                          onClick={() => setOpen(false)}
+                          className="block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                          role="menuitem"
+                        >
+                          My listings
+                        </Link>
+
+                        {user && (user.isAdmin || user.isSuperadmin) ? (
+                          <Link
+                            to="/admin"
+                            onClick={() => setOpen(false)}
+                            className="mt-1 block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                            role="menuitem"
+                          >
+                            Admin dashboard
+                          </Link>
+                        ) : null}
+
+                        <Link
+                          to="/profile"
                           onClick={() => setOpen(false)}
                           className="mt-1 block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
                           role="menuitem"
                         >
-                          Admin dashboard
+                          My profile
                         </Link>
-                      ) : null}
 
-                      <Link
-                        to="/profile"
-                        onClick={() => setOpen(false)}
-                        className="mt-1 block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                        role="menuitem"
-                      >
-                        My profile
-                      </Link>
-
-                      <button
-                        type="button"
-                        onClick={doLogout}
-                        className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-50"
-                        role="menuitem"
-                      >
-                        Log out
-                      </button>
-                    </div>
-                  </div>,
-                  document.body
-                )}
+                        <button
+                          type="button"
+                          onClick={doLogout}
+                          className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-50"
+                          role="menuitem"
+                        >
+                          Log out
+                        </button>
+                      </div>
+                    </div>,
+                    document.body
+                  )}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Link to="/login" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-              Sign in
-            </Link>
-            <span className="text-slate-300">/</span>
-            <Link to="/signup" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-              Create account
-            </Link>
-          </div>
-        )}
+          ) : !loading && !user ? (
+            <div className="hidden items-center gap-2 md:flex">
+              <Link to="/login" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+                Sign in
+              </Link>
+              <span className="text-slate-300">/</span>
+              <Link to="/signup" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+                Create account
+              </Link>
+            </div>
+          ) : null}
+        </div>
       </div>
     </header>
   );

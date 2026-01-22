@@ -7,11 +7,14 @@ import {
   Check,
   CircleCheck,
   CircleX,
+  Clock,
+  Eye,
   Hourglass,
   Pause,
   Pencil,
   Play,
   RotateCcw,
+  Star,
   Trash2,
 } from "lucide-react";
 import {
@@ -34,6 +37,7 @@ import { useAuth } from "../auth";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 import FloatingHScrollbar from "../components/FloatingHScrollbar";
 import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
+import { MobileCard, MobileCardActions, MobileCardBody, MobileCardList } from "../components/table/MobileCards";
 
 function centsToDollars(cents: number) {
   const s = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -420,6 +424,41 @@ export default function MyListingsPage() {
     expandedIdRef.current = expandedId;
   }, [expandedId]);
 
+  function IconAction(props: {
+    label: string;
+    title?: string;
+    onClick?: () => void;
+    disabled?: boolean;
+    variant?: "default" | "primary" | "danger" | "feature";
+    icon: React.ReactNode;
+    className?: string;
+  }) {
+    const { label, title, onClick, disabled, variant = "default", icon, className = "" } = props;
+    const base =
+      "inline-flex h-9 items-center justify-center rounded-xl border text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-60";
+    const cls =
+      variant === "primary"
+        ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800 focus-visible:ring-slate-400 focus-visible:ring-offset-slate-50"
+        : variant === "danger"
+          ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100 focus-visible:ring-red-200 focus-visible:ring-offset-slate-50"
+          : variant === "feature"
+            ? "border-indigo-200 bg-indigo-50 text-indigo-950 hover:bg-indigo-100 focus-visible:ring-indigo-200 focus-visible:ring-offset-slate-50"
+            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 focus-visible:ring-slate-300 focus-visible:ring-offset-slate-50";
+
+    return (
+      <button
+        type="button"
+        aria-label={label}
+        title={disabled ? undefined : title ?? label}
+        onClick={onClick}
+        disabled={disabled}
+        className={`${base} ${cls} ${className}`}
+      >
+        {icon}
+      </button>
+    );
+  }
+
   // Collapse only on full click (not pointerdown) and only when clicking outside any row.
   // This ensures selection + expansion happen together on click, not split across mouse-down/up.
   useEffect(() => {
@@ -704,13 +743,16 @@ export default function MyListingsPage() {
     expiresIn: "asc",
   };
 
+  function applySort(key: SortKey, dir: SortDir) {
+    setSort({ key, dir });
+    setRowOrder(sortMixedRows(rowsForOrdering(viewType, includeResolved), key, dir, nowMs).map((r) => r.key));
+  }
+
   function toggleSort(next: SortKey) {
     const same = sort.key === next;
     const dir = same ? (sort.dir === "asc" ? "desc" : "asc") : defaultDirByKey[next];
     const key = next;
-    setSort({ key, dir });
-    // Explicit sort click: reorder immediately.
-    setRowOrder(sortMixedRows(mixedRows, key, dir, nowMs).map((r) => r.key));
+    applySort(key, dir);
   }
 
   const mixedRows = useMemo(() => {
@@ -799,12 +841,12 @@ export default function MyListingsPage() {
             <h1 className="text-xl font-extrabold text-slate-900">{viewType === "drafts" ? "My drafts" : "My listings"}</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="flex w-full overflow-hidden rounded-2xl border border-slate-200 bg-white sm:w-auto">
               <button
                 type="button"
                 onClick={() => setViewType("all")}
                 className={[
-                  "px-4 py-2 text-sm font-bold",
+                  "flex-1 px-3 py-2 text-center text-sm font-bold sm:flex-none sm:px-4",
                   viewType === "all" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
                 ].join(" ")}
                 aria-pressed={viewType === "all"}
@@ -815,7 +857,7 @@ export default function MyListingsPage() {
                 type="button"
                 onClick={() => setViewType("sale")}
                 className={[
-                  "px-4 py-2 text-sm font-bold",
+                  "flex-1 px-3 py-2 text-center text-sm font-bold sm:flex-none sm:px-4",
                   viewType === "sale" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
                 ].join(" ")}
                 aria-pressed={viewType === "sale"}
@@ -826,7 +868,7 @@ export default function MyListingsPage() {
                 type="button"
                 onClick={() => setViewType("wanted")}
                 className={[
-                  "px-4 py-2 text-sm font-bold",
+                  "flex-1 px-3 py-2 text-center text-sm font-bold sm:flex-none sm:px-4",
                   viewType === "wanted" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
                 ].join(" ")}
                 aria-pressed={viewType === "wanted"}
@@ -837,7 +879,7 @@ export default function MyListingsPage() {
                 type="button"
                 onClick={() => setViewType("drafts")}
                 className={[
-                  "px-4 py-2 text-sm font-bold",
+                  "flex-1 px-3 py-2 text-center text-sm font-bold sm:flex-none sm:px-4",
                   viewType === "drafts" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
                 ].join(" ")}
                 aria-pressed={viewType === "drafts"}
@@ -846,20 +888,54 @@ export default function MyListingsPage() {
               </button>
             </div>
 
-            <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 select-none">
-              <input
-                type="checkbox"
-                checked={includeResolved}
-                onChange={(e) => {
-                  const next = e.target.checked;
-                  setIncludeResolved(next);
-                  // Recompute ordering immediately for the newly-filtered set.
-                  setRowOrder(sortMixedRows(rowsForOrdering(viewType, next), sort.key, sort.dir, nowMs).map((r) => r.key));
-                }}
-                className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
-              />
-              Include sold/closed
-            </label>
+            {/* Mobile: keep Sort + Include on one row (scroll if needed) */}
+            <div className="flex w-full items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:w-auto md:overflow-visible md:pb-0">
+              <label className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 select-none md:hidden">
+                <ArrowUpDown aria-hidden="true" className="h-4 w-4 text-slate-500" />
+                <select
+                  value={`${sort.key}:${sort.dir}`}
+                  onChange={(e) => {
+                    const raw = String(e.target.value ?? "");
+                    const [kRaw, dRaw] = raw.split(":");
+                    const k = (kRaw as SortKey) ?? "status";
+                    const d = (dRaw as SortDir) ?? "asc";
+                    applySort(k, d);
+                  }}
+                  className="bg-transparent text-sm font-bold text-slate-900 outline-none"
+                  aria-label="Sort listings"
+                >
+                  <option value="status:asc">Status</option>
+                  <option value="published:desc">Posted ▼</option>
+                  <option value="published:asc">Posted ▲</option>
+                  <option value="views:desc">Views ▼</option>
+                  <option value="views:asc">Views ▲</option>
+                  <option value="price:desc">Price/Budget ▼</option>
+                  <option value="price:asc">Price/Budget ▲</option>
+                  <option value="expiresIn:asc">Expiry ▲</option>
+                  <option value="expiresIn:desc">Expiry ▼</option>
+                  <option value="updated:desc">Updated ▼</option>
+                  <option value="updated:asc">Updated ▲</option>
+                </select>
+              </label>
+
+              <label className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 select-none">
+                <input
+                  type="checkbox"
+                  checked={includeResolved}
+                  onChange={(e) => {
+                    const next = e.target.checked;
+                    setIncludeResolved(next);
+                    // Recompute ordering immediately for the newly-filtered set.
+                    setRowOrder(sortMixedRows(rowsForOrdering(viewType, next), sort.key, sort.dir, nowMs).map((r) => r.key));
+                  }}
+                  className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
+                />
+                <span className="inline-flex items-center gap-1">
+                  <CircleCheck aria-hidden="true" className="h-4 w-4 text-slate-500" />
+                  Include resolved
+                </span>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -921,7 +997,396 @@ export default function MyListingsPage() {
           (viewType === "drafts" && (items.length > 0 || wantedItems.length > 0)) ||
           (viewType === "all" && (items.length > 0 || wantedItems.length > 0)) ? (
           <>
-            <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            {/* Mobile cards */}
+            <div className="mt-6 md:hidden">
+              <MobileCardList>
+                {displayRows.map((row) => {
+                  if (row.kind === "sale") {
+                    const l = row.sale!;
+                    const assets = resolveAssets(l.images ?? []);
+                    const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+                    const saleDetails = decodeSaleDetailsFromDescription(l.description).details;
+                    const salePriceText =
+                      saleDetails.priceType === "free"
+                        ? "Free"
+                        : saleDetails.priceType === "offer"
+                          ? "Make an Offer"
+                          : centsToDollars(l.priceCents);
+                    const salePriceClass =
+                      saleDetails.priceType === "offer" ? "text-sm font-extrabold text-slate-900" : "text-lg font-black text-slate-900";
+                    const postedIso = (l.publishedAt ?? l.createdAt) as string;
+                    const postedTitle = new Date(postedIso).toLocaleString();
+                    const postedAgo = relativeTime(postedIso);
+                    const openHref = l.status === "draft" ? `/post/sale?draft=${encodeURIComponent(l.id)}` : `/listing/sale/${l.id}`;
+                    const isDraft = l.status === "draft";
+
+                    const canToggle = (l.status === "active" || l.status === "paused") && !l.ownerBlockPauseResume;
+                    const canResolve = (l.status === "active" || l.status === "paused") && !l.ownerBlockStatusChanges;
+
+                    const toggleTitle = l.status === "paused" ? "Resume" : "Pause";
+                    const canFeature = l.status === "active" && !l.ownerBlockFeaturing;
+                    const isSold = l.status === "sold";
+                    const isFeatured = Boolean(l.featured);
+                    const qtyText = `Qty ${Number(saleDetails.quantity ?? 1)}`;
+
+                    return (
+                      <MobileCard key={row.key}>
+                        <MobileCardBody>
+                          <div className="flex min-w-0 items-center gap-3">
+                            <Link
+                              to={openHref}
+                              state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
+                              className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+                            >
+                              {hero ? (
+                                <img src={hero} alt={l.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                              ) : (
+                                <NoPhotoPlaceholder variant="tile" className="px-1 text-center" />
+                              )}
+                            </Link>
+
+                            <div className="min-w-0 flex-1">
+                              <Link
+                                to={openHref}
+                                state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
+                                className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
+                              >
+                                {l.title}
+                              </Link>
+                              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
+                                <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                  For sale
+                                </span>
+                                <span
+                                  title={qtyText}
+                                  className="inline-flex max-w-28 min-w-0 items-center rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600"
+                                >
+                                  <span className="min-w-0 truncate">{qtyText}</span>
+                                </span>
+                                <StatusText l={l} />
+                              </div>
+                              <div className="mt-1">{renderFeaturedText(l)}</div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 flex items-center gap-2">
+                            <div className="w-28 shrink-0 min-h-9 flex items-center">
+                              <div title={salePriceText} className={`${salePriceClass} leading-tight line-clamp-2`}>
+                                {salePriceText}
+                              </div>
+                            </div>
+                            <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1 text-[11px] font-semibold text-slate-600 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                                <Eye aria-hidden="true" className="h-4 w-4" />
+                                {Number(l.views ?? 0).toLocaleString()}
+                              </span>
+                              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1" title={postedTitle}>
+                                <Clock aria-hidden="true" className="h-4 w-4" />
+                                {postedAgo}
+                              </span>
+                              <span
+                                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
+                                title={l.expiresAt ? new Date(l.expiresAt).toLocaleString() : ""}
+                              >
+                                <Hourglass aria-hidden="true" className="h-4 w-4" />
+                                {expiresInShort(l.expiresAt)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <MobileCardActions>
+                            <div className="flex w-full flex-wrap gap-2">
+                              {isDraft ? (
+                                <Link
+                                  to={openHref}
+                                  aria-label="Resume draft"
+                                  title={Boolean(l.ownerBlockEdit) ? undefined : "Resume draft"}
+                                  className={[
+                                    "inline-flex h-9 min-w-11 flex-1 basis-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900",
+                                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50",
+                                    Boolean(l.ownerBlockEdit) ? "pointer-events-none opacity-60" : "",
+                                  ].join(" ")}
+                                >
+                                  <Pencil aria-hidden="true" className="h-4 w-4" />
+                                </Link>
+                              ) : !isSold ? (
+                                <>
+                                  <IconAction
+                                    label={isFeatured ? "Manage featuring" : "Feature"}
+                                    title={
+                                      !canFeature
+                                        ? "Only active, unsold listings can be featured."
+                                        : isFeatured
+                                          ? "Manage featuring"
+                                          : "Feature this listing"
+                                    }
+                                    variant="feature"
+                                    disabled={!canFeature}
+                                    onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
+                                    icon={isFeatured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : <Star aria-hidden="true" className="h-4 w-4" />}
+                                    className="min-w-11 flex-1 basis-0"
+                                  />
+
+                                  <Link
+                                    to={`/edit/sale/${l.id}`}
+                                    aria-label="Edit"
+                                    title={Boolean(l.ownerBlockEdit) ? undefined : "Edit"}
+                                    className={[
+                                      "inline-flex h-9 min-w-11 flex-1 basis-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900",
+                                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50",
+                                      Boolean(l.ownerBlockEdit) ? "pointer-events-none opacity-60" : "",
+                                    ].join(" ")}
+                                  >
+                                    <Pencil aria-hidden="true" className="h-4 w-4" />
+                                  </Link>
+
+                                  <IconAction
+                                    label={toggleTitle}
+                                    title={toggleTitle}
+                                    disabled={!canToggle}
+                                    onClick={() => doTogglePauseResume(l)}
+                                    icon={l.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
+                                    className="min-w-11 flex-1 basis-0"
+                                  />
+
+                                  <IconAction
+                                    label="Mark sold"
+                                    title="Mark as sold"
+                                    variant="primary"
+                                    disabled={!canResolve}
+                                    onClick={() => doSold(l.id)}
+                                    icon={<Check aria-hidden="true" className="h-4 w-4" />}
+                                    className="min-w-11 flex-1 basis-0"
+                                  />
+                                </>
+                              ) : (
+                                <IconAction
+                                  label="Relist"
+                                  title="Relist"
+                                  variant="primary"
+                                  disabled={Boolean(l.ownerBlockStatusChanges)}
+                                  onClick={() => doRelist(l.id)}
+                                  icon={<RotateCcw aria-hidden="true" className="h-4 w-4" />}
+                                  className="min-w-11 flex-1 basis-0"
+                                />
+                              )}
+
+                              <IconAction
+                                label="Delete"
+                                title="Delete"
+                                variant="danger"
+                                onClick={() => onDelete(l)}
+                                icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
+                                className="min-w-11 flex-1 basis-0"
+                              />
+                            </div>
+                          </MobileCardActions>
+
+                          {(Boolean(l.ownerBlockEdit) ||
+                            Boolean(l.ownerBlockPauseResume) ||
+                            Boolean(l.ownerBlockStatusChanges) ||
+                            Boolean(l.ownerBlockFeaturing) ||
+                            Boolean(l.ownerBlockReason)) && (
+                              <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                                <div className="font-extrabold">Moderation restrictions</div>
+                                <div className="mt-1 text-sm font-semibold">
+                                  {l.ownerBlockEdit ? "Edit disabled. " : ""}
+                                  {l.ownerBlockPauseResume ? "Pause/Resume disabled. " : ""}
+                                  {l.ownerBlockStatusChanges ? "Status changes disabled. " : ""}
+                                  {l.ownerBlockFeaturing ? "Featuring disabled. " : ""}
+                                </div>
+                                {l.ownerBlockReason ? <div className="mt-2 text-sm font-semibold">Reason: {l.ownerBlockReason}</div> : null}
+                              </div>
+                            )}
+                        </MobileCardBody>
+                      </MobileCard>
+                    );
+                  }
+
+                  const w = row.wanted!;
+                  const assets = resolveAssets(w.images ?? []);
+                  const hero = assets[0]?.thumbUrl ?? assets[0]?.medUrl ?? assets[0]?.fullUrl ?? null;
+                  const openHref = w.status === "draft" ? `/post/wanted?draft=${encodeURIComponent(w.id)}` : `/listing/wanted/${w.id}`;
+                  const isDraft = w.status === "draft";
+                  const qtyText = `Qty ${Number(w.quantity ?? 1)}`;
+
+                  const canToggle = (w.status === "active" || w.status === "paused") && !w.ownerBlockPauseResume;
+                  const toggleTitle = w.status === "paused" ? "Resume" : "Pause";
+                  const canFeature = w.status === "active" && !w.ownerBlockFeaturing;
+                  const wantedBudgetText = budgetLabel(w);
+                  const isFeatured = Boolean(w.featuredUntil);
+                  const postedIso = (w.publishedAt ?? w.createdAt) as string;
+                  const postedTitle = new Date(postedIso).toLocaleString();
+                  const postedAgo = relativeTime(postedIso);
+
+                  return (
+                    <MobileCard key={row.key}>
+                      <MobileCardBody>
+                        <div className="flex min-w-0 items-center gap-3">
+                          <Link
+                            to={openHref}
+                            state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
+                            className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+                          >
+                            {hero ? (
+                              <img src={hero} alt={w.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                            ) : (
+                              <NoPhotoPlaceholder variant="tile" className="px-1 text-center" />
+                            )}
+                          </Link>
+
+                          <div className="min-w-0 flex-1">
+                            <Link
+                              to={openHref}
+                              state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "my listings" } }}
+                              className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
+                            >
+                              {w.title}
+                            </Link>
+                            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
+                              <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                Wanted
+                              </span>
+                              <span
+                                title={qtyText}
+                                className="inline-flex max-w-28 min-w-0 items-center rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600"
+                              >
+                                <span className="min-w-0 truncate">{qtyText}</span>
+                              </span>
+                              <WantedStatusText w={w} />
+                            </div>
+                            <div className="mt-1">{renderFeaturedTextAny(w.featuredUntil ?? null)}</div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex items-center gap-2">
+                          <div className="w-28 shrink-0 min-h-9 flex items-center">
+                            <div title={wantedBudgetText} className="text-lg font-black leading-tight text-slate-900 line-clamp-2">
+                              {wantedBudgetText}
+                            </div>
+                          </div>
+                          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1 text-[11px] font-semibold text-slate-600 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                              <Eye aria-hidden="true" className="h-4 w-4" />
+                              {Number(w.views ?? 0).toLocaleString()}
+                            </span>
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1" title={postedTitle}>
+                              <Clock aria-hidden="true" className="h-4 w-4" />
+                              {postedAgo}
+                            </span>
+                            <span
+                              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
+                              title={w.expiresAt ? new Date(w.expiresAt).toLocaleString() : ""}
+                            >
+                              <Hourglass aria-hidden="true" className="h-4 w-4" />
+                              {expiresInShort(w.expiresAt)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <MobileCardActions>
+                          <div className="flex w-full flex-wrap gap-2">
+                            {isDraft ? (
+                              <Link
+                                to={openHref}
+                                aria-label="Resume draft"
+                                title={Boolean(w.ownerBlockEdit) ? undefined : "Resume draft"}
+                                className={[
+                                  "inline-flex h-9 min-w-11 flex-1 basis-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900",
+                                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50",
+                                  Boolean(w.ownerBlockEdit) ? "pointer-events-none opacity-60" : "",
+                                ].join(" ")}
+                              >
+                                <Pencil aria-hidden="true" className="h-4 w-4" />
+                              </Link>
+                            ) : (
+                              <>
+                                <IconAction
+                                  label={isFeatured ? "Manage featuring" : "Feature"}
+                                  title={
+                                    !canFeature
+                                      ? "Only active wanted posts can be featured."
+                                      : isFeatured
+                                        ? "Manage featuring"
+                                        : "Feature this wanted post"
+                                  }
+                                  variant="feature"
+                                  disabled={!canFeature}
+                                  onClick={() => nav(`/feature/${encodeURIComponent(w.id)}`)}
+                                  icon={isFeatured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : <Star aria-hidden="true" className="h-4 w-4" />}
+                                  className="min-w-11 flex-1 basis-0"
+                                />
+
+                                <Link
+                                  to={`/edit/wanted/${w.id}`}
+                                  aria-label="Edit"
+                                  title={Boolean(w.ownerBlockEdit) ? undefined : "Edit"}
+                                  className={[
+                                    "inline-flex h-9 min-w-11 flex-1 basis-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900",
+                                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50",
+                                    Boolean(w.ownerBlockEdit) ? "pointer-events-none opacity-60" : "",
+                                  ].join(" ")}
+                                >
+                                  <Pencil aria-hidden="true" className="h-4 w-4" />
+                                </Link>
+
+                                <IconAction
+                                  label={toggleTitle}
+                                  title={toggleTitle}
+                                  disabled={!canToggle}
+                                  onClick={() => onPauseResumeWanted(w)}
+                                  icon={w.status === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
+                                  className="min-w-11 flex-1 basis-0"
+                                />
+
+                                <IconAction
+                                  label="Mark Closed"
+                                  title="Mark as Closed"
+                                  variant="primary"
+                                  disabled={(w.status !== "active" && w.status !== "paused") || Boolean(w.ownerBlockStatusChanges)}
+                                  onClick={() => onCloseWanted(w)}
+                                  icon={<Check aria-hidden="true" className="h-4 w-4" />}
+                                  className="min-w-11 flex-1 basis-0"
+                                />
+                              </>
+                            )}
+
+                            <IconAction
+                              label="Delete"
+                              title="Delete wanted post"
+                              variant="danger"
+                              onClick={() => onDeleteWanted(w)}
+                              icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
+                              className="min-w-11 flex-1 basis-0"
+                            />
+                          </div>
+                        </MobileCardActions>
+
+                        {(Boolean(w.ownerBlockEdit) ||
+                          Boolean(w.ownerBlockPauseResume) ||
+                          Boolean(w.ownerBlockStatusChanges) ||
+                          Boolean(w.ownerBlockFeaturing) ||
+                          Boolean(w.ownerBlockReason)) && (
+                            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                              <div className="font-extrabold">Moderation restrictions</div>
+                              <div className="mt-1 text-sm font-semibold">
+                                {w.ownerBlockEdit ? "Edit disabled. " : ""}
+                                {w.ownerBlockPauseResume ? "Pause/Resume disabled. " : ""}
+                                {w.ownerBlockStatusChanges ? "Status changes disabled. " : ""}
+                                {w.ownerBlockFeaturing ? "Featuring disabled. " : ""}
+                              </div>
+                              {w.ownerBlockReason ? <div className="mt-2 text-sm font-semibold">Reason: {w.ownerBlockReason}</div> : null}
+                            </div>
+                          )}
+                      </MobileCardBody>
+                    </MobileCard>
+                  );
+                })}
+              </MobileCardList>
+            </div>
+
+            {/* Desktop table */}
+            <div className="mt-6 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white md:block">
               <div
                 className="overflow-x-auto"
                 ref={(el) => {
@@ -1003,6 +1468,9 @@ export default function MyListingsPage() {
                                   <div className="mt-1 flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-600">
                                     <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
                                       For sale
+                                    </span>
+                                    <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                      Qty {Number(saleDetails.quantity ?? 1)}
                                     </span>
                                   </div>
                                   <div className="mt-1">{renderFeaturedText(l)}</div>
@@ -1217,6 +1685,9 @@ export default function MyListingsPage() {
                                   <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
                                     Wanted
                                   </span>
+                                  <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                    Qty {Number(w.quantity ?? 1)}
+                                  </span>
                                 </div>
                                 <div className="mt-1">{renderFeaturedTextAny(w.featuredUntil ?? null)}</div>
                               </div>
@@ -1383,7 +1854,9 @@ export default function MyListingsPage() {
                 </table>
               </div>
             </div>
-            <FloatingHScrollbar scrollRef={tableScrollRef} deps={[displayRows.length, viewType, includeResolved, expandedId]} />
+            <div className="hidden md:block">
+              <FloatingHScrollbar scrollRef={tableScrollRef} deps={[displayRows.length, viewType, includeResolved, expandedId]} />
+            </div>
           </>
         ) : null}
       </main>

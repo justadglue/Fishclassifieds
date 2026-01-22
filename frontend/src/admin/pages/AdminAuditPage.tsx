@@ -3,6 +3,7 @@ import { adminFetchAudit, type AdminAuditItem } from "../../api";
 import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
 import FloatingHScrollbar from "../../components/FloatingHScrollbar";
+import { MobileCard, MobileCardActions, MobileCardBody, MobileCardList, MobileCardMeta, MobileCardMetaGrid } from "../../components/table/MobileCards";
 
 function fmtIso(iso: string) {
   const t = Date.parse(String(iso));
@@ -164,7 +165,47 @@ export default function AdminAuditPage() {
 
       {err ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div> : null}
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      {/* Mobile cards */}
+      <div className="mt-4 md:hidden">
+        <MobileCardList>
+          {!loading && items.length === 0 ? <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">No audit entries.</div> : null}
+          {displayItems.map((it) => (
+            <MobileCard key={it.id}>
+              <MobileCardBody>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-extrabold text-slate-900">{it.action}</div>
+                  <div className="mt-1 text-xs font-semibold text-slate-600">
+                    {it.targetKind} • {it.targetId}
+                  </div>
+                </div>
+
+                <MobileCardMetaGrid>
+                  <MobileCardMeta label="When" value={fmtIso(it.createdAt)} />
+                  <MobileCardMeta label="Actor" value={<span className="truncate">{it.actor.username ?? `User ${it.actor.userId}`}</span>} />
+                  <MobileCardMeta label="Email" value={<span className="truncate">{it.actor.email ?? "—"}</span>} />
+                </MobileCardMetaGrid>
+
+                <MobileCardActions>
+                  {it.metaJson ? (
+                    <button
+                      type="button"
+                      onClick={() => window.alert(it.metaJson)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-50"
+                    >
+                      View meta
+                    </button>
+                  ) : (
+                    <div className="text-xs font-semibold text-slate-500">No meta</div>
+                  )}
+                </MobileCardActions>
+              </MobileCardBody>
+            </MobileCard>
+          ))}
+        </MobileCardList>
+      </div>
+
+      {/* Desktop table */}
+      <div className="mt-4 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white md:block">
         <div className="overflow-x-auto" ref={tableScrollRef}>
           <div className="grid w-max min-w-full grid-cols-[180px_220px_1fr_1fr_160px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
             <SortHeaderCell label="When" k="when" sort={sort} onToggle={toggleSort} />
@@ -208,7 +249,9 @@ export default function AdminAuditPage() {
           </div>
         </div>
       </div>
-      <FloatingHScrollbar scrollRef={tableScrollRef} deps={[items.length, actorUserId, action, targetKind, targetId, limit, offset]} />
+      <div className="hidden md:block">
+        <FloatingHScrollbar scrollRef={tableScrollRef} deps={[items.length, actorUserId, action, targetKind, targetId, limit, offset]} />
+      </div>
 
       <PrevNext
         canPrev={canPrev}

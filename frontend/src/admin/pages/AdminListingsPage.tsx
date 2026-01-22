@@ -12,6 +12,7 @@ import {
 } from "../../api";
 import { useAuth } from "../../auth";
 import NoPhotoPlaceholder from "../../components/NoPhotoPlaceholder";
+import { MobileCard, MobileCardActions, MobileCardBody, MobileCardList, MobileCardMeta, MobileCardMetaGrid } from "../../components/table/MobileCards";
 
 type KindFilter = "all" | "sale" | "wanted";
 type StatusFilter = "all" | ListingStatus;
@@ -911,7 +912,329 @@ export default function AdminListingsPage() {
                 </button>
             </div>
 
-            <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            {/* Mobile cards */}
+            <div className="mt-6 md:hidden">
+                <MobileCardList>
+                    {displayRows.map((it) => {
+                        const rowKey = `${it.kind}:${it.id}`;
+                        const isExpanded = expandedId === rowKey;
+                        const hero = resolveImageUrl(it.heroUrl ?? null);
+                        const openHref = `/listing/${it.kind}/${it.id}?viewContext=admin`;
+                        const draft = restrictionsDraft?.listingId === it.id ? restrictionsDraft : null;
+                        const effectiveStatus = (draft?.desiredStatus ?? it.status) as ListingStatus;
+                        const effectiveFeaturedUntil =
+                            draft?.desiredFeaturedUntil === undefined ? it.featuredUntil ?? null : draft.desiredFeaturedUntil;
+                        const isFeatured = effectiveFeaturedUntil != null && effectiveFeaturedUntil > Date.now();
+                        const priceText = it.kind === "sale" ? centsToDollars(it.priceCents) : budgetLabel(it.budgetCents ?? null);
+
+                        const canToggle = effectiveStatus === "active" || effectiveStatus === "paused";
+                        const toggleTitle = effectiveStatus === "paused" ? "Resume" : "Pause";
+
+                        const e = Boolean(it.ownerBlockEdit);
+                        const r = Boolean(it.ownerBlockPauseResume);
+                        const s = Boolean(it.ownerBlockStatusChanges);
+                        const f = Boolean(it.ownerBlockFeaturing);
+                        const anyRestr = e || r || s || f;
+                        const restrText = anyRestr ? [e ? "Edit" : null, r ? "Pause/Resume" : null, s ? "Status" : null, f ? "Featuring" : null].filter(Boolean).join(", ") : "—";
+
+                        return (
+                            <MobileCard key={rowKey}>
+                                <MobileCardBody>
+                                    <div className="flex min-w-0 items-center gap-3">
+                                        <Link
+                                            to={openHref}
+                                            state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "admin listings" } }}
+                                            className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+                                        >
+                                            {hero ? (
+                                                <img src={hero} alt={it.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                                            ) : (
+                                                <NoPhotoPlaceholder variant="tile" className="px-1 text-center" />
+                                            )}
+                                        </Link>
+
+                                        <div className="min-w-0 flex-1">
+                                            <Link
+                                                to={openHref}
+                                                state={{ from: { pathname: routerLocation.pathname, search: routerLocation.search, label: "admin listings" } }}
+                                                className="block truncate text-sm font-extrabold text-slate-900 hover:underline"
+                                            >
+                                                {it.title}
+                                            </Link>
+                                            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
+                                                <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                                    {it.kind === "sale" ? "For sale" : "Wanted"}
+                                                </span>
+                                                <span className="truncate">{it.location}</span>
+                                            </div>
+                                            <div className="mt-1">{renderFeaturedTextAny(effectiveFeaturedUntil)}</div>
+                                        </div>
+                                    </div>
+
+                                    <MobileCardMetaGrid>
+                                        <MobileCardMeta label="Price" value={priceText} />
+                                        <MobileCardMeta label="Status" value={<StatusTextAny status={effectiveStatus} />} />
+                                        <MobileCardMeta label="Views" value={Number(it.views ?? 0).toLocaleString()} />
+                                        <MobileCardMeta label="Updated" value={<span title={new Date(it.updatedAt).toLocaleString()}>{relativeTime(it.updatedAt)}</span>} />
+                                        <MobileCardMeta label="Expires" value={<span title={it.expiresAt ? new Date(it.expiresAt).toLocaleString() : ""}>{expiresInShort(it.expiresAt)}</span>} />
+                                        <MobileCardMeta label="Restrictions" value={restrText} />
+                                    </MobileCardMetaGrid>
+
+                                    <MobileCardActions>
+                                        <ActionButton
+                                            label={isExpanded ? "Hide" : "Actions"}
+                                            title={isExpanded ? "Hide actions" : "Show actions"}
+                                            onClick={() => setExpandedId(isExpanded ? null : rowKey)}
+                                        />
+                                    </MobileCardActions>
+
+                                    {isExpanded ? (
+                                        <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3" onClick={(e) => e.stopPropagation()}>
+                                            <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2">
+                                                <ActionLink to={openHref} label="Open listing" icon={<Star aria-hidden="true" className="h-4 w-4" />} />
+                                                {it.user?.id != null ? (
+                                                    <ActionLink to={`/admin/users/${it.user.id}`} label="Open user" icon={<UserIcon aria-hidden="true" className="h-4 w-4" />} />
+                                                ) : null}
+                                                <ActionButton
+                                                    label={restrictionsDraft?.listingId === it.id ? "Hide edit tools" : "Edit tools"}
+                                                    title="Open admin-only edit & moderation tools for this listing"
+                                                    onClick={() => {
+                                                        if (restrictionsDraft?.listingId === it.id) {
+                                                            setRestrictionsDraft(null);
+                                                            return;
+                                                        }
+                                                        setRestrictionsDraft({
+                                                            listingId: it.id,
+                                                            desiredStatus: null,
+                                                            desiredFeaturedUntil: undefined,
+                                                            blockEdit: Boolean(it.ownerBlockEdit),
+                                                            blockPauseResume: Boolean(it.ownerBlockPauseResume),
+                                                            blockStatusChanges: Boolean(it.ownerBlockStatusChanges),
+                                                            blockFeaturing: Boolean(it.ownerBlockFeaturing),
+                                                            reason: String(it.ownerBlockReason ?? ""),
+                                                        });
+                                                    }}
+                                                />
+                                            </div>
+
+                                            {restrictionsDraft?.listingId === it.id ? (
+                                                <div ref={editToolsRef} className="mx-auto mt-3 max-w-4xl rounded-2xl border border-slate-200 bg-white p-4">
+                                                    <div className="text-sm font-extrabold text-slate-900">Edit tools</div>
+
+                                                    <div className="my-2 text-xs font-extrabold text-slate-700">Listing actions</div>
+                                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                        <ActionButton
+                                                            label={toggleTitle}
+                                                            title={toggleTitle}
+                                                            disabled={!canToggle}
+                                                            onClick={async () => {
+                                                                setRestrictionsDraft((p) =>
+                                                                    p && p.listingId === it.id
+                                                                        ? (() => {
+                                                                            const nextStatus: ListingStatus = effectiveStatus === "paused" ? "active" : "paused";
+                                                                            return {
+                                                                                ...p,
+                                                                                desiredStatus: nextStatus === it.status ? null : nextStatus,
+                                                                                blockPauseResume: nextStatus === "paused",
+                                                                            };
+                                                                        })()
+                                                                        : p
+                                                                );
+                                                            }}
+                                                            icon={effectiveStatus === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
+                                                        />
+
+                                                        {effectiveStatus !== "deleted" ? (
+                                                            <ActionButton
+                                                                label="Delete"
+                                                                title="Delete"
+                                                                variant="danger"
+                                                                onClick={async () => {
+                                                                    setRestrictionsDraft((p) =>
+                                                                        p && p.listingId === it.id
+                                                                            ? { ...p, desiredStatus: it.status === "deleted" ? null : "deleted", blockStatusChanges: true }
+                                                                            : p
+                                                                    );
+                                                                }}
+                                                                icon={<Trash2 aria-hidden="true" className="h-4 w-4" />}
+                                                            />
+                                                        ) : (
+                                                            <ActionButton
+                                                                label="Restore"
+                                                                title="Restore"
+                                                                variant="primary"
+                                                                onClick={async () => {
+                                                                    setRestrictionsDraft((p) =>
+                                                                        p && p.listingId === it.id
+                                                                            ? { ...p, desiredStatus: it.status === "active" ? null : "active", blockStatusChanges: false }
+                                                                            : p
+                                                                    );
+                                                                }}
+                                                            />
+                                                        )}
+
+                                                        {isSuperadmin ? (
+                                                            isFeatured ? (
+                                                                <ActionButton
+                                                                    label="Unfeature"
+                                                                    title="Unfeature"
+                                                                    variant="feature"
+                                                                    onClick={async () => {
+                                                                        setRestrictionsDraft((p) =>
+                                                                            p && p.listingId === it.id
+                                                                                ? {
+                                                                                    ...p,
+                                                                                    desiredFeaturedUntil: (it.featuredUntil ?? null) === null ? undefined : null,
+                                                                                    blockFeaturing: true,
+                                                                                }
+                                                                                : p
+                                                                        );
+                                                                    }}
+                                                                    icon={<CircleCheck aria-hidden="true" className="h-4 w-4" />}
+                                                                />
+                                                            ) : (
+                                                                <ActionButton
+                                                                    label="Feature"
+                                                                    title="Feature"
+                                                                    variant="feature"
+                                                                    onClick={async () => {
+                                                                        const daysRaw = window.prompt("Feature for how many days?", "7") ?? "";
+                                                                        const days = Math.max(1, Math.min(3650, Math.floor(Number(daysRaw))));
+                                                                        if (!Number.isFinite(days)) return;
+                                                                        setRestrictionsDraft((p) =>
+                                                                            p && p.listingId === it.id
+                                                                                ? {
+                                                                                    ...p,
+                                                                                    desiredFeaturedUntil: Date.now() + days * 24 * 60 * 60 * 1000,
+                                                                                    blockFeaturing: false,
+                                                                                }
+                                                                                : p
+                                                                        );
+                                                                    }}
+                                                                    icon={<Star aria-hidden="true" className="h-4 w-4" />}
+                                                                />
+                                                            )
+                                                        ) : null}
+                                                    </div>
+
+                                                    <div className="mt-4 text-xs font-extrabold text-slate-700">Owner restrictions</div>
+                                                    <div className="mt-1 text-xs font-semibold text-slate-600">
+                                                        Toggle which capabilities are blocked for the listing owner. Changes are audited and the owner is notified.
+                                                    </div>
+
+                                                    <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                                                        <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={restrictionsDraft.blockEdit}
+                                                                onChange={(e) => setRestrictionsDraft((p) => (p ? { ...p, blockEdit: e.target.checked } : p))}
+                                                            />
+                                                            Block edit
+                                                        </label>
+                                                        <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={restrictionsDraft.blockPauseResume}
+                                                                onChange={(e) => setRestrictionsDraft((p) => (p ? { ...p, blockPauseResume: e.target.checked } : p))}
+                                                            />
+                                                            Block pause/resume
+                                                        </label>
+                                                        <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={restrictionsDraft.blockStatusChanges}
+                                                                onChange={(e) => setRestrictionsDraft((p) => (p ? { ...p, blockStatusChanges: e.target.checked } : p))}
+                                                            />
+                                                            Block status changes
+                                                        </label>
+                                                        <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={restrictionsDraft.blockFeaturing}
+                                                                onChange={(e) => setRestrictionsDraft((p) => (p ? { ...p, blockFeaturing: e.target.checked } : p))}
+                                                            />
+                                                            Block featuring
+                                                        </label>
+                                                    </div>
+
+                                                    <div className="mt-3">
+                                                        <div className="mb-1 text-xs font-bold text-slate-700">Reason (optional)</div>
+                                                        <input
+                                                            value={restrictionsDraft.reason}
+                                                            onChange={(e) => setRestrictionsDraft((p) => (p ? { ...p, reason: e.target.value } : p))}
+                                                            placeholder="Visible to owner"
+                                                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-slate-400"
+                                                        />
+                                                    </div>
+
+                                                    <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                                                        <ActionButton label="Cancel" title="Cancel" onClick={() => setRestrictionsDraft(null)} />
+                                                        <ActionButton
+                                                            label="Save"
+                                                            title="Save"
+                                                            variant="primary"
+                                                            onClick={async () => {
+                                                                const d = restrictionsDraft;
+                                                                if (!d) return;
+
+                                                                // 1) Listing actions
+                                                                const desiredStatus = d.desiredStatus ?? it.status;
+                                                                if (desiredStatus !== it.status) {
+                                                                    const ok =
+                                                                        desiredStatus === "deleted"
+                                                                            ? window.confirm("Delete this listing? It will be hidden from the site.")
+                                                                            : desiredStatus === "active" && it.status === "deleted"
+                                                                                ? window.confirm("Restore this listing to active?")
+                                                                                : true;
+                                                                    if (!ok) return;
+                                                                    await adminSetListingStatus(it.id, desiredStatus);
+                                                                }
+
+                                                                if (isSuperadmin && d.desiredFeaturedUntil !== undefined) {
+                                                                    const cur = it.featuredUntil ?? null;
+                                                                    const next = d.desiredFeaturedUntil;
+                                                                    if (next !== cur) {
+                                                                        await adminSetListingFeaturedUntil(it.id, next);
+                                                                    }
+                                                                }
+
+                                                                // 2) Owner restrictions
+                                                                const any = d.blockEdit || d.blockPauseResume || d.blockStatusChanges || d.blockFeaturing;
+                                                                const nextReason = any && d.reason.trim() ? d.reason.trim() : null;
+                                                                const curReason = it.ownerBlockReason == null ? null : String(it.ownerBlockReason);
+                                                                const shouldApplyRestrictions =
+                                                                    Boolean(it.ownerBlockEdit) !== d.blockEdit ||
+                                                                    Boolean(it.ownerBlockPauseResume) !== d.blockPauseResume ||
+                                                                    Boolean(it.ownerBlockStatusChanges) !== d.blockStatusChanges ||
+                                                                    Boolean(it.ownerBlockFeaturing) !== d.blockFeaturing ||
+                                                                    curReason !== nextReason;
+
+                                                                if (shouldApplyRestrictions) {
+                                                                    await adminSetListingRestrictions(it.id, {
+                                                                        blockEdit: d.blockEdit,
+                                                                        blockPauseResume: d.blockPauseResume,
+                                                                        blockStatusChanges: d.blockStatusChanges,
+                                                                        blockFeaturing: d.blockFeaturing,
+                                                                        reason: nextReason,
+                                                                    });
+                                                                }
+                                                                await load({ preserveOrder: true });
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    ) : null}
+                                </MobileCardBody>
+                            </MobileCard>
+                        );
+                    })}
+                </MobileCardList>
+            </div>
+
+            {/* Desktop table */}
+            <div className="mt-6 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white md:block">
                 <div className="overflow-x-auto" ref={tableScrollRef}>
                     <table className="table-fixed" style={{ width: tableWidthPx }}>
                         <thead className="bg-slate-100/80 border-b border-slate-200 shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.06)]">
@@ -1401,7 +1724,7 @@ export default function AdminListingsPage() {
 
             {/* Floating horizontal scrollbar (only when the table's own scrollbar isn't visible) */}
             <div
-                className="fixed bottom-3 z-50"
+                className="fixed bottom-3 z-50 hidden md:block"
                 style={{
                     left: stickyGeom ? `${stickyGeom.left}px` : "0px",
                     width: stickyGeom ? `${stickyGeom.width}px` : "0px",

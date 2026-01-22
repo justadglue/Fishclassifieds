@@ -4,6 +4,7 @@ import { adminApprove, adminFetchApprovals, adminReject, type AdminApprovalItem 
 import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
 import FloatingHScrollbar from "../../components/FloatingHScrollbar";
+import { MobileCard, MobileCardActions, MobileCardBody, MobileCardList, MobileCardMeta, MobileCardMetaGrid } from "../../components/table/MobileCards";
 
 function kindLabel(k: "sale" | "wanted") {
   return k === "sale" ? "For sale" : "Wanted";
@@ -134,7 +135,60 @@ export default function AdminApprovalsPage() {
         />
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      {/* Mobile cards */}
+      <div className="mt-4 md:hidden">
+        <MobileCardList>
+          {!loading && displayItems.length === 0 ? <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">No pending items.</div> : null}
+          {displayItems.map((it) => (
+            <MobileCard key={`${it.kind}-${it.id}`}>
+              <MobileCardBody>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-extrabold text-slate-900">{it.title}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-bold text-slate-700">
+                      {kindLabel(it.kind)}
+                    </span>
+                    <span className="truncate">{it.location}</span>
+                  </div>
+                  <Link
+                    to={`/listing/${it.kind}/${it.id}?viewContext=admin`}
+                    className="mt-2 inline-block text-xs font-bold text-slate-700 underline underline-offset-4 hover:text-slate-900"
+                  >
+                    Open listing
+                  </Link>
+                </div>
+
+                <MobileCardMetaGrid>
+                  <MobileCardMeta label="Created" value={fmtIso(it.createdAt)} />
+                  <MobileCardMeta label="Category" value={it.category} />
+                  <MobileCardMeta label="User" value={<span className="truncate">{it.user.username}</span>} />
+                  <MobileCardMeta label="Email" value={<span className="truncate">{it.user.email}</span>} />
+                </MobileCardMetaGrid>
+
+                <MobileCardActions>
+                  <button
+                    type="button"
+                    onClick={() => doApprove(it)}
+                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => doReject(it)}
+                    className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100"
+                  >
+                    Reject
+                  </button>
+                </MobileCardActions>
+              </MobileCardBody>
+            </MobileCard>
+          ))}
+        </MobileCardList>
+      </div>
+
+      {/* Desktop table */}
+      <div className="mt-4 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white md:block">
         <div className="overflow-x-auto" ref={tableScrollRef}>
           <div className="grid w-max min-w-full grid-cols-[160px_110px_1fr_160px_200px_220px_160px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
             <SortHeaderCell label="Created" k="createdAt" sort={sort} onToggle={toggleSort} />
@@ -195,7 +249,9 @@ export default function AdminApprovalsPage() {
           </div>
         </div>
       </div>
-      <FloatingHScrollbar scrollRef={tableScrollRef} deps={[items.length, kind, limit, offset]} />
+      <div className="hidden md:block">
+        <FloatingHScrollbar scrollRef={tableScrollRef} deps={[items.length, kind, limit, offset]} />
+      </div>
 
       <PrevNext
         canPrev={canPrev}

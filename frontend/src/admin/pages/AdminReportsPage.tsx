@@ -4,6 +4,7 @@ import { adminFetchReports, adminReportAction, type AdminReport, type AdminRepor
 import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
 import FloatingHScrollbar from "../../components/FloatingHScrollbar";
+import { MobileCard, MobileCardActions, MobileCardBody, MobileCardList, MobileCardMeta, MobileCardMetaGrid } from "../../components/table/MobileCards";
 
 function fmtIso(iso: string) {
   const t = Date.parse(String(iso));
@@ -167,7 +168,73 @@ export default function AdminReportsPage() {
         />
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      {/* Mobile cards */}
+      <div className="mt-4 md:hidden">
+        <MobileCardList>
+          {!loading && displayItems.length === 0 ? <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">No reports.</div> : null}
+          {displayItems.map((r) => (
+            <MobileCard key={r.id}>
+              <MobileCardBody>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-extrabold text-slate-900">{r.reason}</div>
+                  <div className="mt-1 text-xs font-semibold text-slate-600">
+                    {r.targetKind} • {r.targetId}
+                  </div>
+                  <Link
+                    to={`/listing/${r.targetKind}/${r.targetId}?viewContext=admin`}
+                    className="mt-2 inline-block text-xs font-bold text-slate-700 underline underline-offset-4 hover:text-slate-900"
+                  >
+                    Open target
+                  </Link>
+                </div>
+
+                <MobileCardMetaGrid>
+                  <MobileCardMeta label="Created" value={<span title={fmtIso(r.createdAt)}>{fmtIso(r.createdAt)}</span>} />
+                  <MobileCardMeta label="Reporter" value={<span className="truncate">{r.reporter.username}</span>} />
+                  <MobileCardMeta label="Owner" value={<span className="truncate">{r.owner ? r.owner.username : "—"}</span>} />
+                </MobileCardMetaGrid>
+
+                {r.details ? <div className="mt-3 text-sm text-slate-700">{r.details}</div> : <div className="mt-3 text-sm text-slate-500">—</div>}
+                {status === "resolved" && r.resolvedNote ? (
+                  <div className="mt-2 text-xs font-semibold text-slate-600">Resolved note: {r.resolvedNote}</div>
+                ) : null}
+
+                <MobileCardActions>
+                  {status === "open" ? (
+                    <>
+                      <select
+                        value={actionById[r.id] ?? "resolve_only"}
+                        onChange={(e) => setActionById((prev) => ({ ...prev, [r.id]: e.target.value as any }))}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-bold text-slate-800 outline-none focus:border-slate-400"
+                        title="Choose an action and apply it (this resolves the report)."
+                      >
+                        <option value="resolve_only">Resolve only</option>
+                        <option value="hide_listing">Hide listing</option>
+                        <option value="warn_user">Warn user (audit only)</option>
+                        <option value="suspend_user">Suspend user</option>
+                        <option value="ban_user">Ban user</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => doAction(r)}
+                        className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+                        disabled={loading}
+                      >
+                        Apply
+                      </button>
+                    </>
+                  ) : (
+                    <div className="text-xs font-semibold text-slate-600">Resolved</div>
+                  )}
+                </MobileCardActions>
+              </MobileCardBody>
+            </MobileCard>
+          ))}
+        </MobileCardList>
+      </div>
+
+      {/* Desktop table */}
+      <div className="mt-4 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white md:block">
         <div className="overflow-x-auto" ref={tableScrollRef}>
           <div className="grid w-max min-w-full grid-cols-[120px_140px_170px_170px_170px_1fr_220px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
             <SortHeaderCell label="Created" k="createdAt" sort={sort} onToggle={toggleSort} />
@@ -253,7 +320,9 @@ export default function AdminReportsPage() {
           </div>
         </div>
       </div>
-      <FloatingHScrollbar scrollRef={tableScrollRef} deps={[items.length, status, limit, offset]} />
+      <div className="hidden md:block">
+        <FloatingHScrollbar scrollRef={tableScrollRef} deps={[items.length, status, limit, offset]} />
+      </div>
 
       <PrevNext
         canPrev={canPrev}

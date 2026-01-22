@@ -4,6 +4,7 @@ import { useAuth } from "../../auth";
 import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
 import { PaginationMeta, PrevNext } from "../components/PaginationControls";
 import FloatingHScrollbar from "../../components/FloatingHScrollbar";
+import { MobileCard, MobileCardActions, MobileCardBody, MobileCardList, MobileCardMeta, MobileCardMetaGrid } from "../../components/table/MobileCards";
 
 function DefaultAvatar() {
   return (
@@ -270,7 +271,69 @@ export default function AdminUserPrivilegesPage() {
 
       {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      {/* Mobile cards */}
+      <div className="mt-4 md:hidden">
+        <MobileCardList>
+          {displayItems.map((u) => (
+            <MobileCard key={u.id}>
+              <MobileCardBody>
+                <div className="flex min-w-0 items-center gap-3">
+                  {u.avatarUrl ? (
+                    <img
+                      src={resolveImageUrl(u.avatarUrl) ?? u.avatarUrl}
+                      alt=""
+                      className="h-10 w-10 shrink-0 rounded-full border border-slate-200 object-cover"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <DefaultAvatar />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-extrabold text-slate-900">{u.username}</div>
+                    <div className="truncate text-xs font-semibold text-slate-600">{u.email}</div>
+                  </div>
+                </div>
+
+                <MobileCardMetaGrid>
+                  <MobileCardMeta label="Admin" value={u.isAdmin ? "On" : "Off"} />
+                  <MobileCardMeta label="Superadmin" value={u.isSuperadmin ? "On" : "Off"} />
+                </MobileCardMetaGrid>
+
+                <MobileCardActions>
+                  <button
+                    type="button"
+                    onClick={() => toggleAdmin(u)}
+                    disabled={saving}
+                    className={[
+                      "rounded-xl border px-3 py-2 text-xs font-bold",
+                      u.isAdmin ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700",
+                      saving ? "opacity-60" : "",
+                    ].join(" ")}
+                  >
+                    Toggle admin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleSuper(u)}
+                    disabled={saving}
+                    className={[
+                      "rounded-xl border px-3 py-2 text-xs font-bold",
+                      u.isSuperadmin ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700",
+                      saving ? "opacity-60" : "",
+                    ].join(" ")}
+                  >
+                    Toggle superadmin
+                  </button>
+                </MobileCardActions>
+              </MobileCardBody>
+            </MobileCard>
+          ))}
+        </MobileCardList>
+      </div>
+
+      {/* Desktop table */}
+      <div className="mt-4 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white md:block">
         <div className="overflow-x-auto" ref={tableScrollRef}>
           <div className="grid w-max min-w-full grid-cols-[1fr_120px_140px] gap-3 border-b border-slate-200 bg-slate-100/80 p-3 text-xs font-bold tracking-wider text-slate-600">
             <SortHeaderCell label="User" k="user" sort={sort} onToggle={toggleSort} />
@@ -333,7 +396,9 @@ export default function AdminUserPrivilegesPage() {
           </div>
         </div>
       </div>
-      <FloatingHScrollbar scrollRef={tableScrollRef} deps={[items.length, q, limit, offset]} />
+      <div className="hidden md:block">
+        <FloatingHScrollbar scrollRef={tableScrollRef} deps={[items.length, q, limit, offset]} />
+      </div>
 
       <PrevNext
         canPrev={canPrev}

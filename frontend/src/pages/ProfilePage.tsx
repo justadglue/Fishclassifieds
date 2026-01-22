@@ -168,6 +168,15 @@ export default function ProfilePage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [deleteOpen]);
 
+  useEffect(() => {
+    if (!deleteOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [deleteOpen]);
+
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
@@ -620,7 +629,7 @@ export default function ProfilePage() {
             if (e.target === e.currentTarget) setDeleteOpen(false);
           }}
         >
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+          <div className="w-full max-w-md max-h-[85vh] max-h-[85dvh] overflow-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
             <div className="border-b border-slate-100 px-5 py-4">
               <div className="text-base font-extrabold text-slate-900">Confirm account deletion</div>
               <div className="mt-1 text-sm text-slate-600">

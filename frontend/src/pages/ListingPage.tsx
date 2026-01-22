@@ -265,6 +265,15 @@ export default function ListingPage() {
     };
   }, [lightboxOpen]);
 
+  useEffect(() => {
+    if (!reportOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [reportOpen]);
+
   return (
     <div className="min-h-full">
       <Header maxWidth="7xl" />
@@ -294,7 +303,7 @@ export default function ListingPage() {
           <>
             {reportOpen ? (
               <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true">
-                <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+                <div className="w-full max-w-lg max-h-[85vh] max-h-[85dvh] overflow-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-extrabold text-slate-900">Report listing</div>
@@ -762,11 +771,11 @@ export default function ListingPage() {
                     <img
                       src={fullRes}
                       alt={item?.title ?? "Listing image"}
-                      className="max-h-[85vh] w-auto max-w-full select-none object-contain"
+                      className="max-h-[85vh] max-h-[85dvh] w-auto max-w-full select-none object-contain"
                       draggable={false}
                     />
                   ) : (
-                    <div className="h-[60vh] w-full overflow-hidden rounded-2xl bg-white/10">
+                    <div className="h-[60vh] h-[60dvh] w-full overflow-hidden rounded-2xl bg-white/10">
                       <NoPhotoPlaceholder title={item?.title ?? ""} variant="detail" className="text-white/80 from-white/10 to-white/5" />
                     </div>
                   )}

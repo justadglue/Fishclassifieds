@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ArrowUpDown, CircleCheck, MoveDown, MoveUp, Pause, Play, Star, Trash2, User as UserIcon } from "lucide-react";
+import { ArrowUpDown, CircleCheck, Clock, Eye, Hourglass, MoveDown, MoveUp, Pause, Play, Star, Trash2, User as UserIcon } from "lucide-react";
 import {
     adminFetchListings,
     adminSetListingFeaturedUntil,
@@ -148,6 +148,32 @@ function StatusTextAny({ status }: { status: ListingStatus }) {
     );
 }
 
+function StatusPillAny({ status }: { status: ListingStatus }) {
+    const s = status;
+    const cls =
+        s === "active"
+            ? "text-emerald-700"
+            : s === "pending"
+                ? "text-amber-700"
+                : s === "paused"
+                    ? "text-violet-700"
+                    : s === "expired"
+                        ? "text-slate-600"
+                        : s === "draft"
+                            ? "text-sky-700"
+                            : s === "sold" || s === "closed"
+                                ? "text-slate-800"
+                                : s === "deleted"
+                                    ? "text-red-700"
+                                    : "text-slate-700";
+
+    return (
+        <span className={`inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold ${cls}`}>
+            {s === "sold" ? "Sold" : s === "closed" ? "Closed" : cap1(String(s))}
+        </span>
+    );
+}
+
 function ActionButton(props: {
     label: string;
     title?: string;
@@ -250,6 +276,8 @@ export default function AdminListingsPage() {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const expandedIdRef = useRef<string | null>(null);
 
+    const [mobilePanel, setMobilePanel] = useState<null | { rowKey: string; panel: "user" | "listing" | "actions" }>(null);
+
     const [restrictionsDraft, setRestrictionsDraft] = useState<
         | null
         | {
@@ -275,6 +303,8 @@ export default function AdminListingsPage() {
             if (!el) return;
             const t = e.target as Node | null;
             if (t && el.contains(t)) return;
+            // Allow clicking the "Edit tools" toggle button without triggering click-away collapse.
+            if (t && t instanceof Element && t.closest('[data-edit-tools-toggle="1"]')) return;
             setRestrictionsDraft(null);
         };
         document.addEventListener("mousedown", onMouseDown, true);
@@ -285,8 +315,12 @@ export default function AdminListingsPage() {
     useEffect(() => {
         const id = restrictionsDraft?.listingId;
         if (!id) return;
-        if (!expandedId || !expandedId.endsWith(`:${id}`)) setRestrictionsDraft(null);
-    }, [expandedId, restrictionsDraft?.listingId]);
+        const desktopRowStillOpen = Boolean(expandedId && expandedId.endsWith(`:${id}`));
+        const mobileRowStillOpen = Boolean(mobilePanel?.rowKey && mobilePanel.rowKey.endsWith(`:${id}`));
+        // Keep draft alive if the relevant row is still open in either desktop expanded-row mode
+        // or the mobile cards' panels mode.
+        if (!desktopRowStillOpen && !mobileRowStillOpen) setRestrictionsDraft(null);
+    }, [expandedId, restrictionsDraft?.listingId, mobilePanel?.rowKey]);
 
     // When the backing row data refreshes after a Save, clear any "desired" values that now match the saved state.
     // This keeps the edit panel open without leaving stale "pending" values hanging around.
@@ -919,7 +953,6 @@ export default function AdminListingsPage() {
                 <MobileCardList>
                     {displayRows.map((it) => {
                         const rowKey = `${it.kind}:${it.id}`;
-                        const isExpanded = expandedId === rowKey;
                         const hero = resolveImageUrl(it.heroUrl ?? null);
                         const openHref = `/listing/${it.kind}/${it.id}?viewContext=admin`;
                         const draft = restrictionsDraft?.listingId === it.id ? restrictionsDraft : null;
@@ -938,6 +971,36 @@ export default function AdminListingsPage() {
                         const f = Boolean(it.ownerBlockFeaturing);
                         const anyRestr = e || r || s || f;
                         const restrText = anyRestr ? [e ? "Edit" : null, r ? "Pause/Resume" : null, s ? "Status" : null, f ? "Featuring" : null].filter(Boolean).join(", ") : "—";
+
+                        const isUserOpen = mobilePanel?.rowKey === rowKey && mobilePanel.panel === "user";
+                        const isListingOpen = mobilePanel?.rowKey === rowKey && mobilePanel.panel === "listing";
+                        const isActionsOpen = mobilePanel?.rowKey === rowKey && mobilePanel.panel === "actions";
+                        const togglePanel = (panel: "user" | "listing" | "actions") => {
+                            setMobilePanel((prev) => (prev?.rowKey === rowKey && prev.panel === panel ? null : { rowKey, panel }));
+                        };
+
+                        const qtyPillText = it.kind === "sale" ? `Qty ${Number(it.quantity ?? 0)}` : null;
+                        const postedIso = (it.publishedAt ?? it.createdAt) as string;
+                        const postedTitle = postedIso ? new Date(postedIso).toLocaleString() : "";
+                        const postedAgo = postedIso ? relativeTime(postedIso) : "—";
+
+                        const userLabel = it.user
+                            ? `${it.user.firstName} ${it.user.lastName}${it.user.username ? ` (@${it.user.username})` : ""}`
+                            : "—";
+                        const emailText = it.user?.email ? String(it.user.email) : "—";
+                        const phoneText = it.phone?.trim() ? it.phone.trim() : "—";
+
+                        const catText = String(it.category ?? "—");
+                        const speciesText = it.species ? String(it.species) : "—";
+                        const waterText = it.waterType ? String(it.waterType) : "—";
+                        const sexText = it.sex ? String(it.sex) : "—";
+                        const sizeText = it.size ? String(it.size) : "—";
+                        const qtyText = Number(it.quantity ?? 0).toLocaleString();
+                        const shipText = it.shippingOffered ? "Yes" : "No";
+                        const createdTitle = new Date(it.createdAt).toLocaleString();
+                        const updatedTitle = new Date(it.updatedAt).toLocaleString();
+                        const deletedTitle = it.deletedAt ? new Date(it.deletedAt).toLocaleString() : "";
+                        const deletedAgo = it.deletedAt ? relativeTime(it.deletedAt) : "—";
 
                         return (
                             <MobileCard key={rowKey}>
@@ -967,56 +1030,163 @@ export default function AdminListingsPage() {
                                                 <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600">
                                                     {it.kind === "sale" ? "For sale" : "Wanted"}
                                                 </span>
-                                                <span className="truncate">{it.location}</span>
+                                                {qtyPillText ? (
+                                                    <span
+                                                        title={qtyPillText}
+                                                        className="inline-flex max-w-28 min-w-0 items-center rounded-full border border-slate-200 bg-transparent px-2 py-0.5 text-xs font-semibold text-slate-600"
+                                                    >
+                                                        <span className="min-w-0 truncate">{qtyPillText}</span>
+                                                    </span>
+                                                ) : null}
+                                                <StatusPillAny status={effectiveStatus} />
                                             </div>
                                             <div className="mt-1">{renderFeaturedTextAny(effectiveFeaturedUntil)}</div>
                                         </div>
                                     </div>
 
-                                    <MobileCardMetaGrid>
-                                        <MobileCardMeta label="Price" value={priceText} />
-                                        <MobileCardMeta label="Status" value={<StatusTextAny status={effectiveStatus} />} />
-                                        <MobileCardMeta label="Views" value={Number(it.views ?? 0).toLocaleString()} />
-                                        <MobileCardMeta label="Updated" value={<span title={new Date(it.updatedAt).toLocaleString()}>{relativeTime(it.updatedAt)}</span>} />
-                                        <MobileCardMeta label="Expires" value={<span title={it.expiresAt ? new Date(it.expiresAt).toLocaleString() : ""}>{expiresInShort(it.expiresAt)}</span>} />
-                                        <MobileCardMeta label="Restrictions" value={restrText} />
-                                    </MobileCardMetaGrid>
+                                    <div className="mt-3 flex items-center gap-2">
+                                        <div className="w-28 shrink-0 min-h-9 flex items-center">
+                                            <div title={priceText} className="text-lg font-black text-slate-900 leading-tight line-clamp-2">
+                                                {priceText}
+                                            </div>
+                                        </div>
+                                        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1 text-[11px] font-semibold text-slate-600 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                                                <Eye aria-hidden="true" className="h-4 w-4" />
+                                                {Number(it.views ?? 0).toLocaleString()}
+                                            </span>
+                                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1" title={postedTitle}>
+                                                <Clock aria-hidden="true" className="h-4 w-4" />
+                                                {postedAgo}
+                                            </span>
+                                            <span
+                                                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
+                                                title={it.expiresAt ? new Date(it.expiresAt).toLocaleString() : ""}
+                                            >
+                                                <Hourglass aria-hidden="true" className="h-4 w-4" />
+                                                {expiresInShort(it.expiresAt)}
+                                            </span>
+                                        </div>
+                                    </div>
 
                                     <MobileCardActions>
-                                        <ActionButton
-                                            label={isExpanded ? "Hide" : "Actions"}
-                                            title={isExpanded ? "Hide actions" : "Show actions"}
-                                            onClick={() => setExpandedId(isExpanded ? null : rowKey)}
-                                        />
+                                        <div className="flex w-full flex-wrap gap-2">
+                                            <ActionButton
+                                                label={isUserOpen ? "Hide user" : "User details"}
+                                                title="User details"
+                                                onClick={() => togglePanel("user")}
+                                            />
+                                            <ActionButton
+                                                label={isListingOpen ? "Hide listing" : "Listing details"}
+                                                title="Listing details"
+                                                onClick={() => togglePanel("listing")}
+                                            />
+                                            <ActionButton
+                                                label={isActionsOpen ? "Hide actions" : "Actions"}
+                                                title="Actions"
+                                                onClick={() => togglePanel("actions")}
+                                            />
+                                        </div>
                                     </MobileCardActions>
 
-                                    {isExpanded ? (
+                                    {isUserOpen ? (
+                                        <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3" onClick={(e) => e.stopPropagation()}>
+                                            <div className="text-sm font-extrabold text-slate-900">User details</div>
+                                            <MobileCardMetaGrid>
+                                                <MobileCardMeta
+                                                    label="User"
+                                                    value={
+                                                        it.user?.id != null ? (
+                                                            <Link to={`/admin/users/${it.user.id}`} className="hover:underline" onClick={(e) => e.stopPropagation()}>
+                                                                {userLabel}
+                                                            </Link>
+                                                        ) : (
+                                                            userLabel
+                                                        )
+                                                    }
+                                                />
+                                                <MobileCardMeta label="Email" value={emailText} />
+                                                <MobileCardMeta
+                                                    label="Phone"
+                                                    value={
+                                                        phoneText !== "—" ? (
+                                                            <a href={`tel:${phoneText}`} className="hover:underline" onClick={(e) => e.stopPropagation()}>
+                                                                {phoneText}
+                                                            </a>
+                                                        ) : (
+                                                            "—"
+                                                        )
+                                                    }
+                                                />
+                                                <MobileCardMeta label="Restrictions" value={restrText} />
+                                                {it.ownerBlockReason ? <MobileCardMeta label="Reason" value={String(it.ownerBlockReason)} /> : null}
+                                                {it.ownerBlockUpdatedAt ? (
+                                                    <MobileCardMeta
+                                                        label="Restrictions updated"
+                                                        value={<span title={new Date(it.ownerBlockUpdatedAt).toLocaleString()}>{relativeTime(it.ownerBlockUpdatedAt)}</span>}
+                                                    />
+                                                ) : null}
+                                            </MobileCardMetaGrid>
+                                        </div>
+                                    ) : null}
+
+                                    {isListingOpen ? (
+                                        <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3" onClick={(e) => e.stopPropagation()}>
+                                            <div className="text-sm font-extrabold text-slate-900">Listing details</div>
+                                            <MobileCardMetaGrid>
+                                                <MobileCardMeta label="Location" value={it.location} />
+                                                <MobileCardMeta label="Category" value={catText} />
+                                                <MobileCardMeta label="Species" value={speciesText} />
+                                                <MobileCardMeta label="Water" value={waterText} />
+                                                <MobileCardMeta label="Sex" value={sexText} />
+                                                <MobileCardMeta label="Size" value={sizeText} />
+                                                <MobileCardMeta label="Qty" value={qtyText} />
+                                                <MobileCardMeta label="Shipping" value={shipText} />
+                                                <MobileCardMeta
+                                                    label="Published"
+                                                    value={it.publishedAt ? <span title={new Date(it.publishedAt).toLocaleString()}>{relativeTime(it.publishedAt)}</span> : "—"}
+                                                />
+                                                <MobileCardMeta label="Created" value={<span title={createdTitle}>{relativeTime(it.createdAt)}</span>} />
+                                                <MobileCardMeta label="Updated" value={<span title={updatedTitle}>{relativeTime(it.updatedAt)}</span>} />
+                                                <MobileCardMeta label="Expires" value={expiresInShort(it.expiresAt)} />
+                                                {includeDeleted ? (
+                                                    <MobileCardMeta label="Deleted" value={it.deletedAt ? <span title={deletedTitle}>{deletedAgo}</span> : "—"} />
+                                                ) : null}
+                                            </MobileCardMetaGrid>
+                                        </div>
+                                    ) : null}
+
+                                    {isActionsOpen ? (
                                         <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3" onClick={(e) => e.stopPropagation()}>
                                             <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2">
                                                 <ActionLink to={openHref} label="Open listing" icon={<Star aria-hidden="true" className="h-4 w-4" />} />
                                                 {it.user?.id != null ? (
                                                     <ActionLink to={`/admin/users/${it.user.id}`} label="Open user" icon={<UserIcon aria-hidden="true" className="h-4 w-4" />} />
                                                 ) : null}
-                                                <ActionButton
-                                                    label={restrictionsDraft?.listingId === it.id ? "Hide edit tools" : "Edit tools"}
-                                                    title="Open admin-only edit & moderation tools for this listing"
-                                                    onClick={() => {
-                                                        if (restrictionsDraft?.listingId === it.id) {
-                                                            setRestrictionsDraft(null);
-                                                            return;
-                                                        }
-                                                        setRestrictionsDraft({
-                                                            listingId: it.id,
-                                                            desiredStatus: null,
-                                                            desiredFeaturedUntil: undefined,
-                                                            blockEdit: Boolean(it.ownerBlockEdit),
-                                                            blockPauseResume: Boolean(it.ownerBlockPauseResume),
-                                                            blockStatusChanges: Boolean(it.ownerBlockStatusChanges),
-                                                            blockFeaturing: Boolean(it.ownerBlockFeaturing),
-                                                            reason: String(it.ownerBlockReason ?? ""),
-                                                        });
-                                                    }}
-                                                />
+                                                <span data-edit-tools-toggle="1">
+                                                        <span data-edit-tools-toggle="1">
+                                                            <ActionButton
+                                                                label={restrictionsDraft?.listingId === it.id ? "Hide edit tools" : "Edit tools"}
+                                                                title="Open admin-only edit & moderation tools for this listing"
+                                                                onClick={() => {
+                                                                    if (restrictionsDraft?.listingId === it.id) {
+                                                                        setRestrictionsDraft(null);
+                                                                        return;
+                                                                    }
+                                                                    setRestrictionsDraft({
+                                                                        listingId: it.id,
+                                                                        desiredStatus: null,
+                                                                        desiredFeaturedUntil: undefined,
+                                                                        blockEdit: Boolean(it.ownerBlockEdit),
+                                                                        blockPauseResume: Boolean(it.ownerBlockPauseResume),
+                                                                        blockStatusChanges: Boolean(it.ownerBlockStatusChanges),
+                                                                        blockFeaturing: Boolean(it.ownerBlockFeaturing),
+                                                                        reason: String(it.ownerBlockReason ?? ""),
+                                                                    });
+                                                                }}
+                                                            />
+                                                        </span>
+                                                </span>
                                             </div>
 
                                             {restrictionsDraft?.listingId === it.id ? (

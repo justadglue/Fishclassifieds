@@ -321,7 +321,7 @@ export default function HomePage() {
   }, [featured.length, featuredCols, isCarouselPaused]);
 
   return (
-    <div className="min-h-full">
+    <div className="min-h-full overflow-x-hidden">
       <Header maxWidth="7xl" />
 
       {/* Hero Section with Quick Actions */}

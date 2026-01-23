@@ -47,9 +47,41 @@ function ScrollToTopOnRouteChange() {
   return null;
 }
 
+function VisualViewportCSSVars() {
+  useEffect(() => {
+    function apply(reason: string) {
+      const vv = (window as any).visualViewport as { width?: number; height?: number } | undefined;
+      const vvw = typeof vv?.width === "number" && Number.isFinite(vv.width) ? vv.width : document.documentElement.clientWidth;
+      const vvh = typeof vv?.height === "number" && Number.isFinite(vv.height) ? vv.height : window.innerHeight;
+
+      // Round to avoid subpixel churn during drag-resize.
+      const w = Math.max(0, Math.floor(vvw));
+      const h = Math.max(0, Math.floor(vvh));
+      document.documentElement.style.setProperty("--vvw", `${w}px`);
+      document.documentElement.style.setProperty("--vvh", `${h}px`);
+    }
+
+    apply("mount");
+    const onResize = () => apply("resize");
+    window.addEventListener("resize", onResize);
+    const vv = (window as any).visualViewport as { addEventListener?: any; removeEventListener?: any } | undefined;
+    vv?.addEventListener?.("resize", onResize);
+    vv?.addEventListener?.("scroll", onResize);
+
+    return () => {
+      window.removeEventListener("resize", onResize);
+      vv?.removeEventListener?.("resize", onResize);
+      vv?.removeEventListener?.("scroll", onResize);
+    };
+  }, []);
+
+  return null;
+}
+
 export default function App() {
   return (
     <div className="min-h-[100dvh] min-h-screen flex flex-col">
+      <VisualViewportCSSVars />
       <ScrollToTopOnRouteChange />
       <div className="flex-1">
         <Routes>

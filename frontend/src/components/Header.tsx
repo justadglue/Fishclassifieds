@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
-import { User, Search, X, Bell } from "lucide-react";
+import { User, Search, X, Bell, Menu } from "lucide-react";
 import { createPortal } from "react-dom";
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "../api";
 
@@ -22,6 +22,11 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" | "7xl"
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const mobileActionsAnchorRef = useRef<HTMLDivElement | null>(null);
+  const mobileActionsPanelRef = useRef<HTMLDivElement | null>(null);
+  const [mobileActionsShiftX, setMobileActionsShiftX] = useState(0);
 
   const [notifOpen, setNotifOpen] = useState(false);
   const notifAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -74,7 +79,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" | "7xl"
 
   useEffect(() => {
     function onDocMouseDown(e: MouseEvent) {
-      if (!open && !searchOpen && !notifOpen) return;
+      if (!open && !searchOpen && !notifOpen && !mobileActionsOpen) return;
       const target = e.target;
       if (!(target instanceof Node)) return;
 
@@ -96,12 +101,20 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" | "7xl"
         const el = searchRef.current;
         if (el && !el.contains(target)) closeSearch();
       }
+
+      if (mobileActionsOpen) {
+        const anchor = mobileActionsAnchorRef.current;
+        const panel = mobileActionsPanelRef.current;
+        const inside = (!!anchor && anchor.contains(target)) || (!!panel && panel.contains(target));
+        if (!inside) setMobileActionsOpen(false);
+      }
     }
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
       if (open) setOpen(false);
       if (notifOpen) setNotifOpen(false);
       if (searchOpen) closeSearch();
+      if (mobileActionsOpen) setMobileActionsOpen(false);
     }
     document.addEventListener("mousedown", onDocMouseDown);
     window.addEventListener("keydown", onKeyDown);
@@ -109,7 +122,47 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" | "7xl"
       document.removeEventListener("mousedown", onDocMouseDown);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, searchOpen, notifOpen]);
+  }, [open, searchOpen, notifOpen, mobileActionsOpen]);
+
+  // Keep the mobile actions dropdown within the viewport by shifting horizontally if needed.
+  useEffect(() => {
+    if (!mobileActionsOpen) {
+      setMobileActionsShiftX(0);
+      return;
+    }
+
+    const PADDING = 8;
+
+    function reposition() {
+      const panel = mobileActionsPanelRef.current;
+      if (!panel) return;
+
+      // Reset first so we measure the "natural" position.
+      panel.style.transform = "translateX(0px)";
+      const rect = panel.getBoundingClientRect();
+
+      let shift = 0;
+      if (rect.right > window.innerWidth - PADDING) {
+        shift -= rect.right - (window.innerWidth - PADDING);
+      }
+      if (rect.left + shift < PADDING) {
+        shift += PADDING - (rect.left + shift);
+      }
+      setMobileActionsShiftX(shift);
+    }
+
+    // After render/layout
+    reposition();
+    const t = window.setTimeout(reposition, 0);
+
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, { passive: true });
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition);
+    };
+  }, [mobileActionsOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -229,6 +282,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" | "7xl"
   function closeAllOverlays() {
     setOpen(false);
     setNotifOpen(false);
+    setMobileActionsOpen(false);
   }
 
   const shell =
@@ -281,17 +335,63 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" | "7xl"
           ) : null}
         </div>
 
-        {/* Mobile nav: collapse "For sale" + "Wanted" into a single Browse link (defaults to For sale) */}
+        {/* Mobile nav: collapse Browse + Post under a single actions menu on very small screens */}
         <div className={["flex items-center gap-2 md:hidden", collapseForSearch ? "hidden" : ""].join(" ")}>
-          <Link
-            to="/browse?type=sale"
-            className="inline-flex h-10 items-center rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900"
-          >
-            Browse
-          </Link>
-          <Link to="/post" className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">
-            Post
-          </Link>
+          <div className="flex items-center gap-2 max-[380px]:hidden">
+            <Link
+              to="/browse?type=sale"
+              className="inline-flex h-10 items-center rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+            >
+              Browse
+            </Link>
+            <Link to="/post" className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+              Post
+            </Link>
+          </div>
+
+          <div className="relative hidden max-[380px]:block" ref={mobileActionsAnchorRef}>
+            <button
+              type="button"
+              onClick={() => {
+                closeAllOverlays();
+                setMobileActionsOpen((v) => !v);
+              }}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+              aria-label="Actions"
+              aria-haspopup="menu"
+              aria-expanded={mobileActionsOpen}
+            >
+              <Menu aria-hidden="true" className="h-5 w-5" />
+            </button>
+
+            {mobileActionsOpen ? (
+              <div
+                ref={mobileActionsPanelRef}
+                role="menu"
+                className="absolute right-0 top-full z-50 mt-2 w-44 max-w-[calc(100dvw-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+                style={mobileActionsShiftX ? { transform: `translateX(${mobileActionsShiftX}px)` } : undefined}
+              >
+                <div className="p-2">
+                  <Link
+                    to="/browse?type=sale"
+                    onClick={() => setMobileActionsOpen(false)}
+                    className="block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                    role="menuitem"
+                  >
+                    Browse
+                  </Link>
+                  <Link
+                    to="/post"
+                    onClick={() => setMobileActionsOpen(false)}
+                    className="mt-1 block rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                    role="menuitem"
+                  >
+                    Post
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {/* Top-right search: icon-only until clicked */}
@@ -322,7 +422,7 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" | "7xl"
               }}
               className="flex"
             >
-              <div className="flex w-[min(18rem,calc(100vw-6.5rem))] items-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:w-72">
+              <div className="flex w-[min(18rem,calc(100dvw-6.5rem))] items-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:w-72">
                 <div className="pl-3 text-slate-500">
                   <Search aria-hidden="true" className="h-4 w-4" />
                 </div>

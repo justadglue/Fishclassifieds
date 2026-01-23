@@ -1,31 +1,78 @@
 @import "tailwindcss";
 
+:root {
+  /* Visual viewport width/height (set at runtime). Fallback to layout viewport units. */
+  --vvw: 100vw;
+  --vvh: 100vh;
+}
+
 html,
 body,
 #root {
   height: 100%;
 }
 
-/* Prevent horizontal layout shift when content height toggles scrollbar visibility (notably on Windows). */
-html {
-  scrollbar-gutter: stable;
+/* Constrain layout to the *visual* viewport width where available.
+   This prevents transient right-edge overflow during resize on some browsers where visualViewport < innerWidth. */
+html,
+body,
+#root {
+  width: var(--vvw);
+  max-width: var(--vvw);
 }
 
-@supports not (scrollbar-gutter: stable) {
+/* Prevent horizontal overflow on all devices */
+html,
+body {
+  overflow-x: hidden;
+}
+
+/* Prefer clipping (avoids creating a scrollable overflow area) where supported. */
+@supports (overflow-x: clip) {
+
+  html,
+  body {
+    overflow-x: clip;
+  }
+}
+
+/* iOS/Safari (and some mobile browsers) can have a visual viewport narrower than layout viewport.
+   Constrain layout to the dynamic viewport width so content shifts/shrinks before visually overflowing. */
+@supports (width: 100dvw) {
+
+  html,
+  body,
+  #root {
+    max-width: 100dvw;
+  }
+}
+
+/* Prevent horizontal layout shift when content height toggles scrollbar visibility (notably on Windows).
+   Only apply on devices with non-overlay scrollbars (hover: hover filters out most touch devices). */
+@media (hover: hover) {
   html {
-    overflow-y: scroll;
+    scrollbar-gutter: stable;
+  }
+
+  @supports not (scrollbar-gutter: stable) {
+    html {
+      overflow-y: scroll;
+    }
   }
 }
 
 body {
   margin: 0;
-  background: #f8fafc; /* slate-50 */
-  color: #0f172a;      /* slate-900 */
+  background: #f8fafc;
+  /* slate-50 */
+  color: #0f172a;
+  /* slate-900 */
 }
 
 :root {
   /* Keep image placeholder aligned with site background. */
-  --img-fade-bg: #f8fafc; /* slate-50 */
+  --img-fade-bg: #f8fafc;
+  /* slate-50 */
 }
 
 /* Global image fade-in (opt out with data-no-fade). */

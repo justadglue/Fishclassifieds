@@ -1121,7 +1121,7 @@ export default function MyListingsPage() {
                                 {salePriceText}
                               </div>
                             </div>
-                            <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1 text-[11px] font-semibold text-slate-600 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <div className="flex min-w-0 flex-1 flex-wrap items-start gap-2 overflow-hidden pb-1 text-[11px] font-semibold text-slate-600 max-h-14">
                               <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
                                 <Eye aria-hidden="true" className="h-4 w-4" />
                                 {Number(l.views ?? 0).toLocaleString()}
@@ -1311,7 +1311,7 @@ export default function MyListingsPage() {
                               {wantedBudgetText}
                             </div>
                           </div>
-                          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1 text-[11px] font-semibold text-slate-600 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          <div className="flex min-w-0 flex-1 flex-wrap items-start gap-2 overflow-hidden pb-1 text-[11px] font-semibold text-slate-600 max-h-14">
                             <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
                               <Eye aria-hidden="true" className="h-4 w-4" />
                               {Number(w.views ?? 0).toLocaleString()}

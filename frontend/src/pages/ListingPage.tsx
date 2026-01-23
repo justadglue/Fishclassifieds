@@ -303,7 +303,7 @@ export default function ListingPage() {
           <>
             {reportOpen ? (
               <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true">
-                <div className="w-full max-w-lg max-h-[85vh] max-h-[85dvh] overflow-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+                <div className="w-full max-w-lg max-h-[85dvh] overflow-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-extrabold text-slate-900">Report listing</div>
@@ -532,7 +532,7 @@ export default function ListingPage() {
                   </div>
                 )}
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div className="hidden lg:block rounded-2xl border border-slate-200 bg-white p-5">
                   <div className="text-sm font-extrabold text-slate-900">Description</div>
                   <div className="mt-2 whitespace-pre-wrap text-sm text-slate-800">
                     {bodyDescription ? bodyDescription : <span className="text-slate-500">No description.</span>}
@@ -541,185 +541,199 @@ export default function ListingPage() {
               </div>
 
               {/* Right column: price/budget + seller + contact + listing details */}
-              <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-5 lg:sticky lg:top-24">
-                {kind === "sale" ? (
-                  <>
-                    <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Price</div>
-                    <div className="mt-1 flex items-baseline gap-2">
-                      <div className="text-3xl font-extrabold text-slate-900">{salePriceLabel}</div>
-                      {!isSpecialSalePrice ? <div className="text-sm font-semibold text-slate-600">{priceSuffix}</div> : null}
-                    </div>
-                    <div className="mt-2 text-sm font-semibold text-slate-700">
-                      <span className="text-slate-500">{qtyLabel}</span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Budget</div>
-                    <div className="mt-1 flex items-baseline gap-2">
-                      <div className="text-2xl font-extrabold text-slate-900">{budgetLabel(item as WantedPost)}</div>
-                      {wantedHasBudget ? <div className="text-sm font-semibold text-slate-600">{wantedPriceSuffix}</div> : null}
-                    </div>
-                    <div className="mt-2 text-sm font-semibold text-slate-700">
-                      <span className="text-slate-500">{qtyLabel}</span>
-                    </div>
-                  </>
-                )}
-
-<div className="mt-4 border-t border-slate-200 pt-4">
-                  <div className="text-sm font-extrabold text-slate-900">Listing details</div>
-                  <dl className="mt-3 space-y-2 text-sm">
-                    {(() => {
-                      const cat = String(item.category ?? "");
-                      const rulesReady = bioRequiredCategories.size > 0;
-                      const isOther = rulesReady ? cat === String(otherCategoryName) : false;
-                      const bioEnabled = rulesReady ? Boolean(cat) && (bioRequiredCategories.has(cat) || isOther) : true;
-
-                      const species = String(item.species ?? "").trim();
-                      const sex = String(item.sex ?? "").trim();
-                      const waterType = item.waterType ? String(item.waterType).trim() : "";
-                      const size = String((item as any).size ?? "").trim();
-
-                      // Show whatever was actually submitted for this listing.
-                      // For non-bio categories, we still suppress the default "Unknown" sex value (it wasn't user-entered).
-                      const showSpecies = Boolean(species);
-                      const showSex = Boolean(sex) && (bioEnabled || sex !== "Unknown");
-                      const showWaterType = Boolean(waterType);
-                      const showSize = Boolean(size);
-
-                      return (
-                        <>
-                          <div className="flex items-baseline justify-between gap-4">
-                            <dt className="font-semibold text-slate-600">Listing type</dt>
-                            <dd className="font-semibold text-slate-900">{kind === "wanted" ? "Wanted" : "For sale"}</dd>
-                          </div>
-                          <div className="flex items-baseline justify-between gap-4">
-                            <dt className="font-semibold text-slate-600">Category</dt>
-                            <dd className="font-semibold text-slate-900">{item.category}</dd>
-                          </div>
-                          {showSpecies ? (
-                            <div className="flex items-baseline justify-between gap-4">
-                              <dt className="font-semibold text-slate-600">Species</dt>
-                              <dd className="font-semibold text-slate-900">{species}</dd>
-                            </div>
-                          ) : null}
-                          {showWaterType ? (
-                            <div className="flex items-baseline justify-between gap-4">
-                              <dt className="font-semibold text-slate-600">Water type</dt>
-                              <dd className="font-semibold text-slate-900">{waterType}</dd>
-                            </div>
-                          ) : null}
-                          {showSex ? (
-                            <div className="flex items-baseline justify-between gap-4">
-                              <dt className="font-semibold text-slate-600">Sex</dt>
-                              <dd className="font-semibold text-slate-900">{sex}</dd>
-                            </div>
-                          ) : null}
-                          {showSize ? (
-                            <div className="flex items-baseline justify-between gap-4">
-                              <dt className="font-semibold text-slate-600">Size</dt>
-                              <dd className="font-semibold text-slate-900">{size}</dd>
-                            </div>
-                          ) : null}
-                          <div className="flex items-baseline justify-between gap-4">
-                            <dt className="font-semibold text-slate-600">Quantity</dt>
-                            <dd className="font-semibold text-slate-900">
-                              {kind === "wanted"
-                                ? Number.isFinite(Number((item as WantedPost).quantity))
-                                  ? Math.max(1, Math.floor(Number((item as WantedPost).quantity)))
-                                  : 1
-                                : details.quantity}
-                            </dd>
-                          </div>
-                          {kind === "wanted" ? (
-                            wantedHasBudget ? (
-                              <div className="flex items-baseline justify-between gap-4">
-                                <dt className="font-semibold text-slate-600">Price type</dt>
-                                <dd className="font-semibold text-slate-900">{wantedPriceSuffix}</dd>
-                              </div>
-                            ) : null
-                          ) : (
-                            <div className="flex items-baseline justify-between gap-4">
-                              <dt className="font-semibold text-slate-600">Price type</dt>
-                              <dd className="font-semibold text-slate-900">{priceTypeLabel}</dd>
-                            </div>
-                          )}
-                          <div className="flex items-baseline justify-between gap-4">
-                            <dt className="font-semibold text-slate-600">Location</dt>
-                            <dd className="font-semibold text-slate-900">{item.location}</dd>
-                          </div>
-                          {kind === "sale" ? (
-                            <div className="flex items-baseline justify-between gap-4">
-                              <dt className="flex items-center gap-1 font-semibold text-slate-600">
-                                <span>Shipping</span>
-                                {details.willingToShip ? <ShippingInfoButton mode="receiver" size="sm" /> : null}
-                              </dt>
-                              <dd
-                                className={[
-                                  "flex items-center justify-end font-semibold",
-                                  details.willingToShip ? "text-emerald-700" : "text-slate-900",
-                                ].join(" ")}
-                              >
-                                <span>{details.willingToShip ? "Shipping offered" : "Local pickup or delivery only"}</span>
-                              </dd>
-                            </div>
-                          ) : null}
-                        </>
-                      );
-                    })()}
-                  </dl>
-                </div>
-
-                <div className="mt-5 border-t border-slate-200 pt-4">
-                  <div className="text-sm font-extrabold text-slate-900">Listing owner</div>
-                  <div className="mt-2 flex items-center gap-3">
-                    {(item as any).sellerAvatarUrl ? (
-                      <img
-                        src={(item as any).sellerAvatarUrl}
-                        alt=""
-                        className="h-[84px] w-[84px] rounded-full border border-slate-200 object-cover"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : (
-                      <DefaultAvatar />
-                    )}
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-slate-900">
-                        {(kind === "sale" ? (item as any).sellerUsername : (item as any).username) || "Fishclassifieds user"}
+              <aside className="space-y-5 lg:space-y-0 lg:h-fit lg:rounded-2xl lg:border lg:border-slate-200 lg:bg-white lg:p-5 lg:sticky lg:top-24">
+                {/* Mobile card 1 / Desktop section: price + listing details */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0">
+                  {kind === "sale" ? (
+                    <>
+                      <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Price</div>
+                      <div className="mt-1 flex items-baseline gap-2">
+                        <div className="text-3xl font-extrabold text-slate-900">{salePriceLabel}</div>
+                        {!isSpecialSalePrice ? <div className="text-sm font-semibold text-slate-600">{priceSuffix}</div> : null}
                       </div>
-                      <div className="text-xs font-semibold text-slate-600">Fishclassifieds member</div>
-                    </div>
-                  </div>
-                  {(item as any).sellerBio && String((item as any).sellerBio).trim() ? (
-                    <div className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs text-slate-700">
-                      {String((item as any).sellerBio).trim()}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="mt-4 border-t border-slate-200 pt-4">
-                  <div className="text-sm font-extrabold text-slate-900">Contact</div>
-                  {!item.phone ? (
-                    <div className="mt-2 text-sm font-semibold text-slate-700">Phone not available.</div>
-                  ) : phoneRevealed ? (
-                    <div className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-extrabold text-slate-900">
-                      {item.phone}
-                    </div>
+                      <div className="mt-2 text-sm font-semibold text-slate-700">
+                        <span className="text-slate-500">{qtyLabel}</span>
+                      </div>
+                    </>
                   ) : (
                     <>
-                      <button
-                        type="button"
-                        onClick={() => setPhoneRevealed(true)}
-                        className="mt-3 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-                      >
-                        Reveal phone number
-                      </button>
-                      <div className="mt-2 text-xs font-semibold text-slate-600">
-                        The listing owner's phone number is hidden for privacy.
+                      <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Budget</div>
+                      <div className="mt-1 flex items-baseline gap-2">
+                        <div className="text-2xl font-extrabold text-slate-900">{budgetLabel(item as WantedPost)}</div>
+                        {wantedHasBudget ? <div className="text-sm font-semibold text-slate-600">{wantedPriceSuffix}</div> : null}
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-slate-700">
+                        <span className="text-slate-500">{qtyLabel}</span>
                       </div>
                     </>
                   )}
+
+                  <div className="mt-4 border-t border-slate-200 pt-4">
+                    <div className="text-sm font-extrabold text-slate-900">Listing details</div>
+                    <dl className="mt-3 space-y-2 text-sm">
+                      {(() => {
+                        const cat = String(item.category ?? "");
+                        const rulesReady = bioRequiredCategories.size > 0;
+                        const isOther = rulesReady ? cat === String(otherCategoryName) : false;
+                        const bioEnabled = rulesReady ? Boolean(cat) && (bioRequiredCategories.has(cat) || isOther) : true;
+
+                        const species = String(item.species ?? "").trim();
+                        const sex = String(item.sex ?? "").trim();
+                        const waterType = item.waterType ? String(item.waterType).trim() : "";
+                        const size = String((item as any).size ?? "").trim();
+
+                        // Show whatever was actually submitted for this listing.
+                        // For non-bio categories, we still suppress the default "Unknown" sex value (it wasn't user-entered).
+                        const showSpecies = Boolean(species);
+                        const showSex = Boolean(sex) && (bioEnabled || sex !== "Unknown");
+                        const showWaterType = Boolean(waterType);
+                        const showSize = Boolean(size);
+
+                        return (
+                          <>
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="font-semibold text-slate-600">Listing type</dt>
+                              <dd className="font-semibold text-slate-900">{kind === "wanted" ? "Wanted" : "For sale"}</dd>
+                            </div>
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="font-semibold text-slate-600">Category</dt>
+                              <dd className="font-semibold text-slate-900">{item.category}</dd>
+                            </div>
+                            {showSpecies ? (
+                              <div className="flex items-baseline justify-between gap-4">
+                                <dt className="font-semibold text-slate-600">Species</dt>
+                                <dd className="font-semibold text-slate-900">{species}</dd>
+                              </div>
+                            ) : null}
+                            {showWaterType ? (
+                              <div className="flex items-baseline justify-between gap-4">
+                                <dt className="font-semibold text-slate-600">Water type</dt>
+                                <dd className="font-semibold text-slate-900">{waterType}</dd>
+                              </div>
+                            ) : null}
+                            {showSex ? (
+                              <div className="flex items-baseline justify-between gap-4">
+                                <dt className="font-semibold text-slate-600">Sex</dt>
+                                <dd className="font-semibold text-slate-900">{sex}</dd>
+                              </div>
+                            ) : null}
+                            {showSize ? (
+                              <div className="flex items-baseline justify-between gap-4">
+                                <dt className="font-semibold text-slate-600">Size</dt>
+                                <dd className="font-semibold text-slate-900">{size}</dd>
+                              </div>
+                            ) : null}
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="font-semibold text-slate-600">Quantity</dt>
+                              <dd className="font-semibold text-slate-900">
+                                {kind === "wanted"
+                                  ? Number.isFinite(Number((item as WantedPost).quantity))
+                                    ? Math.max(1, Math.floor(Number((item as WantedPost).quantity)))
+                                    : 1
+                                  : details.quantity}
+                              </dd>
+                            </div>
+                            {kind === "wanted" ? (
+                              wantedHasBudget ? (
+                                <div className="flex items-baseline justify-between gap-4">
+                                  <dt className="font-semibold text-slate-600">Price type</dt>
+                                  <dd className="font-semibold text-slate-900">{wantedPriceSuffix}</dd>
+                                </div>
+                              ) : null
+                            ) : (
+                              <div className="flex items-baseline justify-between gap-4">
+                                <dt className="font-semibold text-slate-600">Price type</dt>
+                                <dd className="font-semibold text-slate-900">{priceTypeLabel}</dd>
+                              </div>
+                            )}
+                            <div className="flex items-baseline justify-between gap-4">
+                              <dt className="font-semibold text-slate-600">Location</dt>
+                              <dd className="font-semibold text-slate-900">{item.location}</dd>
+                            </div>
+                            {kind === "sale" ? (
+                              <div className="flex items-baseline justify-between gap-4">
+                                <dt className="flex items-center gap-1 font-semibold text-slate-600">
+                                  <span>Shipping</span>
+                                  {details.willingToShip ? <ShippingInfoButton mode="receiver" size="sm" /> : null}
+                                </dt>
+                                <dd
+                                  className={[
+                                    "flex items-center justify-end font-semibold",
+                                    details.willingToShip ? "text-emerald-700" : "text-slate-900",
+                                  ].join(" ")}
+                                >
+                                  <span>{details.willingToShip ? "Shipping offered" : "Local pickup or delivery only"}</span>
+                                </dd>
+                              </div>
+                            ) : null}
+                          </>
+                        );
+                      })()}
+                    </dl>
+                  </div>
+                </div>
+
+                {/* Mobile card 2: description (moved below price/details when layout collapses) */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 lg:hidden">
+                  <div className="text-sm font-extrabold text-slate-900">Description</div>
+                  <div className="mt-2 whitespace-pre-wrap text-sm text-slate-800">
+                    {bodyDescription ? bodyDescription : <span className="text-slate-500">No description.</span>}
+                  </div>
+                </div>
+
+                {/* Mobile card 3 / Desktop sections: owner + contact */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0">
+                  <div className="mt-0 pt-0 lg:mt-5 lg:border-t lg:border-slate-200 lg:pt-4">
+                    <div className="text-sm font-extrabold text-slate-900">Listing owner</div>
+                    <div className="mt-2 flex items-center gap-3">
+                      {(item as any).sellerAvatarUrl ? (
+                        <img
+                          src={(item as any).sellerAvatarUrl}
+                          alt=""
+                          className="h-[84px] w-[84px] rounded-full border border-slate-200 object-cover"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : (
+                        <DefaultAvatar />
+                      )}
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-slate-900">
+                          {(kind === "sale" ? (item as any).sellerUsername : (item as any).username) || "Fishclassifieds user"}
+                        </div>
+                        <div className="text-xs font-semibold text-slate-600">Fishclassifieds member</div>
+                      </div>
+                    </div>
+                    {(item as any).sellerBio && String((item as any).sellerBio).trim() ? (
+                      <div className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs text-slate-700">
+                        {String((item as any).sellerBio).trim()}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 border-t border-slate-200 pt-4">
+                    <div className="text-sm font-extrabold text-slate-900">Contact</div>
+                    {!item.phone ? (
+                      <div className="mt-2 text-sm font-semibold text-slate-700">Phone not available.</div>
+                    ) : phoneRevealed ? (
+                      <div className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-extrabold text-slate-900">
+                        {item.phone}
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setPhoneRevealed(true)}
+                          className="mt-3 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+                        >
+                          Reveal phone number
+                        </button>
+                        <div className="mt-2 text-xs font-semibold text-slate-600">
+                          The listing owner's phone number is hidden for privacy.
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </aside>
             </div>
@@ -771,11 +785,11 @@ export default function ListingPage() {
                     <img
                       src={fullRes}
                       alt={item?.title ?? "Listing image"}
-                      className="max-h-[85vh] max-h-[85dvh] w-auto max-w-full select-none object-contain"
+                      className="max-h-[85dvh] w-auto max-w-full select-none object-contain"
                       draggable={false}
                     />
                   ) : (
-                    <div className="h-[60vh] h-[60dvh] w-full overflow-hidden rounded-2xl bg-white/10">
+                    <div className="h-[60dvh] w-full overflow-hidden rounded-2xl bg-white/10">
                       <NoPhotoPlaceholder title={item?.title ?? ""} variant="detail" className="text-white/80 from-white/10 to-white/5" />
                     </div>
                   )}

@@ -566,59 +566,7 @@ export default function ListingPage() {
                   </>
                 )}
 
-                <div className="mt-5 border-t border-slate-200 pt-4">
-                  <div className="text-sm font-extrabold text-slate-900">Listing owner</div>
-                  <div className="mt-2 flex items-center gap-3">
-                    {(item as any).sellerAvatarUrl ? (
-                      <img
-                        src={(item as any).sellerAvatarUrl}
-                        alt=""
-                        className="h-[84px] w-[84px] rounded-full border border-slate-200 object-cover"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : (
-                      <DefaultAvatar />
-                    )}
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-slate-900">
-                        {(kind === "sale" ? (item as any).sellerUsername : (item as any).username) || "Fishclassifieds user"}
-                      </div>
-                      <div className="text-xs font-semibold text-slate-600">Fishclassifieds member</div>
-                    </div>
-                  </div>
-                  {(item as any).sellerBio && String((item as any).sellerBio).trim() ? (
-                    <div className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs text-slate-700">
-                      {String((item as any).sellerBio).trim()}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="mt-4 border-t border-slate-200 pt-4">
-                  <div className="text-sm font-extrabold text-slate-900">Contact</div>
-                  {!item.phone ? (
-                    <div className="mt-2 text-sm font-semibold text-slate-700">Phone not available.</div>
-                  ) : phoneRevealed ? (
-                    <div className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-extrabold text-slate-900">
-                      {item.phone}
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setPhoneRevealed(true)}
-                        className="mt-3 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-                      >
-                        Reveal phone number
-                      </button>
-                      <div className="mt-2 text-xs font-semibold text-slate-600">
-                        The listing owner's phone number is hidden for privacy.
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div className="mt-4 border-t border-slate-200 pt-4">
+<div className="mt-4 border-t border-slate-200 pt-4">
                   <div className="text-sm font-extrabold text-slate-900">Listing details</div>
                   <dl className="mt-3 space-y-2 text-sm">
                     {(() => {
@@ -720,6 +668,58 @@ export default function ListingPage() {
                       );
                     })()}
                   </dl>
+                </div>
+
+                <div className="mt-5 border-t border-slate-200 pt-4">
+                  <div className="text-sm font-extrabold text-slate-900">Listing owner</div>
+                  <div className="mt-2 flex items-center gap-3">
+                    {(item as any).sellerAvatarUrl ? (
+                      <img
+                        src={(item as any).sellerAvatarUrl}
+                        alt=""
+                        className="h-[84px] w-[84px] rounded-full border border-slate-200 object-cover"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <DefaultAvatar />
+                    )}
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-slate-900">
+                        {(kind === "sale" ? (item as any).sellerUsername : (item as any).username) || "Fishclassifieds user"}
+                      </div>
+                      <div className="text-xs font-semibold text-slate-600">Fishclassifieds member</div>
+                    </div>
+                  </div>
+                  {(item as any).sellerBio && String((item as any).sellerBio).trim() ? (
+                    <div className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs text-slate-700">
+                      {String((item as any).sellerBio).trim()}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="mt-4 border-t border-slate-200 pt-4">
+                  <div className="text-sm font-extrabold text-slate-900">Contact</div>
+                  {!item.phone ? (
+                    <div className="mt-2 text-sm font-semibold text-slate-700">Phone not available.</div>
+                  ) : phoneRevealed ? (
+                    <div className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-extrabold text-slate-900">
+                      {item.phone}
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setPhoneRevealed(true)}
+                        className="mt-3 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+                      >
+                        Reveal phone number
+                      </button>
+                      <div className="mt-2 text-xs font-semibold text-slate-600">
+                        The listing owner's phone number is hidden for privacy.
+                      </div>
+                    </>
+                  )}
                 </div>
               </aside>
             </div>

@@ -12,19 +12,18 @@ body,
   height: 100%;
 }
 
-/* Constrain layout to the *visual* viewport width where available.
-   This prevents transient right-edge overflow during resize on some browsers where visualViewport < innerWidth. */
-html,
-body,
-#root {
-  width: var(--vvw);
-  max-width: var(--vvw);
-}
+/* NOTE: Do not force the document width to the visual viewport width.
+   On some browsers/devtools/mobile modes `visualViewport.width` can be smaller than the layout viewport,
+   which can make the page appear "narrow" and allow a sideways gesture to reveal empty space.
+   We rely on overflow clipping instead (below). */
 
 /* Prevent horizontal overflow on all devices */
 html,
 body {
   overflow-x: hidden;
+  overscroll-behavior-x: none;
+  /* Prevent browsers from "panning" the visual viewport horizontally on touch-drag. */
+  touch-action: pan-y pinch-zoom;
 }
 
 /* Prefer clipping (avoids creating a scrollable overflow area) where supported. */
@@ -33,7 +32,14 @@ body {
   html,
   body {
     overflow-x: clip;
+    overscroll-behavior-x: none;
+    touch-action: pan-y pinch-zoom;
   }
+}
+
+/* Allow horizontal panning/scrolling inside intentional horizontal scrollers (chips, tables, etc.) */
+:where(.overflow-x-auto, .overflow-x-scroll) {
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 /* iOS/Safari (and some mobile browsers) can have a visual viewport narrower than layout viewport.

@@ -619,7 +619,7 @@ export default function HomePage() {
                             <button
                               type="button"
                               onClick={() => shift(-1)}
-                              className="absolute left-0 top-1/2 z-20 inline-flex h-11 w-11 -translate-x-full -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900"
+                              className="absolute left-2 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900 sm:left-0 sm:-translate-x-full"
                               aria-label="Previous promoted listing"
                             >
                               <span aria-hidden="true">←</span>
@@ -627,7 +627,7 @@ export default function HomePage() {
                             <button
                               type="button"
                               onClick={() => shift(1)}
-                              className="absolute right-0 top-1/2 z-20 inline-flex h-11 w-11 translate-x-full -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900"
+                              className="absolute right-2 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900 sm:right-0 sm:translate-x-full"
                               aria-label="Next promoted listing"
                             >
                               <span aria-hidden="true">→</span>

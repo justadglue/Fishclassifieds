@@ -115,9 +115,7 @@ function buildPageButtons(current: number, totalPages: number, maxButtons: numbe
   return out;
 }
 
-// Constants for adaptive pagination sizing (conservative estimates)
-const PAGINATION_BUTTON_WIDTH = 48; // approx width of a page number button (px3 py2 + border + some margin)
-const PAGINATION_PREV_NEXT_WIDTH = 60; // approx width of Prev/Next buttons
+// Constants for adaptive pagination sizing
 const PAGINATION_GAP = 8; // gap-2 = 0.5rem = 8px
 
 function PaginationBar(props: {
@@ -132,29 +130,33 @@ function PaginationBar(props: {
 }) {
   const { page, totalPages, loading, canPrev, canNext, onPrev, onNext, onGoPage } = props;
   const containerRef = useRef<HTMLDivElement>(null);
-  const [maxButtons, setMaxButtons] = useState(5); // Start conservative
+  const middleRef = useRef<HTMLDivElement>(null);
+  const measureBtnRef = useRef<HTMLButtonElement>(null);
+  const [maxButtons, setMaxButtons] = useState(7);
 
   // Measure container and calculate how many buttons fit
   useLayoutEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    const middle = middleRef.current;
+    const measureBtn = measureBtnRef.current;
+    if (!container || !middle || !measureBtn) return;
 
     function measure() {
-      const containerWidth = container!.offsetWidth;
-      // Available space for page buttons = total width - prev/next buttons - padding
-      const reservedWidth =
-        PAGINATION_PREV_NEXT_WIDTH * 2 + // Prev + Next
-        PAGINATION_GAP * 4; // gaps and px-2 padding on middle container
+      // Middle container is flex-1; measuring it directly avoids needing to guess Prev/Next widths.
+      const availableForButtons = middleRef.current?.clientWidth ?? 0;
+      const buttonWidth = measureBtnRef.current?.offsetWidth ?? 0;
 
-      const availableForButtons = containerWidth - reservedWidth;
+      // Fallback if measurement is temporarily 0 (e.g. during first layout)
+      if (availableForButtons <= 0 || buttonWidth <= 0) {
+        setMaxButtons(7);
+        return;
+      }
 
-      // Each button takes its width plus a gap (except the last one)
-      const buttonsWithGaps = Math.floor(
-        (availableForButtons + PAGINATION_GAP) / (PAGINATION_BUTTON_WIDTH + PAGINATION_GAP)
-      );
+      // How many fixed-width buttons can fit in the middle container?
+      const buttonsWithGaps = Math.floor((availableForButtons + PAGINATION_GAP) / (buttonWidth + PAGINATION_GAP));
 
-      // Minimum of 3 (first, current, last), max reasonable is 7
-      const clamped = Math.max(3, Math.min(7, buttonsWithGaps));
+      // Minimum of 3 (first/current/last-ish), allow more on large screens.
+      const clamped = Math.max(3, Math.min(11, buttonsWithGaps));
       setMaxButtons(clamped);
     }
 
@@ -173,7 +175,7 @@ function PaginationBar(props: {
   return (
     <div
       ref={containerRef}
-      className="mt-4 flex w-full max-w-full items-center justify-between overflow-hidden"
+      className="relative mt-4 flex w-full max-w-full items-center justify-between overflow-hidden"
     >
       <button
         type="button"
@@ -184,7 +186,18 @@ function PaginationBar(props: {
         Prev
       </button>
 
-      <div className="flex flex-1 items-center justify-center gap-2 overflow-hidden px-2">
+      {/* Off-screen measurement button (doesn't affect layout) */}
+      <button
+        ref={measureBtnRef}
+        type="button"
+        tabIndex={-1}
+        aria-hidden="true"
+        className="absolute left-[-9999px] top-0 shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
+      >
+        888
+      </button>
+
+      <div ref={middleRef} className="flex flex-1 items-center justify-center gap-2 overflow-hidden px-2">
         {pageButtons.map((p, i) =>
           p === "…" ? (
             <div key={`dots-${i}`} className="shrink-0 px-1 text-sm font-semibold text-slate-500">

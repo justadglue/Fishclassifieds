@@ -14,8 +14,6 @@ import { decodeSaleDetailsFromDescription, decodeWantedDetailsFromDescription } 
 import BrowseFilters from "../components/BrowseFilters";
 import { SPECIES_PRESETS, useBrowseFilterState } from "../utils/useBrowseFilterState";
 
-type PageSize = 12 | 24 | 48 | 96;
-
 function centsToDollars(cents: number) {
   const s = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `$${s}`;
@@ -45,8 +43,6 @@ function wantedDescriptionPreview(raw: string) {
   const body = decoded.body;
   return body.replace(/\s+/g, " ").trim();
 }
-
-const PAGE_SIZES: PageSize[] = [12, 24, 48, 96];
 
 function budgetPillText(w: WantedPost) {
   const budget = w.budgetCents ?? null;
@@ -127,8 +123,9 @@ function PaginationBar(props: {
   onPrev: () => void;
   onNext: () => void;
   onGoPage: (p: number) => void;
+  dataAnchor?: string;
 }) {
-  const { page, totalPages, loading, canPrev, canNext, onPrev, onNext, onGoPage } = props;
+  const { page, totalPages, loading, canPrev, canNext, onPrev, onNext, onGoPage, dataAnchor } = props;
   const containerRef = useRef<HTMLDivElement>(null);
   const middleRef = useRef<HTMLDivElement>(null);
   const measureBtnRef = useRef<HTMLButtonElement>(null);
@@ -175,6 +172,7 @@ function PaginationBar(props: {
   return (
     <div
       ref={containerRef}
+      data-browse-anchor={dataAnchor}
       className="relative mt-4 flex w-full max-w-full items-center justify-between overflow-hidden"
     >
       <button
@@ -381,7 +379,30 @@ export default function BrowseListings() {
     window.scrollTo({ top: 0, left: 0, behavior });
   }
 
-  function scrollToTopFromBottomReliable() {
+  function scrollToBrowseControlsFromBottomReliable() {
+    // Desired landing spot:
+    // Align the bottom of the sticky header with the midpoint of the vertical gap between:
+    // - the search input (above)
+    // - the top page selector (below)
+    //
+    // This keeps context and avoids jumping all the way back to the very top.
+    function computeTargetTop(): number | null {
+      const searchEl = document.querySelector<HTMLElement>('[data-browse-anchor="searchbar"]');
+      const pagerEl = document.querySelector<HTMLElement>('[data-browse-anchor="top-pager"]');
+      if (!searchEl || !pagerEl) return null;
+
+      const headerEl = document.querySelector<HTMLElement>("header");
+      const headerH = headerEl?.getBoundingClientRect().height ?? 0;
+
+      const searchRect = searchEl.getBoundingClientRect();
+      const pagerRect = pagerEl.getBoundingClientRect();
+      const gapMidViewportY = (searchRect.bottom + pagerRect.top) / 2;
+      const gapMidDocY = gapMidViewportY + window.scrollY;
+
+      const target = Math.max(0, gapMidDocY - headerH);
+      return Number.isFinite(target) ? target : null;
+    }
+
     // Paging can cause the pagination UI + result grid to reflow (e.g. "…" appears/disappears) and images can
     // load after render. Both can interact with browser scroll anchoring and leave the scroll position "partway".
     // For the *bottom* pager only, do a hard scroll-to-top a few times and temporarily disable anchoring.
@@ -391,9 +412,14 @@ export default function BrowseListings() {
     document.body.style.overflowAnchor = "none";
 
     const doScroll = () => {
-      scrollToTop("auto");
-      // Also force window top as a backup in case the ref scroll targets a nested container.
-      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      const targetTop = computeTargetTop();
+      if (targetTop == null) {
+        scrollToTop("auto");
+        // Also force window top as a backup in case the ref scroll targets a nested container.
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+        return;
+      }
+      window.scrollTo({ top: targetTop, left: 0, behavior: "auto" });
     };
 
     doScroll();
@@ -435,7 +461,7 @@ export default function BrowseListings() {
     let cleanup: (() => void) | null = null;
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
-        cleanup = scrollToTopFromBottomReliable();
+        cleanup = scrollToBrowseControlsFromBottomReliable();
       });
     });
     return () => {
@@ -524,20 +550,7 @@ export default function BrowseListings() {
                   </select>
                 </label>
 
-                <label className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-700">Per page</span>
-                  <select
-                    value={String(per)}
-                    onChange={(e) => setParam("per", e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-                  >
-                    {PAGE_SIZES.map((n) => (
-                      <option key={n} value={String(n)}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {/* Per-page selection removed: fixed page size for consistent browsing UX. */}
               </div>
             </div>
 
@@ -575,7 +588,7 @@ export default function BrowseListings() {
             </div>
 
             {/* Search bar (above the results grid) */}
-            <div className="mt-4">
+            <div className="mt-4" data-browse-anchor="searchbar">
               <div className="flex items-center gap-2 overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 py-2">
                 <span className="select-none text-slate-400" aria-hidden="true">
                   ⌕
@@ -609,6 +622,7 @@ export default function BrowseListings() {
               onPrev={() => goPage(page - 1)}
               onNext={() => goPage(page + 1)}
               onGoPage={goPage}
+              dataAnchor="top-pager"
             />
 
             {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}

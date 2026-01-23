@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { getListingOptionsCached, type Category, type ListingSex, type SortMode, type WaterType } from "../api";
 
 export type BrowseType = "sale" | "wanted";
-export type PageSize = 12 | 24 | 48 | 96;
+export const BROWSE_PER_PAGE = 18;
 
 function clampInt(v: string | null, fallback: number, min: number, max: number) {
     const n = Number(v);
@@ -53,7 +53,15 @@ export function useBrowseFilterState() {
     })();
 
     const page = clampInt(sp.get("page"), 1, 1, 999999);
-    const per = clampInt(sp.get("per"), 24, 12, 200) as PageSize;
+    const per = BROWSE_PER_PAGE;
+
+    useEffect(() => {
+        // Per-page selection has been removed; normalize legacy links that still contain ?per=...
+        if (!sp.has("per")) return;
+        const next = new URLSearchParams(sp);
+        next.delete("per");
+        setSp(next, { replace: true });
+    }, [setSp, sp]);
 
     function setParam(key: string, value: string) {
         const next = new URLSearchParams(sp);

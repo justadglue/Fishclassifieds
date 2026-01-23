@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { MapPin } from "lucide-react";
 import {
@@ -111,8 +111,16 @@ function buildPageButtons(current: number, totalPages: number, maxButtons: numbe
   return out;
 }
 
-// Constants for adaptive pagination sizing
-const PAGINATION_GAP = 8; // gap-2 = 0.5rem = 8px
+function maxButtonsForWidth(widthPx: number) {
+  // Simple breakpoint tiers (roughly Tailwind-ish)
+  // On narrow viewports, fewer buttons fit between Prev/Next; render fewer to avoid clipping.
+  if (widthPx < 340) return 2; // ultra narrow: will render just [current] (see buildPageButtons guard)
+  if (widthPx < 480) return 4; // phones / narrow windows
+  if (widthPx < 640) return 6; // < sm
+  if (widthPx < 768) return 7; // < md
+  if (widthPx < 1024) return 9; // < lg
+  return 11; // desktop+
+}
 
 function PaginationBar(props: {
   page: number;
@@ -126,52 +134,24 @@ function PaginationBar(props: {
   dataAnchor?: string;
 }) {
   const { page, totalPages, loading, canPrev, canNext, onPrev, onNext, onGoPage, dataAnchor } = props;
-  const containerRef = useRef<HTMLDivElement>(null);
-  const middleRef = useRef<HTMLDivElement>(null);
-  const measureBtnRef = useRef<HTMLButtonElement>(null);
-  const [maxButtons, setMaxButtons] = useState(7);
+  const [maxButtons, setMaxButtons] = useState(() => {
+    if (typeof window === "undefined") return 7;
+    return maxButtonsForWidth(window.innerWidth);
+  });
 
-  // Measure container and calculate how many buttons fit
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const middle = middleRef.current;
-    const measureBtn = measureBtnRef.current;
-    if (!container || !middle || !measureBtn) return;
-
-    function measure() {
-      // Middle container is flex-1; measuring it directly avoids needing to guess Prev/Next widths.
-      const availableForButtons = middleRef.current?.clientWidth ?? 0;
-      const buttonWidth = measureBtnRef.current?.offsetWidth ?? 0;
-
-      // Fallback if measurement is temporarily 0 (e.g. during first layout)
-      if (availableForButtons <= 0 || buttonWidth <= 0) {
-        setMaxButtons(7);
-        return;
-      }
-
-      // How many fixed-width buttons can fit in the middle container?
-      const buttonsWithGaps = Math.floor((availableForButtons + PAGINATION_GAP) / (buttonWidth + PAGINATION_GAP));
-
-      // Minimum of 3 (first/current/last-ish), allow more on large screens.
-      const clamped = Math.max(3, Math.min(11, buttonsWithGaps));
-      setMaxButtons(clamped);
-    }
-
-    measure();
-
-    const ro = new ResizeObserver(measure);
-    ro.observe(container);
-
-    return () => ro.disconnect();
+  useEffect(() => {
+    const onResize = () => setMaxButtons(maxButtonsForWidth(window.innerWidth));
+    onResize();
+    window.addEventListener("resize", onResize, { passive: true });
+    return () => window.removeEventListener("resize", onResize);
   }, []);
-
-  if (totalPages <= 1) return null;
 
   const pageButtons = buildPageButtons(page, totalPages, maxButtons);
 
+  if (totalPages <= 1) return null;
+
   return (
     <div
-      ref={containerRef}
       data-browse-anchor={dataAnchor}
       className="relative mt-4 flex w-full max-w-full items-center justify-between overflow-hidden"
     >
@@ -184,40 +164,33 @@ function PaginationBar(props: {
         Prev
       </button>
 
-      {/* Off-screen measurement button (doesn't affect layout) */}
-      <button
-        ref={measureBtnRef}
-        type="button"
-        tabIndex={-1}
-        aria-hidden="true"
-        className="absolute left-[-9999px] top-0 shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
-      >
-        888
-      </button>
-
-      <div ref={middleRef} className="flex flex-1 items-center justify-center gap-2 overflow-hidden px-2">
-        {pageButtons.map((p, i) =>
-          p === "…" ? (
-            <div key={`dots-${i}`} className="shrink-0 px-1 text-sm font-semibold text-slate-500">
-              …
-            </div>
-          ) : (
-            <button
-              key={`page-${p}`}
-              type="button"
-              onClick={() => onGoPage(p)}
-              disabled={loading}
-              className={[
-                "shrink-0 rounded-xl border px-3 py-2 text-sm font-semibold",
-                p === page ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
-                loading ? "opacity-60" : "",
-              ].join(" ")}
-              aria-current={p === page ? "page" : undefined}
-            >
-              {p}
-            </button>
-          )
-        )}
+      <div className="flex flex-1 items-center justify-center overflow-hidden px-2">
+        <div className="flex w-full max-w-full items-center justify-center gap-2 overflow-hidden">
+          {pageButtons.map((p, i) =>
+            p === "…" ? (
+              <div key={`dots-${i}`} className="shrink-0 px-1 text-sm font-semibold text-slate-500">
+                …
+              </div>
+            ) : (
+              <button
+                key={`page-${p}`}
+                type="button"
+                onClick={() => onGoPage(p)}
+                disabled={loading}
+                className={[
+                  "shrink-0 rounded-xl border px-3 py-2 text-sm font-semibold",
+                  p === page
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
+                  loading ? "opacity-60" : "",
+                ].join(" ")}
+                aria-current={p === page ? "page" : undefined}
+              >
+                {p}
+              </button>
+            )
+          )}
+        </div>
       </div>
 
       <button

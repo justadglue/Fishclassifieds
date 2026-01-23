@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { MapPin } from "lucide-react";
+import { MapPin, MoveLeft, MoveRight } from "lucide-react";
 import { fetchFeatured, resolveAssets, type FeaturedItem, type Listing, type WantedPost } from "../api";
 import { useAuth } from "../auth";
 import Header from "../components/Header";
@@ -181,6 +181,10 @@ export default function HomePage() {
   const [featuredAnimMs, setFeaturedAnimMs] = useState(450);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
+  const [isCarouselInteractionPaused, setIsCarouselInteractionPaused] = useState(false);
+  const interactionPauseTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const featuredCarouselViewportRef = useRef<HTMLDivElement | null>(null);
+  const [useCondensedFeaturedNav, setUseCondensedFeaturedNav] = useState(false);
   const [heroSearch, setHeroSearch] = useState("");
   const [heroImgLoaded, setHeroImgLoaded] = useState(false);
   const heroImgRef = useRef<HTMLImageElement | null>(null);
@@ -246,6 +250,22 @@ export default function HomePage() {
     nav(targetPath);
   }
 
+  function pauseCarouselAfterInteraction() {
+    // Separate from hover pause: on mobile/touch, users often tap/scroll near the carousel.
+    // This prevents the auto-advance from "fighting" the user for a short window.
+    setIsCarouselInteractionPaused(true);
+    if (interactionPauseTimerRef.current) window.clearTimeout(interactionPauseTimerRef.current);
+    interactionPauseTimerRef.current = window.setTimeout(() => {
+      setIsCarouselInteractionPaused(false);
+    }, 30_000);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (interactionPauseTimerRef.current) window.clearTimeout(interactionPauseTimerRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -298,10 +318,38 @@ export default function HomePage() {
     setFeaturedAnimate(false);
   }, [featuredCols]);
 
+  useEffect(() => {
+    function recompute() {
+      const el = featuredCarouselViewportRef.current;
+      if (!el) return;
+      // Outside arrows are positioned fully outside the carousel wrapper by ~their own width.
+      // If that would push them off-screen, switch to the condensed (bottom) arrow UI.
+      const rect = el.getBoundingClientRect();
+      const buttonW = 44; // h-11 / w-11
+      const gutter = 8;
+      const overflowLeft = rect.left - (buttonW + gutter) < 0;
+      const overflowRight = rect.right + (buttonW + gutter) > window.innerWidth;
+      setUseCondensedFeaturedNav(overflowLeft || overflowRight);
+    }
+
+    const el = featuredCarouselViewportRef.current;
+    if (!el) return;
+
+    recompute();
+    window.addEventListener("resize", recompute);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => recompute()) : null;
+    ro?.observe(el);
+    return () => {
+      window.removeEventListener("resize", recompute);
+      ro?.disconnect();
+    };
+  }, [featured.length, featuredCols]);
+
   // Auto-advance carousel every 4 seconds (only when there's overflow and not paused by user interaction)
   useEffect(() => {
     if (featured.length === 0) return;
     if (isCarouselPaused) return;
+    if (isCarouselInteractionPaused) return;
     const ROWS = 2;
     const colCount = Math.ceil((featured.length + 1) / ROWS); // +1 for promo tile
     const hasOverflow = colCount > featuredCols;
@@ -318,7 +366,7 @@ export default function HomePage() {
     }, 4000);
 
     return () => clearInterval(timer);
-  }, [featured.length, featuredCols, isCarouselPaused]);
+  }, [featured.length, featuredCols, isCarouselPaused, isCarouselInteractionPaused]);
 
   return (
     <div className="min-h-full overflow-x-hidden">
@@ -532,6 +580,7 @@ export default function HomePage() {
 
                   function shift(dir: -1 | 1) {
                     if (!hasOverflow) return;
+                    pauseCarouselAfterInteraction();
                     // Wrap at the ends (prev from start -> end, next from end -> start).
                     const next =
                       dir === -1 && safeColIndex === 0
@@ -547,6 +596,7 @@ export default function HomePage() {
                   function jumpTo(target: number) {
                     if (!hasOverflow) return;
                     if (target === safeColIndex) return;
+                    pauseCarouselAfterInteraction();
 
                     const t = Math.max(0, Math.min(maxStart, target));
                     const dist = Math.abs(t - safeColIndex);
@@ -565,6 +615,7 @@ export default function HomePage() {
                       onMouseEnter={() => setIsCarouselPaused(true)}
                       onMouseLeave={() => setIsCarouselPaused(false)}
                       onMouseDownCapture={(e) => {
+                        pauseCarouselAfterInteraction();
                         // Prevent the focusable wrapper from showing a blinking text caret
                         // when users click "empty" space around the dots/cards.
                         const target = e.target as HTMLElement | null;
@@ -589,17 +640,22 @@ export default function HomePage() {
                           shift(1);
                         } else if (e.key === "Home") {
                           e.preventDefault();
+                          pauseCarouselAfterInteraction();
                           setFeaturedAnimMs(450);
                           setFeaturedAnimate(true);
                           setFeaturedIndex(0);
                         } else if (e.key === "End") {
                           e.preventDefault();
+                          pauseCarouselAfterInteraction();
                           setFeaturedAnimMs(450);
                           setFeaturedAnimate(true);
                           setFeaturedIndex(Math.max(0, colCount - VISIBLE_COLS));
                         }
                       }}
-                      onTouchStart={(e) => setTouchStartX(e.touches[0]?.clientX ?? null)}
+                      onTouchStart={(e) => {
+                        pauseCarouselAfterInteraction();
+                        setTouchStartX(e.touches[0]?.clientX ?? null);
+                      }}
                       onTouchEnd={(e) => {
                         if (!hasOverflow) return;
                         const startX = touchStartX;
@@ -612,25 +668,25 @@ export default function HomePage() {
                         else shift(-1);
                       }}
                     >
-                      <div className="relative">
-                        {/* Outside-edge arrows, vertically centered between the two rows */}
-                        {hasOverflow && (
+                      <div ref={featuredCarouselViewportRef} className="relative">
+                        {/* Outside-edge arrows (when they fit in the viewport), vertically centered between the two rows */}
+                        {hasOverflow && !useCondensedFeaturedNav && (
                           <>
                             <button
                               type="button"
                               onClick={() => shift(-1)}
-                              className="absolute left-2 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900 sm:left-0 sm:-translate-x-full"
+                              className="absolute left-0 top-[calc(50%-0.25rem)] z-20 inline-flex h-11 w-11 -translate-y-1/2 -translate-x-full items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                               aria-label="Previous promoted listing"
                             >
-                              <span aria-hidden="true">←</span>
+                              <MoveLeft aria-hidden="true" className="h-5 w-5" />
                             </button>
                             <button
                               type="button"
                               onClick={() => shift(1)}
-                              className="absolute right-2 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900 sm:right-0 sm:translate-x-full"
+                              className="absolute right-0 top-[calc(50%-0.25rem)] z-20 inline-flex h-11 w-11 -translate-y-1/2 translate-x-full items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-md hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                               aria-label="Next promoted listing"
                             >
-                              <span aria-hidden="true">→</span>
+                              <MoveRight aria-hidden="true" className="h-5 w-5" />
                             </button>
                           </>
                         )}
@@ -756,36 +812,56 @@ export default function HomePage() {
                       </div>
 
                       {hasOverflow && (
-                        <div
-                          className="relative z-10 mt-4 flex flex-wrap items-center justify-center gap-1 select-none"
-                          role="tablist"
-                          aria-label="Promoted listing position"
-                        >
-                          {Array.from({ length: maxStart + 1 }, (_, i) => {
-                            const active = i === safeColIndex;
-                            return (
-                              <button
-                                key={`featured-dot-${i}`}
-                                type="button"
-                                onMouseDown={(e) => {
-                                  // Prevent a blinking text caret when clicking the "empty"
-                                  // part of the dot hit area (keeps keyboard accessibility).
-                                  e.preventDefault();
-                                }}
-                                onClick={() => jumpTo(i)}
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-full cursor-pointer caret-transparent"
-                                aria-label={`Go to featured position ${i + 1} of ${maxStart + 1}`}
-                                aria-current={active ? "true" : undefined}
-                              >
-                                <span
-                                  className={[
-                                    "h-2 rounded-full transition-all duration-300",
-                                    active ? "w-6 bg-slate-900" : "w-2 bg-slate-300 hover:bg-slate-400",
-                                  ].join(" ")}
-                                />
-                              </button>
-                            );
-                          })}
+                        <div className="relative z-10 mt-4 flex items-center justify-center gap-2 select-none">
+                          {useCondensedFeaturedNav && (
+                            <button
+                              type="button"
+                              onClick={() => shift(-1)}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-700 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                              aria-label="Previous promoted listing"
+                            >
+                              <MoveLeft aria-hidden="true" className="h-5 w-5" />
+                            </button>
+                          )}
+
+                          <div className="flex flex-wrap items-center justify-center gap-1" role="tablist" aria-label="Promoted listing position">
+                            {Array.from({ length: maxStart + 1 }, (_, i) => {
+                              const active = i === safeColIndex;
+                              return (
+                                <button
+                                  key={`featured-dot-${i}`}
+                                  type="button"
+                                  onMouseDown={(e) => {
+                                    // Prevent a blinking text caret when clicking the "empty"
+                                    // part of the dot hit area (keeps keyboard accessibility).
+                                    e.preventDefault();
+                                  }}
+                                  onClick={() => jumpTo(i)}
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-full cursor-pointer caret-transparent"
+                                  aria-label={`Go to featured position ${i + 1} of ${maxStart + 1}`}
+                                  aria-current={active ? "true" : undefined}
+                                >
+                                  <span
+                                    className={[
+                                      "h-2 rounded-full transition-all duration-300",
+                                      active ? "w-6 bg-slate-900" : "w-2 bg-slate-300 hover:bg-slate-400",
+                                    ].join(" ")}
+                                  />
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {useCondensedFeaturedNav && (
+                            <button
+                              type="button"
+                              onClick={() => shift(1)}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-700 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                              aria-label="Next promoted listing"
+                            >
+                              <MoveRight aria-hidden="true" className="h-5 w-5" />
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

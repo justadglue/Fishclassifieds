@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import { ChevronLeft, ChevronRight, GripVertical, Maximize2, X } from "lucide-react";
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { MAX_UPLOAD_IMAGE_BYTES, MAX_UPLOAD_IMAGE_MB, resolveImageUrl, uploadImage, type ImageAsset } from "../api";
@@ -72,8 +72,39 @@ export default forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
     const [photoErr, setPhotoErr] = useState<string | null>(null);
     const photosBoxRef = useRef<HTMLDivElement | null>(null);
     const inFlightUploads = useRef<Set<string>>(new Set());
+    const [dragging, setDragging] = useState(false);
 
-    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+    const [isCoarsePointer, setIsCoarsePointer] = useState(() => {
+      // Mobile/touch-ish detection: no hover + coarse pointer is a good proxy.
+      if (typeof window === "undefined") return false;
+      return window.matchMedia?.("(hover: none) and (pointer: coarse)")?.matches ?? false;
+    });
+
+    useEffect(() => {
+      if (typeof window === "undefined") return;
+      const mq = window.matchMedia?.("(hover: none) and (pointer: coarse)");
+      if (!mq) return;
+      const onChange = () => setIsCoarsePointer(mq.matches);
+      onChange();
+      // Safari uses addListener/removeListener
+      if (typeof mq.addEventListener === "function") {
+        mq.addEventListener("change", onChange);
+        return () => mq.removeEventListener("change", onChange);
+      }
+      mq.addListener(onChange);
+      return () => mq.removeListener(onChange);
+    }, []);
+
+    const sensors = useSensors(
+      useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+      useSensor(TouchSensor, {
+        activationConstraint: isCoarsePointer
+          ? // Press-and-hold to start dragging (lets users scroll the page normally).
+            { delay: 350, tolerance: 6 }
+          : // If a touch device reports fine pointer, fall back to distance.
+            { distance: 6 },
+      })
+    );
 
     const photoPreviews = useMemo(() => {
       return items.map((p, idx) => {
@@ -308,7 +339,10 @@ export default forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
           ref={setNodeRef}
           style={style}
           className={[
-            "overflow-hidden rounded-2xl border bg-white touch-none select-none",
+            // Allow vertical page scrolling until a drag actually starts; once dragging, disable touch panning
+            // so the browser doesn't steal the gesture.
+            "overflow-hidden rounded-2xl border bg-white select-none",
+            dragging ? "touch-none" : "touch-pan-y",
             isDragging ? "border-slate-900 shadow-lg opacity-95 cursor-grabbing" : "border-slate-200 cursor-grab",
           ].join(" ")}
           {...attributes}
@@ -454,7 +488,10 @@ export default forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
               <div className="text-xs text-slate-600">
                 Up to {maxCount} photos. Max {MAX_UPLOAD_IMAGE_MB}MB each.
               </div>
-              <div className="text-xs text-slate-600">Drag to reorder. The first photo is used as the thumbnail.</div>
+              <div className="text-xs text-slate-600">
+                {isCoarsePointer ? "Press and hold to reorder. " : "Drag to reorder. "}
+                The first photo is used as the thumbnail.
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -485,7 +522,16 @@ export default forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
               No images
             </div>
           ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={() => setDragging(true)}
+              onDragCancel={() => setDragging(false)}
+              onDragEnd={(e) => {
+                setDragging(false);
+                onDragEnd(e);
+              }}
+            >
               <SortableContext items={photoPreviews.map((x) => x.id)} strategy={rectSortingStrategy}>
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
                   {photoPreviews.map((p, idx) => (

@@ -1,5 +1,5 @@
 // frontend/src/pages/ListingPage.tsx
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { Flag } from "lucide-react";
 import { createReport, fetchListing, fetchWantedPost, getListingOptionsCached, resolveAssets, type Listing, type WantedPost } from "../api";
@@ -68,6 +68,10 @@ export default function ListingPage() {
 
   // Lightbox
   const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  const thumbnailStripRef = useRef<HTMLDivElement | null>(null);
+  const [thumbCanLeft, setThumbCanLeft] = useState(false);
+  const [thumbCanRight, setThumbCanRight] = useState(false);
 
   const [bioRequiredCategories, setBioRequiredCategories] = useState<Set<string>>(new Set());
   const [otherCategoryName, setOtherCategoryName] = useState("Other");
@@ -218,6 +222,29 @@ export default function ListingPage() {
     setActive((i) => (i >= assets.length - 1 ? 0 : i + 1));
   }, [assets.length]);
 
+  const updateThumbOverflow = useCallback(() => {
+    const el = thumbnailStripRef.current;
+    if (!el) {
+      setThumbCanLeft(false);
+      setThumbCanRight(false);
+      return;
+    }
+    const maxScrollLeft = Math.max(0, el.scrollWidth - el.clientWidth);
+    const sl = el.scrollLeft;
+    const eps = 2; // tolerate sub-pixel rounding
+    setThumbCanLeft(sl > eps);
+    setThumbCanRight(sl < maxScrollLeft - eps);
+  }, []);
+
+  useEffect(() => {
+    updateThumbOverflow();
+    const el = thumbnailStripRef.current;
+    if (!el) return;
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => updateThumbOverflow()) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [assets.length, updateThumbOverflow]);
+
   const openLightbox = useCallback(() => {
     if (!assets.length) return;
     setLightboxOpen(true);
@@ -275,7 +302,7 @@ export default function ListingPage() {
   }, [reportOpen]);
 
   return (
-    <div className="min-h-full">
+    <div className="min-h-full overflow-x-hidden">
       <Header maxWidth="7xl" />
       <main className="mx-auto max-w-7xl px-4 py-6">
         {(() => {
@@ -389,9 +416,9 @@ export default function ListingPage() {
               </div>
             ) : null}
 
-            <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_360px]">
+            <div className="mt-4 grid min-w-0 lg:gap-6 lg:grid-cols-[1fr_360px]">
               {/* Left column: gallery + description */}
-              <div className="space-y-5">
+              <div className="min-w-0 space-y-5">
                 <div>
                   <h1 className="text-2xl font-extrabold text-slate-900">{item.title}</h1>
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-500">
@@ -499,28 +526,91 @@ export default function ListingPage() {
                       </div>
 
                       {/* Thumbnails */}
-                      <div className="flex gap-2 overflow-x-auto p-3">
-                        {assets.map((a, i) => (
+                      <div className="relative w-full min-w-0 overflow-hidden">
+                        <div
+                          ref={thumbnailStripRef}
+                          onScroll={updateThumbOverflow}
+                          className="flex w-full min-w-0 gap-2 overflow-x-auto overflow-y-hidden p-3 touch-pan-x overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                        >
+                          {assets.map((a, i) => (
+                            <button
+                              key={a.fullUrl + i}
+                              type="button"
+                              onClick={() => {
+                                setActive(i);
+                                window.requestAnimationFrame(() => updateThumbOverflow());
+                              }}
+                              className={[
+                                "h-16 w-20 shrink-0 overflow-hidden rounded-xl border bg-white",
+                                i === active ? "border-slate-900" : "border-slate-200",
+                              ].join(" ")}
+                              title={`Image ${i + 1}`}
+                              aria-current={i === active ? "true" : undefined}
+                            >
+                              <img
+                                src={a.thumbUrl || a.medUrl || a.fullUrl}
+                                alt={`thumb-${i}`}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                                decoding="async"
+                              />
+                            </button>
+                          ))}
+                        </div>
+
+                        {hasMultiple && thumbCanLeft ? (
                           <button
-                            key={a.fullUrl + i}
                             type="button"
-                            onClick={() => setActive(i)}
-                            className={[
-                              "h-16 w-20 shrink-0 overflow-hidden rounded-xl border bg-white",
-                              i === active ? "border-slate-900" : "border-slate-200",
-                            ].join(" ")}
-                            title={`Image ${i + 1}`}
-                            aria-current={i === active ? "true" : undefined}
+                            aria-label="Scroll thumbnails left"
+                            onClick={() => {
+                              const el = thumbnailStripRef.current;
+                              if (!el) return;
+                              el.scrollBy({ left: -220, behavior: "smooth" });
+                              window.requestAnimationFrame(() => window.requestAnimationFrame(() => updateThumbOverflow()));
+                            }}
+                            className="
+                              absolute left-2 top-1/2 -translate-y-1/2
+                              rounded-full border border-white/30
+                              bg-slate-900/15 backdrop-blur
+                              px-3 py-2
+                              text-white
+                              shadow-sm
+                              transition
+                              hover:bg-slate-900/35 hover:border-white/50
+                              focus:outline-none
+                              focus-visible:ring-2 focus-visible:ring-white/60
+                            "
                           >
-                            <img
-                              src={a.thumbUrl || a.medUrl || a.fullUrl}
-                              alt={`thumb-${i}`}
-                              className="h-full w-full object-cover"
-                              loading="lazy"
-                              decoding="async"
-                            />
+                            ‹
                           </button>
-                        ))}
+                        ) : null}
+
+                        {hasMultiple && thumbCanRight ? (
+                          <button
+                            type="button"
+                            aria-label="Scroll thumbnails right"
+                            onClick={() => {
+                              const el = thumbnailStripRef.current;
+                              if (!el) return;
+                              el.scrollBy({ left: 220, behavior: "smooth" });
+                              window.requestAnimationFrame(() => window.requestAnimationFrame(() => updateThumbOverflow()));
+                            }}
+                            className="
+                              absolute right-2 top-1/2 -translate-y-1/2
+                              rounded-full border border-white/30
+                              bg-slate-900/15 backdrop-blur
+                              px-3 py-2
+                              text-white
+                              shadow-sm
+                              transition
+                              hover:bg-slate-900/35 hover:border-white/50
+                              focus:outline-none
+                              focus-visible:ring-2 focus-visible:ring-white/60
+                            "
+                          >
+                            ›
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   </div>

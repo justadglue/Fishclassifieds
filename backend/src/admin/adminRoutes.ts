@@ -1734,6 +1734,60 @@ router.get("/popular-searches/sets/:id", requireSuperadmin, (req, res) => {
   });
 });
 
+router.get("/popular-searches/latest-draft", requireSuperadmin, (req, res) => {
+  const db = getDb(req);
+  const set = db
+    .prepare(
+      `
+SELECT *
+FROM popular_search_sets
+WHERE status = 'draft'
+ORDER BY updated_at DESC
+LIMIT 1
+`
+    )
+    .get() as any | undefined;
+
+  if (!set) return res.json({ set: null, items: [] });
+
+  const setId = String(set.id);
+  const rows = db.prepare(`SELECT * FROM popular_search_items WHERE set_id = ? ORDER BY rank ASC`).all(setId) as any[];
+
+  return res.json({
+    set: {
+      id: setId,
+      windowStartIso: String(set.window_start_iso),
+      windowEndIso: String(set.window_end_iso),
+      provider: String(set.provider),
+      model: String(set.model),
+      status: String(set.status),
+      createdAt: String(set.created_at),
+      updatedAt: String(set.updated_at),
+    },
+    items: rows.map((r) => ({
+      id: String(r.id),
+      rank: Number(r.rank ?? 0),
+      label: String(r.label ?? ""),
+      params: (() => {
+        try {
+          return JSON.parse(String(r.params_json ?? "{}"));
+        } catch {
+          return {};
+        }
+      })(),
+      includedTerms: (() => {
+        try {
+          return r.included_terms_json ? (JSON.parse(String(r.included_terms_json)) as string[]) : [];
+        } catch {
+          return [];
+        }
+      })(),
+      confidence: r.confidence != null ? Number(r.confidence) : null,
+      enabled: Boolean(Number(r.enabled ?? 0)),
+    })),
+  });
+});
+
 const PopularSearchDraftItemEditSchema = z.object({
   id: z.string().optional(),
   label: z.string().min(1).max(80),

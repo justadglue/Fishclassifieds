@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   adminGeneratePopularSearchDraft,
   adminGetPopularSearchLlmSettings,
+  adminGetLatestPopularSearchDraft,
   adminPublishPopularSearchSet,
   adminSavePopularSearchLlmSettings,
   adminUpdatePopularSearchSet,
@@ -47,6 +48,7 @@ export default function AdminSettingsPage() {
   const [draftSet, setDraftSet] = useState<AdminPopularSearchSet | null>(null);
   const [draftItems, setDraftItems] = useState<AdminPopularSearchDraftItem[]>([]);
   const [draftLoading, setDraftLoading] = useState(false);
+  const [draftGenerating, setDraftGenerating] = useState(false);
   const [draftMsg, setDraftMsg] = useState<string | null>(null);
   const [inputSummary, setInputSummary] = useState<{ windowHours: number; candidatesTotal: number; candidatesUsed: number; candidatesDropped: number } | null>(
     null
@@ -88,6 +90,19 @@ export default function AdminSettingsPage() {
         } else {
           setLlmModelPreset(presets[0] ?? "");
           setLlmModelCustom("");
+        }
+      } catch {
+        // ignore
+      }
+    })();
+
+    (async () => {
+      try {
+        const d = await adminGetLatestPopularSearchDraft();
+        if (d.set && d.set.status === "draft") {
+          setDraftSet(d.set);
+          setDraftItems(d.items ?? []);
+          setDraftMsg("Loaded latest saved draft.");
         }
       } catch {
         // ignore
@@ -143,7 +158,7 @@ export default function AdminSettingsPage() {
   }
 
   async function generateDraft() {
-    setDraftLoading(true);
+    setDraftGenerating(true);
     setDraftMsg(null);
     try {
       const res = await adminGeneratePopularSearchDraft({ windowHours: 24, candidateLimit: 200, outputLimit: 12 });
@@ -154,7 +169,7 @@ export default function AdminSettingsPage() {
     } catch (e: any) {
       setDraftMsg(e?.message ?? "Failed to generate draft");
     } finally {
-      setDraftLoading(false);
+      setDraftGenerating(false);
     }
   }
 
@@ -319,13 +334,13 @@ export default function AdminSettingsPage() {
                 <div className="text-sm font-semibold text-slate-700">Provider</div>
                 <select
                   value={llmProvider}
-              onChange={(e) => {
-                const next = e.target.value as PopularSearchLlmProvider;
-                setLlmProvider(next);
-                const presets = next === "gemini" ? (GEMINI_MODEL_PRESETS as readonly string[]) : (OPENAI_MODEL_PRESETS as readonly string[]);
-                setLlmModelPreset(presets[0] ?? "");
-                setLlmModelCustom("");
-              }}
+                  onChange={(e) => {
+                    const next = e.target.value as PopularSearchLlmProvider;
+                    setLlmProvider(next);
+                    const presets = next === "gemini" ? (GEMINI_MODEL_PRESETS as readonly string[]) : (OPENAI_MODEL_PRESETS as readonly string[]);
+                    setLlmModelPreset(presets[0] ?? "");
+                    setLlmModelCustom("");
+                  }}
                   className="w-48 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-slate-400"
                 >
                   <option value="openai">OpenAI</option>
@@ -335,29 +350,29 @@ export default function AdminSettingsPage() {
 
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold text-slate-700">Model</div>
-            <div className="flex items-center gap-2">
-              <select
-                value={llmModelPreset}
-                onChange={(e) => setLlmModelPreset(e.target.value)}
-                className="w-56 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-slate-400"
-              >
-                {(llmProvider === "gemini" ? GEMINI_MODEL_PRESETS : OPENAI_MODEL_PRESETS).map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-                <option value={CUSTOM_MODEL_VALUE}>Custom…</option>
-              </select>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={llmModelPreset}
+                    onChange={(e) => setLlmModelPreset(e.target.value)}
+                    className="w-56 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-slate-400"
+                  >
+                    {(llmProvider === "gemini" ? GEMINI_MODEL_PRESETS : OPENAI_MODEL_PRESETS).map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                    <option value={CUSTOM_MODEL_VALUE}>Custom…</option>
+                  </select>
 
-              {llmModelPreset === CUSTOM_MODEL_VALUE ? (
-                <input
-                  value={llmModelCustom}
-                  onChange={(e) => setLlmModelCustom(e.target.value)}
-                  placeholder={llmProvider === "gemini" ? "gemini-2.0-flash" : "gpt-4o-mini"}
-                  className="w-64 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-slate-400"
-                />
-              ) : null}
-            </div>
+                  {llmModelPreset === CUSTOM_MODEL_VALUE ? (
+                    <input
+                      value={llmModelCustom}
+                      onChange={(e) => setLlmModelCustom(e.target.value)}
+                      placeholder={llmProvider === "gemini" ? "gemini-2.0-flash" : "gpt-4o-mini"}
+                      className="w-64 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-slate-400"
+                    />
+                  ) : null}
+                </div>
               </div>
 
               <div className="flex items-center justify-between gap-3">
@@ -371,34 +386,34 @@ export default function AdminSettingsPage() {
                 />
               </div>
 
-            <div className="mt-2">
-              <div className="flex items-end justify-between gap-3">
-                <div className="text-sm font-semibold text-slate-700">Meta-prompt</div>
-                <div className="text-xs text-slate-500">{llmMetaPrompt.length.toLocaleString()} chars</div>
+              <div className="mt-2">
+                <div className="flex items-end justify-between gap-3">
+                  <div className="text-sm font-semibold text-slate-700">Meta-prompt</div>
+                  <div className="text-xs text-slate-500">{llmMetaPrompt.length.toLocaleString()} chars</div>
+                </div>
+                <textarea
+                  value={llmMetaPrompt}
+                  onChange={(e) => setLlmMetaPrompt(e.target.value)}
+                  rows={10}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-400"
+                  placeholder="Instructions passed to the model (system prompt)."
+                />
+                <div className="mt-2 text-xs text-slate-600">
+                  This is the “system” instruction used for generation. Keep it strict about returning JSON only.
+                </div>
               </div>
-              <textarea
-                value={llmMetaPrompt}
-                onChange={(e) => setLlmMetaPrompt(e.target.value)}
-                rows={10}
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-400"
-                placeholder="Instructions passed to the model (system prompt)."
-              />
-              <div className="mt-2 text-xs text-slate-600">
-                This is the “system” instruction used for generation. Keep it strict about returning JSON only.
-              </div>
-            </div>
 
               <div className="flex items-center justify-between gap-3 pt-2">
                 <div className="text-xs text-slate-600">{llm ? `Saved provider: ${llm.provider ?? "—"} • model: ${llm.model ?? "—"}` : ""}</div>
                 <button
                   type="button"
                   onClick={saveLlm}
-              disabled={
-                llmSaving ||
-                !(llmModelPreset === CUSTOM_MODEL_VALUE ? llmModelCustom.trim() : llmModelPreset.trim()) ||
-                  (!llmApiKey && !(llm?.apiKeySet ?? false)) ||
-                  llmMetaPrompt.trim().length < 10
-              }
+                  disabled={
+                    llmSaving ||
+                    !(llmModelPreset === CUSTOM_MODEL_VALUE ? llmModelCustom.trim() : llmModelPreset.trim()) ||
+                    (!llmApiKey && !(llm?.apiKeySet ?? false)) ||
+                    llmMetaPrompt.trim().length < 10
+                  }
                   className="rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-60"
                 >
                   Save LLM settings
@@ -434,15 +449,15 @@ export default function AdminSettingsPage() {
               <button
                 type="button"
                 onClick={generateDraft}
-                disabled={draftLoading || !(llm?.apiKeySet ?? false)}
+                disabled={draftLoading || draftGenerating || !(llm?.apiKeySet ?? false)}
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
               >
-                Generate from last 24h
+                {draftGenerating ? "Generating…" : "Generate from last 24h"}
               </button>
               <button
                 type="button"
                 onClick={saveDraftEdits}
-                disabled={draftLoading || !canSaveDraft}
+                disabled={draftLoading || draftGenerating || !canSaveDraft}
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
               >
                 Save draft
@@ -450,7 +465,7 @@ export default function AdminSettingsPage() {
               <button
                 type="button"
                 onClick={publishDraft}
-                disabled={draftLoading || !canSaveDraft || !hasAnyEnabled}
+                disabled={draftLoading || draftGenerating || !canSaveDraft || !hasAnyEnabled}
                 className="rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-60"
               >
                 Publish
@@ -459,6 +474,13 @@ export default function AdminSettingsPage() {
 
             {draftMsg ? (
               <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">{draftMsg}</div>
+            ) : null}
+
+            {draftGenerating ? (
+              <div className="mt-3 flex items-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 p-3 text-sm font-semibold text-indigo-900">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-900" aria-hidden="true" />
+                Generating draft…
+              </div>
             ) : null}
           </div>
         </div>
@@ -471,7 +493,9 @@ export default function AdminSettingsPage() {
             </div>
           </div>
 
-          {!draftItems.length ? (
+          {draftGenerating ? (
+            <div className="mt-3 text-sm text-slate-600">Generating…</div>
+          ) : !draftItems.length ? (
             <div className="mt-3 text-sm text-slate-600">No draft loaded. Click “Generate from last 24h”.</div>
           ) : (
             <div className="mt-4 overflow-x-auto">

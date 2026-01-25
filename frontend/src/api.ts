@@ -535,6 +535,10 @@ export function adminGetPopularSearchSet(id: string) {
   );
 }
 
+export function adminGetLatestPopularSearchDraft() {
+  return apiFetch<{ set: AdminPopularSearchSet | null; items: AdminPopularSearchDraftItem[] }>(`/api/admin/popular-searches/latest-draft`);
+}
+
 export function adminUpdatePopularSearchSet(id: string, input: { items: Array<Omit<AdminPopularSearchDraftItem, "rank">> }) {
   return apiFetch<{ ok: true }>(`/api/admin/popular-searches/sets/${encodeURIComponent(id)}`, {
     method: "PUT",

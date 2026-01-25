@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Eye, MapPin } from "lucide-react";
+import { createPortal } from "react-dom";
 import {
   fetchListings,
   fetchWanted,
@@ -11,6 +12,7 @@ import {
 import Header from "../components/Header";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
 import FadeImage from "../components/FadeImage";
+import { LocationTypeaheadAU } from "../components/LocationTypeaheadAU";
 import { decodeSaleDetailsFromDescription, decodeWantedDetailsFromDescription } from "../utils/listingDetailsBlock";
 import BrowseFilters from "../components/BrowseFilters";
 import { SPECIES_PRESETS, useBrowseFilterState } from "../utils/useBrowseFilterState";
@@ -259,6 +261,74 @@ export default function BrowseListings() {
   const topPagerRef = useRef<HTMLDivElement | null>(null);
   // Counter that increments on every data load to force image fade-in animations
   const [loadGeneration, setLoadGeneration] = useState(0);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  const activeFilterChips = useMemo(() => {
+    const chips: Array<{ id: string; label: string; onClear: () => void }> = [];
+
+    if (location.trim()) chips.push({ id: "location", label: `Location: ${location.trim()}`, onClear: () => setParam("location", "") });
+    if (shippingOnly) chips.push({ id: "ship", label: "Shipping offered", onClear: () => setParam("ship", "") });
+    if (category) chips.push({ id: "category", label: `Category: ${category}`, onClear: () => setParam("category", "") });
+
+    if (!bioFieldsDisabled) {
+      if (waterType) chips.push({ id: "waterType", label: `Water: ${waterType}`, onClear: () => setParam("waterType", "") });
+      if (species) chips.push({ id: "species", label: `Species: ${species}`, onClear: () => setParam("species", "") });
+      if (sex) chips.push({ id: "sex", label: `Sex: ${sex}`, onClear: () => setParam("sex", "") });
+    }
+
+    if (browseType === "sale") {
+      const min = minDollars.trim();
+      const max = maxDollars.trim();
+      if (min || max) {
+        const text = min && max ? `$${min}–$${max}` : min ? `From $${min}` : `Up to $${max}`;
+        chips.push({
+          id: "price",
+          label: `Price: ${text}`,
+          onClear: () => {
+            setParam("min", "");
+            setParam("max", "");
+          },
+        });
+      }
+    } else {
+      const b = budgetDollars.trim();
+      if (b) chips.push({ id: "budget", label: `Budget: Up to $${b}`, onClear: () => setParam("budget", "") });
+    }
+
+    return chips;
+  }, [
+    bioFieldsDisabled,
+    browseType,
+    budgetDollars,
+    category,
+    location,
+    maxDollars,
+    minDollars,
+    setParam,
+    sex,
+    shippingOnly,
+    species,
+    waterType,
+  ]);
+
+  const activeFilterCount = activeFilterChips.length;
+
+  useEffect(() => {
+    if (!mobileFiltersOpen) return;
+
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setMobileFiltersOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [mobileFiltersOpen]);
 
   const offset = (page - 1) * per;
   const totalPages = Math.max(1, Math.ceil(total / per));
@@ -468,6 +538,7 @@ export default function BrowseListings() {
         <div className="grid gap-6 md:grid-cols-[280px_1fr]">
           <div className="hidden md:block">
             <BrowseFilters
+              variant="sidebar"
               browseType={browseType}
               setBrowseType={setBrowseType}
               clearFilters={clearFilters}
@@ -499,26 +570,141 @@ export default function BrowseListings() {
           </div>
 
           <section className="min-w-0 md:min-h-[calc(100vh-6rem)]">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-xl font-extrabold text-slate-900">Browse</h1>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl font-extrabold text-slate-900">Browse</h1>
+              </div>
+              <div className="mt-1 text-sm text-slate-600">
+                {loading ? "Loading..." : total === 0 ? "0 results" : `Showing ${showingFrom}–${showingTo} of ${total}`}
+              </div>
+            </div>
+
+            {/* Mobile: keep listing type visible without forcing a trip into Filters */}
+            <div className="mt-4 flex md:hidden">
+              <div className="flex w-full overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <button
+                  type="button"
+                  onClick={() => setBrowseType("sale")}
+                  className={[
+                    "flex-1 px-3 py-2 text-sm font-semibold",
+                    browseType === "sale" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+                  ].join(" ")}
+                  aria-pressed={browseType === "sale"}
+                >
+                  For sale
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBrowseType("wanted")}
+                  className={[
+                    "flex-1 px-3 py-2 text-sm font-semibold",
+                    browseType === "wanted" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+                  ].join(" ")}
+                  aria-pressed={browseType === "wanted"}
+                >
+                  Wanted
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile: keep primary refiners always visible (Location + Shipping) */}
+            <div className="mt-3 md:hidden rounded-2xl border border-slate-200 bg-white p-3">
+              <label className="block">
+                <div className="mb-1 text-xs font-semibold text-slate-700">Location</div>
+                <LocationTypeaheadAU value={location} onChange={(v) => setParam("location", v)} placeholder="Start typing your area…" />
+              </label>
+
+              {browseType === "sale" ? (
+                <label className="mt-3 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={shippingOnly}
+                    onChange={(e) => setParam("ship", e.target.checked ? "1" : "")}
+                    className="h-4 w-4 rounded border-slate-300 text-slate-900"
+                  />
+                  <span className="text-xs font-semibold text-slate-700">Shipping offered</span>
+                </label>
+              ) : null}
+            </div>
+
+            {/* Search row: never share this row with the Filters button */}
+            <div className="mt-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                {/* Search (primary control) */}
+                <div className="w-full flex-1" data-browse-anchor="searchbar">
+                  <div className="flex items-center gap-2 overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                    <span className="select-none text-slate-400" aria-hidden="true">
+                      ⌕
+                    </span>
+                    <input
+                      value={q}
+                      onChange={(e) => setParam("q", e.target.value)}
+                      placeholder="Search"
+                      inputMode="search"
+                      enterKeyHint="search"
+                      className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
+                    />
+                    {q.trim() ? (
+                      <button
+                        type="button"
+                        onClick={() => setParam("q", "")}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                        aria-label="Clear search"
+                        title="Clear"
+                      >
+                        Clear
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="mt-1 text-sm text-slate-600">
-                  {loading ? "Loading..." : total === 0 ? "0 results" : `Showing ${showingFrom}–${showingTo} of ${total}`}
+
+                {/* On larger displays, Search can share a row with Sort */}
+                <div className="hidden sm:flex sm:items-center sm:justify-end sm:gap-2">
+                  <label className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-700">Sort</span>
+                    <select
+                      value={sort}
+                      onChange={(e) => setParam("sort", e.target.value)}
+                      className="w-56 max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                    >
+                      {q.trim() ? <option value="relevance">Relevance</option> : null}
+                      <option value="newest">Newest</option>
+                      <option value="views_desc">Popular</option>
+                      {browseType === "sale" ? (
+                        <>
+                          <option value="price_asc">Price: Low → High</option>
+                          <option value="price_desc">Price: High → Low</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="budget_asc">Budget: Low → High</option>
+                          <option value="budget_desc">Budget: High → Low</option>
+                        </>
+                      )}
+                    </select>
+                  </label>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Keep layout identical between Sale/Wanted to avoid UI "jumping" when toggling listing type. */}
-                <label className="flex items-center gap-2">
+              {/* Controls row (< md): Filters lives here so it never shares the Search row */}
+              <div className="mt-2 flex items-center justify-between gap-2 md:hidden">
+                <button
+                  type="button"
+                  onClick={() => setMobileFiltersOpen(true)}
+                  className="md:hidden rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50"
+                  aria-haspopup="dialog"
+                  aria-expanded={mobileFiltersOpen}
+                >
+                  Filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
+                </button>
+
+                {/* On < sm, Sort renders here (Search row doesn't show it yet). On sm..md-1, Sort is already in the Search row. */}
+                <label className="flex flex-1 items-center justify-end gap-2 sm:hidden">
                   <span className="text-xs font-semibold text-slate-700">Sort</span>
                   <select
                     value={sort}
                     onChange={(e) => setParam("sort", e.target.value)}
-                    className={[
-                      "min-w-[190px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400",
-                    ].join(" ")}
+                    className="w-full min-w-0 max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
                   >
                     {q.trim() ? <option value="relevance">Relevance</option> : null}
                     <option value="newest">Newest</option>
@@ -536,69 +722,35 @@ export default function BrowseListings() {
                     )}
                   </select>
                 </label>
-
-                {/* Per-page selection removed: fixed page size for consistent browsing UX. */}
               </div>
             </div>
 
-            {/* Mobile: keep filters visible/expanded at the top of the page */}
-            <div className="mt-4 md:hidden">
-              <BrowseFilters
-                browseType={browseType}
-                setBrowseType={setBrowseType}
-                clearFilters={clearFilters}
-                location={location}
-                setLocation={(v) => setParam("location", v)}
-                shippingOnly={shippingOnly}
-                setShippingOnly={(v) => setParam("ship", v ? "1" : "")}
-                waterType={waterType}
-                setWaterType={(v) => setParam("waterType", v)}
-                waterTypes={waterTypes}
-                category={category}
-                setCategory={(v) => setParam("category", v)}
-                categoryOptions={categoryOptions}
-                species={species}
-                setSpecies={(v) => setParam("species", v)}
-                speciesPresets={[...SPECIES_PRESETS]}
-                minDollars={minDollars}
-                setMinDollars={(v) => setParam("min", v)}
-                maxDollars={maxDollars}
-                setMaxDollars={(v) => setParam("max", v)}
-                budgetDollars={budgetDollars}
-                setBudgetDollars={(v) => setParam("budget", v)}
-                sex={sex}
-                setSex={(v) => setParam("sex", v)}
-                listingSexes={listingSexes}
-                wantedSexOptions={wantedSexOptions}
-                bioFieldsDisabled={bioFieldsDisabled}
-              />
-            </div>
-
-            {/* Search bar (above the results grid) */}
-            <div className="mt-4" data-browse-anchor="searchbar">
-              <div className="flex items-center gap-2 overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                <span className="select-none text-slate-400" aria-hidden="true">
-                  ⌕
-                </span>
-                <input
-                  value={q}
-                  onChange={(e) => setParam("q", e.target.value)}
-                  placeholder="Search"
-                  className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
-                />
-                {q.trim() ? (
+            {activeFilterChips.length ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {activeFilterChips.map((c) => (
                   <button
+                    key={c.id}
                     type="button"
-                    onClick={() => setParam("q", "")}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                    aria-label="Clear search"
-                    title="Clear"
+                    onClick={c.onClear}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                    title="Remove filter"
                   >
-                    Clear
+                    <span className="truncate">{c.label}</span>
+                    <span aria-hidden="true" className="text-slate-400">
+                      ×
+                    </span>
                   </button>
-                ) : null}
+                ))}
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="ml-1 inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold text-slate-900 hover:bg-slate-50"
+                  title="Clear all filters"
+                >
+                  Clear all
+                </button>
               </div>
-            </div>
+            ) : null}
 
             <div ref={topPagerRef}>
               <PaginationBar
@@ -772,6 +924,90 @@ export default function BrowseListings() {
           </section>
         </div>
       </main>
+
+      {mobileFiltersOpen && typeof document !== "undefined"
+        ? createPortal(
+          <div className="fixed inset-0 z-50 bg-black/40 sm:flex sm:items-center sm:justify-center sm:p-4" role="dialog" aria-modal="true">
+            <button
+              type="button"
+              className="absolute inset-0"
+              aria-label="Close filters"
+              onClick={() => setMobileFiltersOpen(false)}
+            />
+            <div className="fixed inset-x-0 bottom-0 flex max-h-[85dvh] flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-xl sm:static sm:w-full sm:max-w-md sm:rounded-2xl">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-white px-4 py-3">
+                <div className="text-base font-extrabold text-slate-900">Filters</div>
+                <button
+                  type="button"
+                  onClick={() => setMobileFiltersOpen(false)}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Done
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-auto overscroll-contain px-4 py-4">
+                <BrowseFilters
+                  variant="modal"
+                  showHeader={false}
+                  className="bg-transparent"
+                  showListingType={false}
+                  showLocation={false}
+                  showShippingOnly={false}
+                  browseType={browseType}
+                  setBrowseType={setBrowseType}
+                  clearFilters={clearFilters}
+                  location={location}
+                  setLocation={(v) => setParam("location", v)}
+                  shippingOnly={shippingOnly}
+                  setShippingOnly={(v) => setParam("ship", v ? "1" : "")}
+                  waterType={waterType}
+                  setWaterType={(v) => setParam("waterType", v)}
+                  waterTypes={waterTypes}
+                  category={category}
+                  setCategory={(v) => setParam("category", v)}
+                  categoryOptions={categoryOptions}
+                  species={species}
+                  setSpecies={(v) => setParam("species", v)}
+                  speciesPresets={[...SPECIES_PRESETS]}
+                  minDollars={minDollars}
+                  setMinDollars={(v) => setParam("min", v)}
+                  maxDollars={maxDollars}
+                  setMaxDollars={(v) => setParam("max", v)}
+                  budgetDollars={budgetDollars}
+                  setBudgetDollars={(v) => setParam("budget", v)}
+                  sex={sex}
+                  setSex={(v) => setParam("sex", v)}
+                  listingSexes={listingSexes}
+                  wantedSexOptions={wantedSexOptions}
+                  bioFieldsDisabled={bioFieldsDisabled}
+                />
+                <div className="h-4" />
+              </div>
+
+              <div className="border-t border-slate-100 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50"
+                  >
+                    Clear all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileFiltersOpen(false)}
+                    className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800"
+                  >
+                    Show results
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+        : null}
     </div>
   );
 }

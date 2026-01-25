@@ -15,6 +15,14 @@ function Field(props: { label: string; children: ReactNode }) {
 }
 
 export default function BrowseFilters(props: {
+    variant?: "sidebar" | "inline" | "modal";
+    showHeader?: boolean;
+    className?: string;
+
+    showListingType?: boolean;
+    showLocation?: boolean;
+    showShippingOnly?: boolean;
+
     browseType: BrowseType;
     setBrowseType: (t: BrowseType) => void;
     clearFilters: () => void;
@@ -53,6 +61,12 @@ export default function BrowseFilters(props: {
     bioFieldsDisabled: boolean;
 }) {
     const {
+        variant = "sidebar",
+        showHeader = true,
+        className = "",
+        showListingType = true,
+        showLocation = true,
+        showShippingOnly = true,
         browseType,
         setBrowseType,
         clearFilters,
@@ -118,52 +132,69 @@ export default function BrowseFilters(props: {
         </Field>
     );
 
+    const containerClass =
+        variant === "sidebar"
+            ? "rounded-2xl border border-slate-200 bg-white p-4 md:sticky md:top-24 md:self-start md:max-h-[calc(100vh-7rem)] md:overflow-auto"
+            : variant === "modal"
+              ? "p-0"
+              : "rounded-2xl border border-slate-200 bg-white p-4";
+
     return (
         <aside
-            className="rounded-2xl border border-slate-200 bg-white p-4 md:sticky md:top-24 md:self-start md:max-h-[calc(100vh-7rem)] md:overflow-auto"
+            className={[containerClass, className].filter(Boolean).join(" ")}
             // Keep inner scrollbar from changing layout width when content height differs between Sale/Wanted.
             style={{ scrollbarGutter: "stable" }}
         >
-            <div className="flex items-center justify-between">
-                <div className="text-sm font-bold text-slate-900">Filters</div>
-                <button type="button" onClick={clearFilters} className="text-xs font-semibold text-slate-600 hover:text-slate-900">
-                    Clear
-                </button>
-            </div>
+            {showHeader ? (
+                <div className="flex items-center justify-between">
+                    <div className="text-sm font-bold text-slate-900">Filters</div>
+                    <button
+                        type="button"
+                        onClick={clearFilters}
+                        className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+                    >
+                        Clear
+                    </button>
+                </div>
+            ) : null}
 
-            <div className="mt-4 space-y-3">
-                <Field label="Listing type">
-                    <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white">
-                        <button
-                            type="button"
-                            onClick={() => setBrowseType("sale")}
-                            className={[
-                                "flex-1 px-3 py-2 text-sm font-semibold",
-                                browseType === "sale" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
-                            ].join(" ")}
-                            aria-pressed={browseType === "sale"}
-                        >
-                            For sale
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setBrowseType("wanted")}
-                            className={[
-                                "flex-1 px-3 py-2 text-sm font-semibold",
-                                browseType === "wanted" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
-                            ].join(" ")}
-                            aria-pressed={browseType === "wanted"}
-                        >
-                            Wanted
-                        </button>
-                    </div>
-                </Field>
+            <div className={[showHeader ? "mt-4" : "", "space-y-3"].filter(Boolean).join(" ")}>
+                {showListingType ? (
+                    <Field label="Listing type">
+                        <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white">
+                            <button
+                                type="button"
+                                onClick={() => setBrowseType("sale")}
+                                className={[
+                                    "flex-1 px-3 py-2 text-sm font-semibold",
+                                    browseType === "sale" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+                                ].join(" ")}
+                                aria-pressed={browseType === "sale"}
+                            >
+                                For sale
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setBrowseType("wanted")}
+                                className={[
+                                    "flex-1 px-3 py-2 text-sm font-semibold",
+                                    browseType === "wanted" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+                                ].join(" ")}
+                                aria-pressed={browseType === "wanted"}
+                            >
+                                Wanted
+                            </button>
+                        </div>
+                    </Field>
+                ) : null}
 
-                <Field label="Location">
-                    <LocationTypeaheadAU value={location} onChange={setLocation} placeholder="Start typing your area…" />
-                </Field>
+                {showLocation ? (
+                    <Field label="Location">
+                        <LocationTypeaheadAU value={location} onChange={setLocation} placeholder="Start typing your area…" />
+                    </Field>
+                ) : null}
 
-                {isSale && (
+                {showShippingOnly && isSale && (
                     <label className="flex items-center gap-2">
                         <input
                             type="checkbox"

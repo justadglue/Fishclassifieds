@@ -151,6 +151,12 @@ export function ScrollRestorationManager() {
             };
         }
 
+        // For same-path REPLACE navigations (typically query-param updates from in-page controls),
+        // keep the user's scroll position stable. This prevents "jump to top" when toggling filters/sort.
+        if (prevLoc && prevLoc.pathname === loc.pathname && navType === "REPLACE") {
+            return;
+        }
+
         // For same-path navigations, avoid forcing scroll-to-top when this is "pagination only"
         // (only the `page` query param changed). Let the page decide the landing scroll.
         if (prevLoc && prevLoc.pathname === loc.pathname) {

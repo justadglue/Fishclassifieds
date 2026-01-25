@@ -4,6 +4,7 @@ import { MapPin } from "lucide-react";
 import Header from "../components/Header";
 import { clearListingFeaturing, clearWantedFeaturing, fetchListing, fetchWantedPost, setListingFeaturingForDays, setListingFeaturingUntilMs, setWantedFeaturingForDays, setWantedFeaturingUntilMs, type Listing, type WantedPost } from "../api";
 import { useAuth } from "../auth";
+import BackToButton from "../components/nav/BackToButton";
 
 export default function FeatureListingPage() {
   const { id } = useParams();
@@ -92,9 +93,7 @@ export default function FeatureListingPage() {
     <div className="min-h-full">
       <Header maxWidth="7xl" />
       <main className="mx-auto max-w-7xl px-4 py-6">
-        <Link to="/me" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-          ← Back to My listings
-        </Link>
+        <BackToButton fallbackTo="/me" fallbackLabel="My listings" />
 
         <div className="mt-4 flex items-start justify-between gap-4">
           <div>

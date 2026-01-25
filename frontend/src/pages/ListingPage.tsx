@@ -1,6 +1,6 @@
 // frontend/src/pages/ListingPage.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import { Eye, Flag } from "lucide-react";
 import { createReport, fetchListing, fetchWantedPost, getListingOptionsCached, resolveAssets, type Listing, type WantedPost } from "../api";
 import Header from "../components/Header";
@@ -9,6 +9,7 @@ import { decodeSaleDetailsFromDescription, decodeWantedDetailsFromDescription } 
 import ShippingInfoButton from "../components/ShippingInfoButton";
 import { browsePath, parseListingKind, type ListingKind } from "../utils/listingRoutes";
 import { useAuth } from "../auth";
+import BackToButton from "../components/nav/BackToButton";
 
 function centsToDollars(cents: number) {
   const s = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -305,18 +306,7 @@ export default function ListingPage() {
     <div className="min-h-full overflow-x-hidden">
       <Header maxWidth="7xl" />
       <main className="mx-auto max-w-7xl px-4 py-6">
-        {(() => {
-          const from = (location.state as any)?.from as
-            | { pathname: string; search?: string; label?: string }
-            | undefined;
-          const label = (from?.label ?? "").trim() || (kind === "wanted" ? "wanted" : "listings");
-          const to = from?.pathname ? `${from.pathname}${from.search ?? ""}` : browsePath(kind);
-          return (
-            <Link to={to} className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-              ← Back to {label}
-            </Link>
-          );
-        })()}
+        <BackToButton fallbackTo={browsePath(kind)} fallbackLabel={kind === "wanted" ? "wanted" : "listings"} />
 
         {loading && <div className="mt-4 text-sm text-slate-600">Loading…</div>}
 

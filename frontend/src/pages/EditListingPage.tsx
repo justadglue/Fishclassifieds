@@ -408,6 +408,7 @@ function SaleEditForm() {
 
       setOrig(updated);
       setInitialPhotoAssets((updated.images ?? []).slice(0, 6));
+      // After edit, go to the listing detail page (standard UX).
       nav(listingDetailPath("sale", id));
     } catch (e: any) {
       setErr(e?.message ?? "Save failed");

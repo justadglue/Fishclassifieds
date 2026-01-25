@@ -4,6 +4,7 @@ import { MapPin, MoveLeft, MoveRight } from "lucide-react";
 import { fetchFeatured, resolveAssets, type FeaturedItem, type Listing, type WantedPost } from "../api";
 import { useAuth } from "../auth";
 import Header from "../components/Header";
+import FadeImage from "../components/FadeImage";
 import homepageBackground from "../assets/homepage_background_1.jpg";
 import featuredArowana from "../assets/featured_arowana.jpg";
 import { decodeSaleDetailsFromDescription } from "../utils/listingDetailsBlock";
@@ -31,7 +32,15 @@ function budgetLabel(w: WantedPost) {
   return `Up to ${centsToDollars(budget)}`;
 }
 
-function FeaturedCard({ item }: { item: FeaturedItem }) {
+function FeaturedCard({
+  item,
+  loadGeneration,
+  revealWhen = true,
+}: {
+  item: FeaturedItem;
+  loadGeneration: number;
+  revealWhen?: boolean;
+}) {
   const hero = item.kind === "sale" ? featuredHeroUrl(item.item) : featuredHeroUrlWanted(item.item);
   const salePricePill = (() => {
     if (item.kind !== "sale") return null;
@@ -44,12 +53,12 @@ function FeaturedCard({ item }: { item: FeaturedItem }) {
     <div className="group min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
       <div className="relative aspect-4/3 w-full bg-slate-100">
         {hero ? (
-          <img
+          <FadeImage
+            key={`featured-img-${loadGeneration}-${item.item.id}`}
             src={hero}
             alt={item.item.title}
-            className="h-full w-full object-cover opacity-90 transition-transform duration-300 group-hover:scale-[1.02]"
-            loading="lazy"
-            decoding="async"
+            revealWhen={revealWhen}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">No image</div>
@@ -103,7 +112,7 @@ function FeaturedSkeletonCard() {
   );
 }
 
-function FeaturedPromoCard() {
+function FeaturedPromoCard({ revealWhen = true }: { revealWhen?: boolean }) {
   return (
     <div className="group min-w-0 overflow-hidden rounded-2xl border border-indigo-300/70 bg-white shadow-sm ring-1 ring-indigo-200/40 transition-[transform,box-shadow,border-color,ring-color] hover:scale-[1.01] hover:shadow-lg hover:shadow-indigo-500/10 hover:ring-indigo-300/60 focus-within:ring-4 focus-within:ring-indigo-200/60">
       {/* Keep overall geometry consistent, but show the image uncropped and shorter */}
@@ -111,10 +120,12 @@ function FeaturedPromoCard() {
         <div className="flex h-full flex-col">
           <div className="relative h-[74%] w-full overflow-hidden bg-slate-100">
             {/* Background layer fills the width (no blank sides) */}
-            <img
+            <FadeImage
               src={featuredArowana}
               alt=""
-              className="absolute inset-0 h-full w-full scale-110 object-cover object-center blur-sm opacity-60 transition-transform duration-300 group-hover:scale-[1.12]"
+              revealWhen={revealWhen}
+              className="absolute inset-0 h-full w-full scale-110 object-cover object-center blur-sm transition-transform duration-300 group-hover:scale-[1.12]"
+              style={{ opacity: 0.6 }}
               aria-hidden="true"
               loading="lazy"
               decoding="async"
@@ -122,9 +133,10 @@ function FeaturedPromoCard() {
             <div className="absolute inset-0 bg-white/35" aria-hidden="true" />
 
             {/* Foreground layer fills width; crop happens upward (bottom anchored) */}
-            <img
+            <FadeImage
               src={featuredArowana}
               alt="Arowana"
+              revealWhen={revealWhen}
               className="relative h-full w-full object-cover object-bottom transition-transform duration-300 group-hover:scale-[1.02]"
               loading="lazy"
               decoding="async"
@@ -169,6 +181,8 @@ export default function HomePage() {
   const [featured, setFeatured] = useState<FeaturedItem[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
   const [featuredErr, setFeaturedErr] = useState<string | null>(null);
+  // Counter that increments on every data load to force image fade-in animations
+  const [featuredLoadGeneration, setFeaturedLoadGeneration] = useState(0);
   const [featuredIndex, setFeaturedIndex] = useState(0);
   const [featuredCols, setFeaturedCols] = useState(() => {
     const w = typeof window !== "undefined" ? window.innerWidth : 0;
@@ -276,6 +290,8 @@ export default function HomePage() {
         const res = await fetchFeatured({ limit: 24, offset: 0 });
         if (cancelled) return;
         setFeatured(res.items ?? []);
+        // Increment generation to force fresh fade-in animations
+        setFeaturedLoadGeneration((g) => g + 1);
       } catch (e: any) {
         if (cancelled) return;
         setFeatured([]);
@@ -715,7 +731,11 @@ export default function HomePage() {
                                           }}
                                           className="block min-w-0"
                                         >
-                                          <FeaturedCard item={{ kind: "sale", item: t.item }} />
+                                          <FeaturedCard
+                                            item={{ kind: "sale", item: t.item }}
+                                            loadGeneration={featuredLoadGeneration}
+                                            revealWhen={true}
+                                          />
                                         </Link>
                                       );
                                     }
@@ -733,11 +753,20 @@ export default function HomePage() {
                                           }}
                                           className="block min-w-0"
                                         >
-                                          <FeaturedCard item={{ kind: "wanted", item: t.item }} />
+                                          <FeaturedCard
+                                            item={{ kind: "wanted", item: t.item }}
+                                            loadGeneration={featuredLoadGeneration}
+                                            revealWhen={true}
+                                          />
                                         </Link>
                                       );
                                     }
-                                    return <FeaturedPromoCard key={`featured-promo-tile-static-${colIdx}-${r}`} />;
+                                    return (
+                                      <FeaturedPromoCard
+                                        key={`featured-promo-tile-static-${colIdx}-${r}`}
+                                        revealWhen={true}
+                                      />
+                                    );
                                   })}
                                 </div>
                               </div>
@@ -765,6 +794,7 @@ export default function HomePage() {
                                   <div className="flex flex-col gap-4">
                                     {cols[colIdx]?.map((t, r) => {
                                       if (!t) return null;
+                                      const colVisible = colIdx >= safeColIndex && colIdx < safeColIndex + VISIBLE_COLS;
                                       if (t.kind === "sale") {
                                         return (
                                           <Link
@@ -779,7 +809,11 @@ export default function HomePage() {
                                             }}
                                             className="block min-w-0"
                                           >
-                                            <FeaturedCard item={{ kind: "sale", item: t.item }} />
+                                            <FeaturedCard
+                                              item={{ kind: "sale", item: t.item }}
+                                              loadGeneration={featuredLoadGeneration}
+                                              revealWhen={colVisible}
+                                            />
                                           </Link>
                                         );
                                       }
@@ -797,11 +831,20 @@ export default function HomePage() {
                                             }}
                                             className="block min-w-0"
                                           >
-                                            <FeaturedCard item={{ kind: "wanted", item: t.item }} />
+                                            <FeaturedCard
+                                              item={{ kind: "wanted", item: t.item }}
+                                              loadGeneration={featuredLoadGeneration}
+                                              revealWhen={colVisible}
+                                            />
                                           </Link>
                                         );
                                       }
-                                      return <FeaturedPromoCard key={`featured-promo-tile-${colIdx}-${r}`} />;
+                                      return (
+                                        <FeaturedPromoCard
+                                          key={`featured-promo-tile-${colIdx}-${r}`}
+                                          revealWhen={colVisible}
+                                        />
+                                      );
                                     })}
                                   </div>
                                 </div>

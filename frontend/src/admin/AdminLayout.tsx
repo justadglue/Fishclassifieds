@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
 import Header from "../components/Header";
 import { useAuth } from "../auth";
+import BackToButton from "../components/nav/BackToButton";
 
 function TabLink(props: { to: string; label: string }) {
   const { to, label } = props;
@@ -21,12 +22,19 @@ function TabLink(props: { to: string; label: string }) {
 
 export default function AdminLayout() {
   const { user } = useAuth();
+  const loc = useLocation();
+  const isUserDetail = /^\/admin\/users\/\d+/.test(loc.pathname);
   return (
     <div className="min-h-full">
       <Header maxWidth="7xl" />
       <main className="mx-auto max-w-7xl px-4 py-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
+            {isUserDetail ? (
+              <div className="mb-2">
+                <BackToButton fallbackTo="/admin/users" fallbackLabel="users" />
+              </div>
+            ) : null}
             <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Admin</div>
             <h1 className="mt-1 text-2xl font-extrabold text-slate-900">
               <Link to="/admin" className="hover:underline hover:underline-offset-4" aria-label="Back to admin dashboard">

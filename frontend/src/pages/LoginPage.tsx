@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../auth";
 import OAuthButtons from "../components/OAuthButtons";
+import BackToButton from "../components/nav/BackToButton";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -122,9 +123,7 @@ export default function LoginPage() {
         <OAuthButtons intent="signin" />
 
         <div className="mt-6 flex items-center justify-between gap-4 text-sm">
-          <button onClick={() => navigate("/")} className="font-semibold text-slate-600 hover:text-slate-900">
-            ← Back to home
-          </button>
+          <BackToButton fallbackTo="/" fallbackLabel="home" className="text-sm font-semibold text-slate-600 hover:text-slate-900" />
           <div className="text-right">
             <div className="text-xs font-semibold text-slate-600">Don’t have an account?</div>
             <Link to="/signup" className="font-semibold text-slate-900 underline underline-offset-4">

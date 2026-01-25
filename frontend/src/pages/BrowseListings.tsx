@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Eye, MapPin } from "lucide-react";
 import {
@@ -10,6 +10,7 @@ import {
 } from "../api";
 import Header from "../components/Header";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
+import FadeImage from "../components/FadeImage";
 import { decodeSaleDetailsFromDescription, decodeWantedDetailsFromDescription } from "../utils/listingDetailsBlock";
 import BrowseFilters from "../components/BrowseFilters";
 import { SPECIES_PRESETS, useBrowseFilterState } from "../utils/useBrowseFilterState";
@@ -254,6 +255,10 @@ export default function BrowseListings() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [bottomScrollPending, setBottomScrollPending] = useState(false);
+  const bottomScrollSawLoadingRef = useRef(false);
+  const topPagerRef = useRef<HTMLDivElement | null>(null);
+  // Counter that increments on every data load to force image fade-in animations
+  const [loadGeneration, setLoadGeneration] = useState(0);
 
   const offset = (page - 1) * per;
   const totalPages = Math.max(1, Math.ceil(total / per));
@@ -303,6 +308,8 @@ export default function BrowseListings() {
           setSaleItems([]);
         }
         setTotal(data.total);
+        // Increment generation to force fresh fade-in animations
+        setLoadGeneration((g) => g + 1);
 
         const tp = Math.max(1, Math.ceil(data.total / per));
         if (page > tp) {
@@ -352,33 +359,23 @@ export default function BrowseListings() {
     window.scrollTo({ top: 0, left: 0, behavior });
   }
 
-  function scrollToBrowseControlsFromBottomReliable() {
-    // Desired landing spot:
-    // Align the bottom of the sticky header with the midpoint of the vertical gap between:
-    // - the search input (above)
-    // - the top page selector (below)
-    //
-    // This keeps context and avoids jumping all the way back to the very top.
+  function scrollToTopPagerReliable() {
+    // Desired landing spot: align the top pagination bar right under the sticky header.
     function computeTargetTop(): number | null {
-      const searchEl = document.querySelector<HTMLElement>('[data-browse-anchor="searchbar"]');
-      const pagerEl = document.querySelector<HTMLElement>('[data-browse-anchor="top-pager"]');
-      if (!searchEl || !pagerEl) return null;
+      const el = topPagerRef.current;
+      if (!el) return null;
 
       const headerEl = document.querySelector<HTMLElement>("header");
       const headerH = headerEl?.getBoundingClientRect().height ?? 0;
 
-      const searchRect = searchEl.getBoundingClientRect();
-      const pagerRect = pagerEl.getBoundingClientRect();
-      const gapMidViewportY = (searchRect.bottom + pagerRect.top) / 2;
-      const gapMidDocY = gapMidViewportY + window.scrollY;
-
-      const target = Math.max(0, gapMidDocY - headerH);
+      const rect = el.getBoundingClientRect();
+      const target = Math.max(0, window.scrollY + rect.top - headerH - 12);
       return Number.isFinite(target) ? target : null;
     }
 
-    // Paging can cause the pagination UI + result grid to reflow (e.g. "…" appears/disappears) and images can
-    // load after render. Both can interact with browser scroll anchoring and leave the scroll position "partway".
-    // For the *bottom* pager only, do a hard scroll-to-top a few times and temporarily disable anchoring.
+    // Paging can cause the pagination UI + result grid to reflow and images can load after render.
+    // Both can interact with browser scroll anchoring and leave the scroll position "partway".
+    // For the *bottom* pager only, do a hard scroll a few times and temporarily disable anchoring.
     const prevAnchorHtml = document.documentElement.style.overflowAnchor;
     const prevAnchorBody = document.body.style.overflowAnchor;
     document.documentElement.style.overflowAnchor = "none";
@@ -388,7 +385,6 @@ export default function BrowseListings() {
       const targetTop = computeTargetTop();
       if (targetTop == null) {
         scrollToTop("auto");
-        // Also force window top as a backup in case the ref scroll targets a nested container.
         window.scrollTo({ top: 0, left: 0, behavior: "auto" });
         return;
       }
@@ -419,8 +415,14 @@ export default function BrowseListings() {
     setSp(next, { replace: true });
   }
 
+  function goPageFromTop(p: number) {
+    if (p === page) return;
+    goPage(p);
+  }
+
   function goPageFromBottom(p: number) {
     if (p === page) return;
+    bottomScrollSawLoadingRef.current = false;
     setBottomScrollPending(true);
     goPage(p);
   }
@@ -429,12 +431,22 @@ export default function BrowseListings() {
   // This avoids browser scroll-anchoring undoing the scroll when the page buttons reflow.
   useEffect(() => {
     if (!bottomScrollPending) return;
+
+    // Important: wait until we've actually observed a loading cycle for this navigation.
+    // Without this, the effect can run in the brief window before `loading` flips true,
+    // and we'd scroll while the *previous page* results are still rendered (flicker).
+    if (!bottomScrollSawLoadingRef.current) {
+      if (loading) bottomScrollSawLoadingRef.current = true;
+      return;
+    }
     if (loading) return;
+
     setBottomScrollPending(false);
+    bottomScrollSawLoadingRef.current = false;
     let cleanup: (() => void) | null = null;
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
-        cleanup = scrollToBrowseControlsFromBottomReliable();
+        cleanup = scrollToTopPagerReliable();
       });
     });
     return () => {
@@ -588,17 +600,19 @@ export default function BrowseListings() {
               </div>
             </div>
 
-            <PaginationBar
-              page={Math.min(page, totalPages)}
-              totalPages={totalPages}
-              loading={loading}
-              canPrev={canPrev}
-              canNext={canNext}
-              onPrev={() => goPage(page - 1)}
-              onNext={() => goPage(page + 1)}
-              onGoPage={goPage}
-              dataAnchor="top-pager"
-            />
+            <div ref={topPagerRef}>
+              <PaginationBar
+                page={Math.min(page, totalPages)}
+                totalPages={totalPages}
+                loading={loading}
+                canPrev={canPrev}
+                canNext={canNext}
+                onPrev={() => goPageFromTop(page - 1)}
+                onNext={() => goPageFromTop(page + 1)}
+                onGoPage={goPageFromTop}
+                dataAnchor="top-pager"
+              />
+            </div>
 
             {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
@@ -634,12 +648,11 @@ export default function BrowseListings() {
                       <div className="relative aspect-4/3 w-full bg-slate-100">
                         <StatusPill l={l} />
                         {hero ? (
-                          <img
+                          <FadeImage
+                            key={`img-${loadGeneration}-${l.id}`}
                             src={hero}
                             alt={l.title}
                             className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
-                            loading="lazy"
-                            decoding="async"
                           />
                         ) : (
                           <NoPhotoPlaceholder variant="tile" />
@@ -695,12 +708,11 @@ export default function BrowseListings() {
                       return (
                         <div className="relative aspect-4/3 w-full bg-slate-100">
                           {hero ? (
-                            <img
+                            <FadeImage
+                              key={`img-${loadGeneration}-${w.id}`}
                               src={hero}
                               alt={w.title}
                               className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
-                              loading="lazy"
-                              decoding="async"
                             />
                           ) : (
                             <NoPhotoPlaceholder variant="tile" />

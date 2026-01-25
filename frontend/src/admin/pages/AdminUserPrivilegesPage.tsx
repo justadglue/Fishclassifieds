@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { adminFetchUsers, adminSetAdmin, adminSetSuperadmin, authReauth, resolveImageUrl, type AdminUser } from "../../api";
 import { useAuth } from "../../auth";
 import SortHeaderCell, { type SortDir } from "../components/SortHeaderCell";
@@ -290,7 +291,9 @@ export default function AdminUserPrivilegesPage() {
                     <DefaultAvatar />
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-extrabold text-slate-900">{u.username}</div>
+                    <Link to={`/admin/users/${u.id}`} className="block truncate text-sm font-extrabold text-slate-900 underline underline-offset-4">
+                      {u.username}
+                    </Link>
                     <div className="truncate text-xs font-semibold text-slate-600">{u.email}</div>
                   </div>
                 </div>
@@ -357,7 +360,9 @@ export default function AdminUserPrivilegesPage() {
                       <DefaultAvatar />
                     )}
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-extrabold text-slate-900">{u.username}</div>
+                      <Link to={`/admin/users/${u.id}`} className="block truncate text-sm font-extrabold text-slate-900 underline underline-offset-4">
+                        {u.username}
+                      </Link>
                       <div className="truncate text-xs font-semibold text-slate-600">{u.email}</div>
                     </div>
                   </div>

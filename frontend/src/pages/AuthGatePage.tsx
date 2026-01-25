@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth";
 import OAuthButtons from "../components/OAuthButtons";
+import BackToButton from "../components/nav/BackToButton";
 
 function safeNext(sp: URLSearchParams) {
   const next = sp.get("next");
@@ -193,9 +194,7 @@ export default function AuthGatePage() {
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link to="/" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
-            ← Back to home
-          </Link>
+          <BackToButton fallbackTo="/" fallbackLabel="home" className="text-sm font-semibold text-slate-600 hover:text-slate-900" />
           <Link to={signUpHref} className="text-sm font-semibold text-slate-900 underline underline-offset-4">
             Create account
           </Link>

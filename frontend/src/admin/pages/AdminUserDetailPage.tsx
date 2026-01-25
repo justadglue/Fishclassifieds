@@ -261,15 +261,9 @@ export default function AdminUserDetailPage() {
 
   return (
     <div>
-      <div className="mb-3">
-        <Link to="/admin/users" className="text-xs font-bold text-slate-700 underline underline-offset-4 hover:text-slate-900">
-          ← Back to users
-        </Link>
-      </div>
-
-      {err ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div> : null}
+      {err ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div> : null}
       {!data ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">{loading ? "Loading…" : "No user loaded."}</div>
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">{loading ? "Loading…" : "No user loaded."}</div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
           <div className="rounded-2xl border border-slate-200 bg-white p-6">

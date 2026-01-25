@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { authRegister } from "../api";
 import { useAuth } from "../auth";
 import OAuthButtons from "../components/OAuthButtons";
+import BackToButton from "../components/nav/BackToButton";
 
 export default function SignUpPage() {
   const navigate = useNavigate();
@@ -63,12 +64,7 @@ export default function SignUpPage() {
     <div className="min-h-[100dvh] min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <button
-            onClick={() => navigate("/")}
-            className="text-sm font-semibold text-slate-600 hover:text-slate-900"
-          >
-            ← Back to home
-          </button>
+          <BackToButton fallbackTo="/" fallbackLabel="home" className="text-sm font-semibold text-slate-600 hover:text-slate-900" />
           <div className="text-sm text-slate-600">
             Already have an account?{" "}
             <button

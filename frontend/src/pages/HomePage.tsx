@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { MapPin, MoveLeft, MoveRight } from "lucide-react";
-import { fetchFeatured, resolveAssets, type FeaturedItem, type Listing, type WantedPost } from "../api";
+import { fetchFeatured, fetchPopularSearches, resolveAssets, type FeaturedItem, type Listing, type PopularSearchItem, type WantedPost } from "../api";
 import { useAuth } from "../auth";
 import Header from "../components/Header";
 import FadeImage from "../components/FadeImage";
@@ -203,6 +203,8 @@ export default function HomePage() {
   const [heroImgLoaded, setHeroImgLoaded] = useState(false);
   const heroImgRef = useRef<HTMLImageElement | null>(null);
   const heroImgDecodingRef = useRef(false);
+  const [popular, setPopular] = useState<PopularSearchItem[]>([]);
+  const [popularLoading, setPopularLoading] = useState(false);
 
   useEffect(() => {
     // In dev StrictMode, components can mount twice and an already-cached image
@@ -249,7 +251,7 @@ export default function HomePage() {
     nav(`${path}${suffix}`);
   }
 
-  function goBrowse(extra?: { q?: string; category?: string; species?: string; min?: string; max?: string }) {
+  function goBrowse(extra?: Record<string, string | undefined>) {
     navWithParams("/browse", extra);
   }
 
@@ -298,6 +300,36 @@ export default function HomePage() {
         setFeaturedErr(e?.message ?? "Failed to load featured listings");
       } finally {
         if (!cancelled) setFeaturedLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const POPULAR_FALLBACK: PopularSearchItem[] = [
+    { label: "Guppies", params: { type: "sale", category: "Fish", species: "guppy" } },
+    { label: "Betta", params: { type: "sale", category: "Fish", species: "betta" } },
+    { label: "Goldfish", params: { type: "sale", category: "Fish", species: "goldfish" } },
+    { label: "Cherry shrimp", params: { type: "sale", category: "Shrimp", q: "neocaridina" } },
+    { label: "Live plants", params: { type: "sale", category: "Plants", q: "live plants" } },
+    { label: "Canister filter", params: { type: "sale", category: "Equipment", q: "canister filter" } },
+    { label: "CO2 kit", params: { type: "sale", category: "Equipment", q: "co2" } },
+    { label: "Breeding pair", params: { type: "sale", q: "breeding pair" } },
+  ];
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setPopularLoading(true);
+      try {
+        const res = await fetchPopularSearches({ limit: 12, days: 30 });
+        if (cancelled) return;
+        setPopular((res.items ?? []).filter((x) => x && String(x.label ?? "").trim()));
+      } catch {
+        if (!cancelled) setPopular([]);
+      } finally {
+        if (!cancelled) setPopularLoading(false);
       }
     })();
     return () => {
@@ -496,16 +528,7 @@ export default function HomePage() {
 
             {/* One-row, subtle “generated” chips. Scrolls horizontally on small screens. */}
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {[
-                { label: "Guppies", params: { category: "Fish", species: "guppy" } },
-                { label: "Betta", params: { category: "Fish", species: "betta" } },
-                { label: "Goldfish", params: { category: "Fish", species: "goldfish" } },
-                { label: "Cherry shrimp", params: { category: "Shrimp", q: "neocaridina" } },
-                { label: "Live plants", params: { category: "Plants", q: "live plants" } },
-                { label: "Canister filter", params: { category: "Equipment", q: "canister filter" } },
-                { label: "CO2 kit", params: { category: "Equipment", q: "co2" } },
-                { label: "Breeding pair", params: { q: "breeding pair" } },
-              ].map((t) => (
+              {(popularLoading ? [] : popular.length ? popular : POPULAR_FALLBACK).map((t) => (
                 <button
                   key={t.label}
                   type="button"
@@ -515,6 +538,11 @@ export default function HomePage() {
                   {t.label} →
                 </button>
               ))}
+              {popularLoading ? (
+                <div className="shrink-0 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/70 backdrop-blur">
+                  Loading…
+                </div>
+              ) : null}
             </div>
           </section>
         </main>

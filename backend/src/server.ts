@@ -15,7 +15,7 @@ import { assertConfig, config } from "./config.js";
 import { requireAuth } from "./auth/requireAuth.js";
 import { optionalAuth } from "./auth/optionalAuth.js";
 import { clearAuthCookies } from "./auth/cookies.js";
-import { nowIso as nowIsoSecurity } from "./security.js";
+import { nowIso as nowIsoSecurity, sha256Hex } from "./security.js";
 import { BIO_FIELDS_REQUIRED_CATEGORIES, LISTING_CATEGORIES, LISTING_SEXES, OTHER_CATEGORY, WATER_TYPES } from "./listingOptions.js";
 import argon2 from "argon2";
 import adminRoutes from "./admin/adminRoutes.js";
@@ -434,6 +434,158 @@ function ensureSpeciesOk(speciesRaw: string) {
   // Species is optional in some categories; if present, require it to be meaningful.
   if (t && !/[A-Za-z0-9]/.test(t)) throw new Error("Species must contain at least one letter or number");
   return t;
+}
+
+function normalizeSearchToken(raw: unknown, maxLen: number): string {
+  const t = normalizeInlineText(raw);
+  if (!t) return "";
+  if (hasDisallowedControlChars(t)) return "";
+  // Avoid logging pure punctuation/whitespace.
+  if (!/[A-Za-z0-9]/.test(t)) return "";
+  return t.slice(0, Math.max(1, Math.floor(maxLen))).toLowerCase();
+}
+
+function formatPopularSearchLabel(baseNorm: string) {
+  const s = String(baseNorm ?? "").trim();
+  if (!s) return "";
+  const words = s.split(/\s+/g);
+  return words
+    .map((w) => {
+      const lw = w.toLowerCase();
+      if (lw === "co2") return "CO2";
+      // keep small alnum tokens uppercase when they include digits (e.g. "fx6", "eheim2217")
+      if (/[0-9]/.test(w) && w.length <= 6) return w.toUpperCase();
+      return lw.length ? lw[0]!.toUpperCase() + lw.slice(1) : lw;
+    })
+    .join(" ");
+}
+
+// Search logging debounce: avoid logging every keystroke while the user is typing.
+// Keyed per-client (user or ip) and browse type so concurrent users don't interfere.
+const searchLogDebounce = new Map<
+  string,
+  {
+    timer: ReturnType<typeof setTimeout>;
+    qNorm: string;
+    speciesNorm: string;
+    category: string;
+  }
+>();
+const SEARCH_LOG_DEBOUNCE_MS = 1200;
+
+// Track last emitted (written) search per typing session so we can remove prefixes if the user continues typing.
+const searchLogLastEmitted = new Map<
+  string,
+  {
+    id: number; // search_events.id
+    qNorm: string;
+    speciesNorm: string;
+    category: string;
+    emittedAtMs: number;
+  }
+>();
+const SEARCH_LOG_SESSION_WINDOW_MS = 45_000;
+
+function tryLogSearchEvent(input: {
+  req: express.Request;
+  browseType: "sale" | "wanted";
+  qRaw: unknown;
+  speciesRaw: unknown;
+  categoryRaw: unknown;
+  offset: number;
+}) {
+  try {
+    // Only log the first page of results to avoid logging pagination as "new searches".
+    if (!Number.isFinite(input.offset) || input.offset !== 0) return;
+
+    const qNorm = normalizeSearchToken(input.qRaw, 80);
+    const speciesNorm = normalizeSearchToken(input.speciesRaw, 60);
+    const category = normalizeInlineText(input.categoryRaw).slice(0, 60);
+
+    // Only treat q/species as "search terms" (avoid location/price tracking).
+    if (!qNorm && !speciesNorm) return;
+    // Ignore super-short free-text fragments (e.g. "o", "os", "a") which are usually typing in-progress.
+    if (qNorm && qNorm.length < 3 && !speciesNorm) return;
+
+    const clientKey = input.req.user?.id ? `user:${input.req.user.id}` : `ip:${input.req.ip || "unknown"}`;
+    const key = `${input.browseType}:${clientKey}`;
+
+    const prev = searchLogDebounce.get(key);
+    if (prev) {
+      // If we're already scheduled with the same normalized terms, do nothing.
+      if (prev.qNorm === qNorm && prev.speciesNorm === speciesNorm && prev.category === category) return;
+      clearTimeout(prev.timer);
+      searchLogDebounce.delete(key);
+    }
+
+    const timer = setTimeout(() => {
+      try {
+        // If entry was replaced/cleared, skip.
+        const cur = searchLogDebounce.get(key);
+        if (!cur) return;
+        if (cur.qNorm !== qNorm || cur.speciesNorm !== speciesNorm || cur.category !== category) return;
+
+        const ip = String(input.req.ip ?? "").trim();
+        const ipHash = ip ? sha256Hex(ip) : null;
+        const userId = input.req.user?.id ?? null;
+        const createdAt = nowIsoSecurity();
+
+        // If we've already logged a shorter prefix recently for this client, delete it
+        // when the user continues typing to a longer superset (single typing session behavior).
+        const last = searchLogLastEmitted.get(key);
+        const nowMs = Date.now();
+        const withinSession = last && nowMs - last.emittedAtMs <= SEARCH_LOG_SESSION_WINDOW_MS;
+        const primaryPrev = last ? (last.speciesNorm ? last.speciesNorm : last.qNorm) : "";
+        const primaryNext = speciesNorm ? speciesNorm : qNorm;
+        const isPrefixUpgrade =
+          withinSession &&
+          last!.category === category &&
+          last!.qNorm === qNorm.slice(0, last!.qNorm.length) && // safe even if empty
+          last!.speciesNorm === speciesNorm.slice(0, last!.speciesNorm.length) && // safe even if empty
+          primaryPrev &&
+          primaryNext &&
+          primaryNext.length > primaryPrev.length &&
+          primaryNext.startsWith(primaryPrev);
+
+        if (isPrefixUpgrade && last!.id > 0) {
+          try {
+            db.prepare(`DELETE FROM search_events WHERE id = ?`).run(last!.id);
+          } catch {
+            // ignore
+          }
+        }
+
+        const info = db.prepare(
+          `
+INSERT INTO search_events(browse_type, q_norm, species_norm, category, created_at, user_id, ip_hash)
+VALUES(?, ?, ?, ?, ?, ?, ?)
+`
+        ).run(input.browseType, qNorm, speciesNorm, category, createdAt, userId, ipHash) as any;
+
+        const insertedId = Number(info?.lastInsertRowid ?? 0);
+        if (insertedId > 0) {
+          searchLogLastEmitted.set(key, { id: insertedId, qNorm, speciesNorm, category, emittedAtMs: nowMs });
+        }
+      } catch {
+        // ignore
+      } finally {
+        searchLogDebounce.delete(key);
+      }
+    }, SEARCH_LOG_DEBOUNCE_MS);
+
+    searchLogDebounce.set(key, { timer, qNorm, speciesNorm, category });
+
+    // Safety valve: prevent unbounded growth in worst-case scenarios.
+    if (searchLogDebounce.size > 50_000) {
+      for (const [k, v] of searchLogDebounce.entries()) {
+        clearTimeout(v.timer);
+        searchLogDebounce.delete(k);
+        if (searchLogDebounce.size <= 10_000) break;
+      }
+    }
+  } catch {
+    // Never fail the request due to analytics issues.
+  }
 }
 
 function ensureDecodedBodyOk(body: string) {
@@ -1434,11 +1586,128 @@ LIMIT ? OFFSET ?
   return res.json({ items, total, limit, offset });
 });
 
+app.get("/api/popular-searches", (req, res) => {
+  const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(50, Math.floor(limitRaw!))) : 12;
+  const daysRaw = req.query.days !== undefined ? Number(req.query.days) : undefined;
+  const days = Number.isFinite(daysRaw) ? Math.max(1, Math.min(365, Math.floor(daysRaw!))) : 30;
+
+  // Prefer the latest published, superadmin-curated set (if present).
+  try {
+    const set = db
+      .prepare(
+        `
+SELECT id, window_start_iso, window_end_iso, updated_at
+FROM popular_search_sets
+WHERE status = 'published'
+ORDER BY updated_at DESC
+LIMIT 1
+`
+      )
+      .get() as any | undefined;
+
+    if (set) {
+      const rows = db
+        .prepare(
+          `
+SELECT label, params_json
+FROM popular_search_items
+WHERE set_id = ?
+  AND enabled = 1
+ORDER BY rank ASC
+LIMIT ?
+`
+        )
+        .all(String(set.id), limit) as any[];
+
+      const items = rows
+        .map((r) => {
+          const label = String(r?.label ?? "").trim();
+          if (!label) return null;
+          let params: any = {};
+          try {
+            params = JSON.parse(String(r?.params_json ?? "{}"));
+          } catch {
+            params = {};
+          }
+          if (!params || typeof params !== "object") params = {};
+          if (!params.type) return null;
+          return { label, params: params as Record<string, string> };
+        })
+        .filter(Boolean);
+
+      if (items.length) {
+        const startIso = String(set.window_start_iso ?? "");
+        const endIso = String(set.window_end_iso ?? "");
+        const windowDays = (() => {
+          const a = Date.parse(startIso);
+          const b = Date.parse(endIso);
+          if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return 1;
+          return Math.max(1, Math.ceil((b - a) / (24 * 60 * 60 * 1000)));
+        })();
+        return res.json({ items, windowDays });
+      }
+    }
+  } catch {
+    // Ignore and fall back to computed popularity.
+  }
+
+  const sinceIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+  const rows = db
+    .prepare(
+      `
+SELECT
+  browse_type,
+  category,
+  q_norm,
+  species_norm,
+  COUNT(*) as c,
+  COUNT(DISTINCT ip_hash) as u
+FROM search_events
+WHERE created_at >= ?
+  AND (q_norm <> '' OR species_norm <> '')
+GROUP BY browse_type, category, q_norm, species_norm
+HAVING (COUNT(DISTINCT ip_hash) >= 2) OR (COUNT(*) >= 3)
+-- Prefer "unique popularity" to reduce the impact of refreshes/bots.
+ORDER BY u DESC, c DESC
+LIMIT ?
+`
+    )
+    .all(sinceIso, limit) as any[];
+
+  const items = rows
+    .map((r) => {
+      const browseType = String(r?.browse_type ?? "sale") === "wanted" ? ("wanted" as const) : ("sale" as const);
+      const category = String(r?.category ?? "").trim();
+      const qNorm = String(r?.q_norm ?? "").trim();
+      const speciesNorm = String(r?.species_norm ?? "").trim();
+      const base = speciesNorm || qNorm;
+      if (!base) return null;
+
+      const labelBase = formatPopularSearchLabel(base);
+      const label = category && category !== "Fish" ? `${labelBase} (${category})` : labelBase;
+
+      const params: Record<string, string> = { type: browseType };
+      if (category) params.category = category;
+      if (speciesNorm) params.species = speciesNorm;
+      else if (qNorm) params.q = qNorm;
+
+      return { label, params };
+    })
+    .filter(Boolean);
+
+  return res.json({ items, windowDays: days });
+});
+
 app.get("/api/listings", (req, res) => {
   runAutoExpirePass();
-  const q = String(req.query.q ?? "").trim().toLowerCase();
-  const species = String(req.query.species ?? "").trim().toLowerCase();
-  const category = String(req.query.category ?? "").trim();
+  const qRaw = req.query.q;
+  const speciesRaw = req.query.species;
+  const categoryRaw = req.query.category;
+  const q = String(qRaw ?? "").trim().toLowerCase();
+  const species = String(speciesRaw ?? "").trim().toLowerCase();
+  const category = String(categoryRaw ?? "").trim();
   const location = String(req.query.location ?? "").trim().toLowerCase();
   const waterType = String(req.query.waterType ?? "").trim().toLowerCase();
   const sex = String(req.query.sex ?? "").trim();
@@ -1452,6 +1721,11 @@ app.get("/api/listings", (req, res) => {
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 24;
   const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
+
+  // Log search analytics (q/species only; skip carousel "featured" fetch).
+  if (featured !== "1") {
+    tryLogSearchEvent({ req, browseType: "sale", qRaw, speciesRaw, categoryRaw, offset });
+  }
 
   const where: string[] = [];
   const params: any[] = [];
@@ -1956,9 +2230,12 @@ function requireWantedOwner(req: express.Request, row: any) {
 
 app.get("/api/wanted", (req, res) => {
   runAutoExpirePass();
-  const q = String(req.query.q ?? "").trim().toLowerCase();
-  const species = String(req.query.species ?? "").trim().toLowerCase();
-  const category = String(req.query.category ?? "").trim();
+  const qRaw = req.query.q;
+  const speciesRaw = req.query.species;
+  const categoryRaw = req.query.category;
+  const q = String(qRaw ?? "").trim().toLowerCase();
+  const species = String(speciesRaw ?? "").trim().toLowerCase();
+  const category = String(categoryRaw ?? "").trim();
   const location = String(req.query.location ?? "").trim().toLowerCase();
   const waterType = String(req.query.waterType ?? "").trim().toLowerCase();
   const sex = String(req.query.sex ?? "").trim();
@@ -1971,6 +2248,9 @@ app.get("/api/wanted", (req, res) => {
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 24;
   const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
+
+  // Log search analytics (q/species only).
+  tryLogSearchEvent({ req, browseType: "wanted", qRaw, speciesRaw, categoryRaw, offset });
 
   const where: string[] = [];
   const params: any[] = [];

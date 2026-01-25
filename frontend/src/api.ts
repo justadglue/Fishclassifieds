@@ -91,6 +91,11 @@ export type WantedPost = {
 
 export type FeaturedItem = { kind: "sale"; item: Listing } | { kind: "wanted"; item: WantedPost };
 
+export type PopularSearchItem = {
+  label: string;
+  params: Record<string, string>;
+};
+
 const API_BASE = (import.meta as any).env?.VITE_API_URL?.toString().trim() || "http://localhost:3001";
 
 class ApiError extends Error {
@@ -464,6 +469,84 @@ export function adminUpdateSettings(input: Partial<AdminSiteSettings>) {
   });
 }
 
+// --- Popular searches (LLM-curated; superadmin only) ---
+export type PopularSearchLlmProvider = "openai" | "gemini";
+
+export type AdminPopularSearchLlmSettings = {
+  provider: PopularSearchLlmProvider | null;
+  model: string | null;
+  apiKeySet: boolean;
+  metaPrompt: string;
+};
+
+export type AdminPopularSearchSet = {
+  id: string;
+  windowStartIso: string;
+  windowEndIso: string;
+  provider: PopularSearchLlmProvider;
+  model: string;
+  status: "draft" | "published";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminPopularSearchDraftItem = {
+  id: string;
+  rank: number;
+  label: string;
+  params: Record<string, string>;
+  includedTerms: string[];
+  confidence: number | null;
+  enabled: boolean;
+};
+
+export function adminGetPopularSearchLlmSettings() {
+  return apiFetch<AdminPopularSearchLlmSettings>(`/api/admin/popular-searches/settings`);
+}
+
+export function adminSavePopularSearchLlmSettings(input: {
+  provider: PopularSearchLlmProvider;
+  model: string;
+  apiKey?: string;
+  metaPrompt?: string;
+}) {
+  return apiFetch<{ ok: true }>(`/api/admin/popular-searches/settings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export function adminGeneratePopularSearchDraft(input?: { windowHours?: number; candidateLimit?: number; outputLimit?: number }) {
+  return apiFetch<{
+    set: Omit<AdminPopularSearchSet, "createdAt" | "updatedAt"> & { createdAt: string; updatedAt: string };
+    items: AdminPopularSearchDraftItem[];
+    inputSummary: { windowHours: number; candidatesTotal: number; candidatesUsed: number; candidatesDropped: number };
+  }>(`/api/admin/popular-searches/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input ?? {}),
+  });
+}
+
+export function adminGetPopularSearchSet(id: string) {
+  return apiFetch<{ set: AdminPopularSearchSet; items: AdminPopularSearchDraftItem[] }>(
+    `/api/admin/popular-searches/sets/${encodeURIComponent(id)}`
+  );
+}
+
+export function adminUpdatePopularSearchSet(id: string, input: { items: Array<Omit<AdminPopularSearchDraftItem, "rank">> }) {
+  return apiFetch<{ ok: true }>(`/api/admin/popular-searches/sets/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export function adminPublishPopularSearchSet(id: string) {
+  return apiFetch<{ ok: true }>(`/api/admin/popular-searches/sets/${encodeURIComponent(id)}/publish`, { method: "POST" });
+}
+
 export type AdminListingListItem = {
   kind: "sale" | "wanted";
   id: string;
@@ -628,6 +711,14 @@ export async function fetchFeatured(params?: { limit?: number; offset?: number }
   if (params?.offset !== undefined) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return apiFetch<{ items: FeaturedItem[]; total: number; limit: number; offset: number }>(`/api/featured${suffix}`);
+}
+
+export async function fetchPopularSearches(params?: { limit?: number; days?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  if (params?.days !== undefined) qs.set("days", String(params.days));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<{ items: PopularSearchItem[]; windowDays: number }>(`/api/popular-searches${suffix}`);
 }
 
 export async function fetchListings(params?: {

@@ -1,0 +1,23 @@
+export const DEFAULT_POPULAR_SEARCHES_META_PROMPT = [
+    `You are helping curate a "Popular searches" list for an aquarium classifieds marketplace.`,
+    ``,
+    `Goal: Given aggregated search terms from the last 24h, propose a short list of popular search items for the homepage.`,
+    ``,
+    `Guidelines:`,
+    `- Merge spelling variants/typos/singular-plural (e.g., platys/platies) into one item.`,
+    `- Keep items broad and community-interesting. It's okay if terms are novel or surprising.`,
+    `- Prefer higher unique counts over raw counts.`,
+    `- Exclude anything that looks like private info (email/phone/address).`,
+    ``,
+    `Output requirements:`,
+    `- Return ONLY valid JSON (no markdown, no commentary).`,
+    `- Shape: {"items":[{"label":"...","params":{"type":"sale|wanted","category":"optional","species":"optional","q":"optional"},"include_terms":["..."],"exclude_terms":["..."],"confidence":0.0}],"notes":"optional"}`,
+    `- items[].label should be short and user-friendly (<= 80 chars).`,
+    `- IMPORTANT: do NOT include "For sale", "Wanted", or "For sale or wanted" in the label. Use params.type instead.`,
+    `- params.type is required.`,
+    `- params should include EITHER species OR q (prefer species when it is a fish/species), not both.`,
+    `- do not include For sale/Wanted in label (it should just be the species/item of the search).`,
+    `- include_terms should list the merged terms you used for the item.`,
+    `- confidence is 0..1 (omit or null if unsure).`,
+].join("\n");
+

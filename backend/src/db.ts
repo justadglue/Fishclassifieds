@@ -215,6 +215,52 @@ CREATE TABLE IF NOT EXISTS notifications(
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created_at ON notifications(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_is_read ON notifications(user_id, is_read, created_at);
 
+-- Search analytics events (for "Popular searches")
+-- NOTE: We intentionally do not store location/price filters to avoid logging PII-like free-text.
+CREATE TABLE IF NOT EXISTS search_events(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  browse_type TEXT NOT NULL, -- 'sale' | 'wanted'
+  q_norm TEXT NOT NULL DEFAULT '',
+  species_norm TEXT NOT NULL DEFAULT '',
+  category TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  user_id INTEGER,
+  ip_hash TEXT,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_search_events_created_at ON search_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_search_events_browse_type_created_at ON search_events(browse_type, created_at);
+CREATE INDEX IF NOT EXISTS idx_search_events_terms ON search_events(q_norm, species_norm, category, browse_type);
+
+-- Superadmin-curated popular search sets + items (LLM-assisted)
+CREATE TABLE IF NOT EXISTS popular_search_sets(
+  id TEXT PRIMARY KEY,
+  window_start_iso TEXT NOT NULL,
+  window_end_iso TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  status TEXT NOT NULL, -- 'draft' | 'published'
+  raw_llm_output_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  created_by_user_id INTEGER,
+  FOREIGN KEY(created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_popular_search_sets_status_updated_at ON popular_search_sets(status, updated_at);
+
+CREATE TABLE IF NOT EXISTS popular_search_items(
+  id TEXT PRIMARY KEY,
+  set_id TEXT NOT NULL,
+  rank INTEGER NOT NULL,
+  label TEXT NOT NULL,
+  params_json TEXT NOT NULL,
+  included_terms_json TEXT,
+  confidence REAL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  FOREIGN KEY(set_id) REFERENCES popular_search_sets(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_popular_search_items_set_rank ON popular_search_items(set_id, rank);
+
 -- Unified listings table. listing_type=0 is sale, listing_type=1 is wanted.
 CREATE TABLE IF NOT EXISTS listings(
   id TEXT PRIMARY KEY,

@@ -9,6 +9,11 @@ import { nowIso } from "../security.js";
 import { requireAuth } from "../auth/requireAuth.js";
 import { requireAdmin, requireSuperadmin } from "./requireAdmin.js";
 import { requireReauth } from "./requireReauth.js";
+import { decryptSecret, encryptSecret } from "../llm/secretBox.js";
+import { generatePopularSearchesOpenAI } from "../llm/openai.js";
+import { generatePopularSearchesGemini } from "../llm/gemini.js";
+import { PopularSearchParamsSchema, type PopularSearchCandidate } from "../llm/types.js";
+import { DEFAULT_POPULAR_SEARCHES_META_PROMPT } from "../llm/defaultMetaPrompt.js";
 
 const router = Router();
 
@@ -1232,6 +1237,57 @@ function parseJsonValue(raw: any) {
   }
 }
 
+function getSiteSetting(db: Database.Database, key: string) {
+  const row = db.prepare(`SELECT value_json FROM site_settings WHERE key = ?`).get(key) as any | undefined;
+  return parseJsonValue(row?.value_json);
+}
+
+function upsertSiteSetting(db: Database.Database, key: string, value: any, actorUserId: number) {
+  const now = nowIso();
+  db.prepare(
+    `
+INSERT INTO site_settings(key,value_json,updated_at,updated_by_user_id)
+VALUES(?,?,?,?)
+ON CONFLICT(key) DO UPDATE SET
+  value_json=excluded.value_json,
+  updated_at=excluded.updated_at,
+  updated_by_user_id=excluded.updated_by_user_id
+`
+  ).run(key, JSON.stringify(value), now, actorUserId);
+}
+
+function sanitizePopularSearchLabel(raw: unknown) {
+  let s = String(raw ?? "").trim();
+  if (!s) return "";
+  // Minimal sanitization only: collapse whitespace and enforce max length.
+  s = s.replace(/\s+/g, " ").trim();
+  // Ensure max length.
+  if (s.length > 80) s = s.slice(0, 80).trim();
+  return s;
+}
+
+function labelFromParams(params: any) {
+  const raw =
+    params && typeof params === "object"
+      ? String((params as any).species ?? (params as any).q ?? "")
+      : "";
+  const base = raw.trim();
+  if (!base) return "";
+  // Title-case-ish for display
+  const titled = base
+    .split(/\s+/g)
+    .map((w) => {
+      const lw = w.toLowerCase();
+      if (lw === "co2") return "CO2";
+      if (/[0-9]/.test(w) && w.length <= 6) return w.toUpperCase();
+      return lw ? lw[0]!.toUpperCase() + lw.slice(1) : lw;
+    })
+    .join(" ");
+  const category = params && typeof params === "object" ? String((params as any).category ?? "").trim() : "";
+  const out = category && category !== "Fish" ? `${titled} (${category})` : titled;
+  return out.slice(0, 80).trim();
+}
+
 router.get("/settings", requireSuperadmin, (req, res) => {
   const db = getDb(req);
   const rows = db.prepare(`SELECT key,value_json,updated_at,updated_by_user_id FROM site_settings`).all() as any[];
@@ -1296,6 +1352,475 @@ ON CONFLICT(key) DO UPDATE SET
   }
 
   audit(db, req.user!.id, "update_settings", "settings", "site", { changes });
+  return res.json({ ok: true });
+});
+
+// --- Popular searches (LLM-curated; superadmin only) ---
+const PopularLlmProviderSchema = z.enum(["openai", "gemini"]);
+const SavePopularLlmSettingsSchema = z.object({
+  provider: PopularLlmProviderSchema,
+  model: z.string().min(1).max(120),
+  apiKey: z.string().min(1).max(500).optional(),
+  metaPrompt: z.string().min(10).max(10_000).optional(),
+});
+
+router.get("/popular-searches/settings", requireSuperadmin, (req, res) => {
+  const db = getDb(req);
+  const provider = getSiteSetting(db, "popularSearchesLlmProvider");
+  const model = getSiteSetting(db, "popularSearchesLlmModel");
+  const apiKeyEnc = getSiteSetting(db, "popularSearchesLlmApiKeyEnc");
+  const metaPrompt = getSiteSetting(db, "popularSearchesLlmMetaPrompt");
+  return res.json({
+    provider: typeof provider === "string" ? provider : null,
+    model: typeof model === "string" ? model : null,
+    apiKeySet: typeof apiKeyEnc === "string" && apiKeyEnc.trim().length > 0,
+    metaPrompt: typeof metaPrompt === "string" && metaPrompt.trim() ? metaPrompt : DEFAULT_POPULAR_SEARCHES_META_PROMPT,
+  });
+});
+
+router.post("/popular-searches/settings", requireSuperadmin, (req, res) => {
+  const parsed = SavePopularLlmSettingsSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+
+  const db = getDb(req);
+
+  const nextMetaPrompt = parsed.data.metaPrompt !== undefined ? String(parsed.data.metaPrompt).trim() : undefined;
+
+  const nextApiKeyEnc = (() => {
+    if (parsed.data.apiKey === undefined) return undefined;
+    try {
+      return encryptSecret(parsed.data.apiKey);
+    } catch (e: any) {
+      return { error: e?.message ?? "Failed to encrypt API key" } as any;
+    }
+  })();
+
+  if (nextApiKeyEnc && typeof nextApiKeyEnc === "object" && "error" in nextApiKeyEnc) {
+    return res.status(400).json({ error: String((nextApiKeyEnc as any).error) });
+  }
+
+  const tx = db.transaction(() => {
+    upsertSiteSetting(db, "popularSearchesLlmProvider", parsed.data.provider, req.user!.id);
+    upsertSiteSetting(db, "popularSearchesLlmModel", parsed.data.model, req.user!.id);
+    if (nextApiKeyEnc !== undefined) upsertSiteSetting(db, "popularSearchesLlmApiKeyEnc", nextApiKeyEnc, req.user!.id);
+    if (nextMetaPrompt !== undefined) upsertSiteSetting(db, "popularSearchesLlmMetaPrompt", nextMetaPrompt, req.user!.id);
+  });
+
+  try {
+    tx();
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? "Failed to save LLM settings" });
+  }
+
+  audit(db, req.user!.id, "popular_searches_llm_settings", "settings", "popular-searches-llm", {
+    provider: parsed.data.provider,
+    model: parsed.data.model,
+    apiKeySet: true,
+    metaPromptUpdated: nextMetaPrompt !== undefined,
+  });
+
+  return res.json({ ok: true });
+});
+
+const GeneratePopularDraftSchema = z.object({
+  windowHours: z.number().int().min(1).max(168).optional().default(24),
+  candidateLimit: z.number().int().min(20).max(500).optional().default(200),
+  outputLimit: z.number().int().min(1).max(50).optional().default(12),
+});
+
+function looksSensitiveOrJunk(term: string): boolean {
+  const s = String(term ?? "").trim();
+  if (!s) return true;
+  if (s.length > 80) return true;
+  if (/https?:\/\//i.test(s)) return true;
+  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(s)) return true;
+  // Phone-ish: many digits with optional separators.
+  const digits = s.replace(/\D/g, "");
+  if (digits.length >= 9 && digits.length <= 15) return true;
+  // Mostly numeric / punctuation
+  const alphaNum = s.replace(/[^a-z0-9]/gi, "");
+  if (!alphaNum) return true;
+  const letters = alphaNum.replace(/[^a-z]/gi, "").length;
+  const nums = alphaNum.replace(/[^0-9]/g, "").length;
+  if (letters === 0 && nums > 0) return true;
+  return false;
+}
+
+function normalizeCandidateTerm(speciesNorm: string, qNorm: string) {
+  const base = (speciesNorm || qNorm || "").trim().toLowerCase();
+  return base.slice(0, 80);
+}
+
+function loadPopularLlmSettingsOrThrow(db: Database.Database) {
+  const providerRaw = getSiteSetting(db, "popularSearchesLlmProvider");
+  const modelRaw = getSiteSetting(db, "popularSearchesLlmModel");
+  const apiKeyEncRaw = getSiteSetting(db, "popularSearchesLlmApiKeyEnc");
+  const metaPromptRaw = getSiteSetting(db, "popularSearchesLlmMetaPrompt");
+  const provider = PopularLlmProviderSchema.safeParse(providerRaw).success ? (providerRaw as any) : null;
+  const model = typeof modelRaw === "string" ? String(modelRaw).trim() : "";
+  const apiKeyEnc = typeof apiKeyEncRaw === "string" ? String(apiKeyEncRaw).trim() : "";
+  if (!provider) throw new Error("LLM provider is not configured");
+  if (!model) throw new Error("LLM model is not configured");
+  if (!apiKeyEnc) throw new Error("LLM API key is not configured");
+  const apiKey = decryptSecret(apiKeyEnc);
+  if (!apiKey) throw new Error("LLM API key could not be decrypted");
+  const metaPrompt = typeof metaPromptRaw === "string" && metaPromptRaw.trim() ? String(metaPromptRaw) : DEFAULT_POPULAR_SEARCHES_META_PROMPT;
+  return { provider, model, apiKey, metaPrompt };
+}
+
+let lastPopularGenerateAtMs = 0;
+router.post("/popular-searches/generate", requireSuperadmin, (req, res) => {
+  const nowMs = Date.now();
+  if (nowMs - lastPopularGenerateAtMs < 10_000) {
+    return res.status(429).json({ error: "Please wait a moment before generating again." });
+  }
+  lastPopularGenerateAtMs = nowMs;
+
+  const parsed = GeneratePopularDraftSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+
+  const db = getDb(req);
+
+  let cfg: { provider: "openai" | "gemini"; model: string; apiKey: string };
+  try {
+    cfg = loadPopularLlmSettingsOrThrow(db);
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? "LLM settings not configured" });
+  }
+
+  const windowEndIso = new Date().toISOString();
+  const windowStartIso = new Date(Date.now() - parsed.data.windowHours * 60 * 60 * 1000).toISOString();
+
+  const rows = db
+    .prepare(
+      `
+SELECT
+  browse_type,
+  category,
+  q_norm,
+  species_norm,
+  COUNT(*) as c,
+  COUNT(DISTINCT ip_hash) as u
+FROM search_events
+WHERE created_at >= ?
+  AND created_at <= ?
+  AND (q_norm <> '' OR species_norm <> '')
+GROUP BY browse_type, category, q_norm, species_norm
+ORDER BY u DESC, c DESC
+LIMIT ?
+`
+    )
+    .all(windowStartIso, windowEndIso, parsed.data.candidateLimit) as any[];
+
+  let dropped = 0;
+  const candidates: PopularSearchCandidate[] = [];
+  for (const r of rows) {
+    const browseType = String(r?.browse_type ?? "sale") === "wanted" ? ("wanted" as const) : ("sale" as const);
+    const category = String(r?.category ?? "").trim().slice(0, 60);
+    const qNorm = String(r?.q_norm ?? "").trim().slice(0, 80);
+    const speciesNorm = String(r?.species_norm ?? "").trim().slice(0, 80);
+    const term = normalizeCandidateTerm(speciesNorm, qNorm);
+    const count = Number(r?.c ?? 0);
+    const unique = Number(r?.u ?? 0);
+
+    if (!term || looksSensitiveOrJunk(term)) {
+      dropped += 1;
+      continue;
+    }
+
+    candidates.push({
+      term,
+      browseType,
+      category,
+      count: Number.isFinite(count) ? count : 0,
+      unique: Number.isFinite(unique) ? unique : 0,
+    });
+  }
+
+  if (candidates.length === 0) {
+    return res.status(400).json({ error: "Not enough safe search data to generate popular searches." });
+  }
+
+  (async () => {
+    const outputLimit = parsed.data.outputLimit;
+
+    let llmRawText = "";
+    let llmOut: any = null;
+    try {
+      if (cfg.provider === "openai") {
+        const r = await generatePopularSearchesOpenAI({
+          apiKey: cfg.apiKey,
+          model: cfg.model,
+          metaPrompt: cfg.metaPrompt,
+          candidates,
+          outputLimit,
+        });
+        llmOut = r.output;
+        llmRawText = r.rawText;
+      } else {
+        const r = await generatePopularSearchesGemini({
+          apiKey: cfg.apiKey,
+          model: cfg.model,
+          metaPrompt: cfg.metaPrompt,
+          candidates,
+          outputLimit,
+        });
+        llmOut = r.output;
+        llmRawText = r.rawText;
+      }
+    } catch (e: any) {
+      return res.status(400).json({ error: e?.message ?? "LLM generation failed" });
+    }
+
+    const setId = crypto.randomUUID();
+    const now = nowIso();
+
+    // Build items (sanitize params and enforce either q or species).
+    const items = (llmOut?.items ?? [])
+      .map((it: any, idx: number) => {
+        const paramsParsed = PopularSearchParamsSchema.safeParse(it?.params ?? {});
+        if (!paramsParsed.success) return null;
+
+        const params = paramsParsed.data as any;
+        const hasQ = Boolean(String(params.q ?? "").trim());
+        const hasSpecies = Boolean(String(params.species ?? "").trim());
+        if (hasQ && hasSpecies) {
+          // Prefer species (more structured) and drop q.
+          delete params.q;
+        }
+
+        const label = sanitizePopularSearchLabel(it?.label) || labelFromParams(params);
+        if (!label) return null;
+
+        const includeTerms = Array.isArray(it?.include_terms) ? it.include_terms.map((x: any) => String(x)).filter(Boolean).slice(0, 80) : [];
+        const conf = it?.confidence != null && Number.isFinite(Number(it.confidence)) ? Number(it.confidence) : null;
+        return {
+          id: crypto.randomUUID(),
+          setId,
+          rank: idx + 1,
+          label,
+          params,
+          paramsJson: JSON.stringify(params),
+          includedTermsJson: includeTerms.length ? JSON.stringify(includeTerms) : null,
+          confidence: conf,
+          enabled: 1,
+        };
+      })
+      .filter(Boolean) as any[];
+
+    if (items.length === 0) {
+      return res.status(400).json({ error: "LLM returned no valid items." });
+    }
+
+    const tx = db.transaction(() => {
+      db.prepare(
+        `
+INSERT INTO popular_search_sets(
+  id, window_start_iso, window_end_iso, provider, model, status, raw_llm_output_json, created_at, updated_at, created_by_user_id
+) VALUES(?,?,?,?,?,'draft',?,?,?,?)
+`
+      ).run(
+        setId,
+        windowStartIso,
+        windowEndIso,
+        cfg.provider,
+        cfg.model,
+        JSON.stringify({ rawText: llmRawText, parsed: llmOut }),
+        now,
+        now,
+        req.user!.id
+      );
+
+      const ins = db.prepare(
+        `
+INSERT INTO popular_search_items(
+  id,set_id,rank,label,params_json,included_terms_json,confidence,enabled
+) VALUES(?,?,?,?,?,?,?,?)
+`
+      );
+      for (const it of items) {
+        ins.run(it.id, setId, it.rank, it.label, it.paramsJson, it.includedTermsJson, it.confidence, it.enabled);
+      }
+    });
+
+    try {
+      tx();
+    } catch (e: any) {
+      return res.status(400).json({ error: e?.message ?? "Failed to save draft" });
+    }
+
+    audit(db, req.user!.id, "popular_searches_generate", "popular_search_set", setId, {
+      provider: cfg.provider,
+      model: cfg.model,
+      windowStartIso,
+      windowEndIso,
+      candidatesTotal: rows.length,
+      candidatesUsed: candidates.length,
+      candidatesDropped: dropped,
+      outputItems: items.length,
+    });
+
+    return res.json({
+      set: {
+        id: setId,
+        windowStartIso,
+        windowEndIso,
+        provider: cfg.provider,
+        model: cfg.model,
+        status: "draft",
+        createdAt: now,
+        updatedAt: now,
+      },
+      items: items.map((it) => ({
+        id: it.id,
+        rank: it.rank,
+        label: it.label,
+        params: it.params,
+        includedTerms: it.includedTermsJson ? (JSON.parse(it.includedTermsJson) as string[]) : [],
+        confidence: it.confidence,
+        enabled: Boolean(it.enabled),
+      })),
+      inputSummary: {
+        windowHours: parsed.data.windowHours,
+        candidatesTotal: rows.length,
+        candidatesUsed: candidates.length,
+        candidatesDropped: dropped,
+      },
+    });
+  })();
+});
+
+router.get("/popular-searches/sets/:id", requireSuperadmin, (req, res) => {
+  const db = getDb(req);
+  const id = String(req.params.id ?? "").trim();
+  if (!id) return res.status(400).json({ error: "Missing id" });
+
+  const set = db.prepare(`SELECT * FROM popular_search_sets WHERE id = ?`).get(id) as any | undefined;
+  if (!set) return res.status(404).json({ error: "Not found" });
+
+  const rows = db.prepare(`SELECT * FROM popular_search_items WHERE set_id = ? ORDER BY rank ASC`).all(id) as any[];
+  return res.json({
+    set: {
+      id: String(set.id),
+      windowStartIso: String(set.window_start_iso),
+      windowEndIso: String(set.window_end_iso),
+      provider: String(set.provider),
+      model: String(set.model),
+      status: String(set.status),
+      createdAt: String(set.created_at),
+      updatedAt: String(set.updated_at),
+    },
+    items: rows.map((r) => ({
+      id: String(r.id),
+      rank: Number(r.rank ?? 0),
+      label: String(r.label ?? ""),
+      params: (() => {
+        try {
+          return JSON.parse(String(r.params_json ?? "{}"));
+        } catch {
+          return {};
+        }
+      })(),
+      includedTerms: (() => {
+        try {
+          return r.included_terms_json ? (JSON.parse(String(r.included_terms_json)) as string[]) : [];
+        } catch {
+          return [];
+        }
+      })(),
+      confidence: r.confidence != null ? Number(r.confidence) : null,
+      enabled: Boolean(Number(r.enabled ?? 0)),
+    })),
+  });
+});
+
+const PopularSearchDraftItemEditSchema = z.object({
+  id: z.string().optional(),
+  label: z.string().min(1).max(80),
+  enabled: z.boolean().optional().default(true),
+  params: PopularSearchParamsSchema,
+  includedTerms: z.array(z.string()).optional(),
+  confidence: z.number().min(0).max(1).optional().nullable(),
+});
+const UpdatePopularSearchSetSchema = z.object({
+  items: z.array(PopularSearchDraftItemEditSchema).min(1).max(50),
+});
+
+router.put("/popular-searches/sets/:id", requireSuperadmin, (req, res) => {
+  const id = String(req.params.id ?? "").trim();
+  if (!id) return res.status(400).json({ error: "Missing id" });
+
+  const parsed = UpdatePopularSearchSetSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+
+  const db = getDb(req);
+  const set = db.prepare(`SELECT id,status FROM popular_search_sets WHERE id = ?`).get(id) as any | undefined;
+  if (!set) return res.status(404).json({ error: "Not found" });
+  if (String(set.status) !== "draft") return res.status(400).json({ error: "Only draft sets can be edited" });
+
+  const now = nowIso();
+  const items = parsed.data.items.map((it, idx) => {
+    const params = it.params as any;
+    const hasQ = Boolean(String(params.q ?? "").trim());
+    const hasSpecies = Boolean(String(params.species ?? "").trim());
+    if (hasQ && hasSpecies) delete params.q;
+    return {
+      id: it.id ? String(it.id) : crypto.randomUUID(),
+      rank: idx + 1,
+      label: sanitizePopularSearchLabel(it.label) || labelFromParams(params),
+      paramsJson: JSON.stringify(params),
+      includedTermsJson: (it.includedTerms ?? []).length ? JSON.stringify(it.includedTerms ?? []) : null,
+      confidence: it.confidence != null && Number.isFinite(Number(it.confidence)) ? Number(it.confidence) : null,
+      enabled: it.enabled ? 1 : 0,
+    };
+  });
+
+  const tx = db.transaction(() => {
+    db.prepare(`DELETE FROM popular_search_items WHERE set_id = ?`).run(id);
+    const ins = db.prepare(
+      `
+INSERT INTO popular_search_items(id,set_id,rank,label,params_json,included_terms_json,confidence,enabled)
+VALUES(?,?,?,?,?,?,?,?)
+`
+    );
+    for (const it of items) {
+      ins.run(it.id, id, it.rank, it.label, it.paramsJson, it.includedTermsJson, it.confidence, it.enabled);
+    }
+    db.prepare(`UPDATE popular_search_sets SET updated_at = ? WHERE id = ?`).run(now, id);
+  });
+
+  try {
+    tx();
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? "Failed to update draft" });
+  }
+
+  audit(db, req.user!.id, "popular_searches_update_draft", "popular_search_set", id, { items: items.length });
+  return res.json({ ok: true });
+});
+
+router.post("/popular-searches/sets/:id/publish", requireSuperadmin, (req, res) => {
+  const id = String(req.params.id ?? "").trim();
+  if (!id) return res.status(400).json({ error: "Missing id" });
+
+  const db = getDb(req);
+  const set = db.prepare(`SELECT id,status FROM popular_search_sets WHERE id = ?`).get(id) as any | undefined;
+  if (!set) return res.status(404).json({ error: "Not found" });
+  if (String(set.status) !== "draft") return res.status(400).json({ error: "Set is not a draft" });
+
+  const now = nowIso();
+  const tx = db.transaction(() => {
+    db.prepare(`UPDATE popular_search_sets SET status = 'draft', updated_at = ? WHERE status = 'published'`).run(now);
+    db.prepare(`UPDATE popular_search_sets SET status = 'published', updated_at = ? WHERE id = ?`).run(now, id);
+  });
+
+  try {
+    tx();
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? "Failed to publish" });
+  }
+
+  audit(db, req.user!.id, "popular_searches_publish", "popular_search_set", id, {});
   return res.json({ ok: true });
 });
 

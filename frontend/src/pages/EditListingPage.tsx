@@ -66,6 +66,22 @@ function expiresInShort(iso: string) {
 const MAX_CUSTOM_PRICE_TYPE_LEN = 20;
 const MAX_DESC_BODY_LEN = 1000;
 
+function normText(v: unknown) {
+  return String(v ?? "").trim();
+}
+
+function isBioFieldsDisabledForCategory(params: { category: string; otherCategoryName: string; bioRequiredCategories: Set<string> }) {
+  const { category, otherCategoryName, bioRequiredCategories } = params;
+  const isOtherCategory = String(category) === String(otherCategoryName);
+  const bioFieldsRequired = bioRequiredCategories.has(String(category));
+  return Boolean(category) && !bioFieldsRequired && !isOtherCategory;
+}
+
+function imagesKeyFromAssets(assets: ImageAsset[] | null | undefined, max: number = 6) {
+  const urls = (assets ?? []).slice(0, max).map((a) => a.fullUrl);
+  return urls.map((u) => `existing:${u}`).join("|");
+}
+
 function fmtStatus(l: Listing) {
   const parts: string[] = [];
   if (l.status === "draft") parts.push("Draft (hidden)");
@@ -163,6 +179,7 @@ function SaleEditForm() {
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
   const [initialPhotoAssets, setInitialPhotoAssets] = useState<ImageAsset[]>([]);
+  const [photoItemsKey, setPhotoItemsKey] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -505,7 +522,105 @@ function SaleEditForm() {
     }
   }
 
-  const canSave = !loading;
+  const baselineImagesKey = useMemo(() => {
+    return imagesKeyFromAssets(orig?.images ?? []);
+  }, [orig ? (orig.images ?? []).map((a) => a.fullUrl).join("|") : ""]);
+
+  const effectiveImagesKey = photoItemsKey || baselineImagesKey;
+
+  const saleCanonicalFromOrig = useMemo(() => {
+    if (!orig) return null;
+    const decoded = decodeSaleDetailsFromDescription(orig.description);
+    const qty = Number.isFinite(Number(decoded.details.quantity)) ? Math.max(1, Math.floor(Number(decoded.details.quantity))) : 1;
+    const cat = String(orig.category ?? "");
+    const bioDisabled = isBioFieldsDisabledForCategory({ category: cat, otherCategoryName, bioRequiredCategories });
+    const bioEnabled = !bioDisabled;
+
+    const sexToSubmit: ListingSex = ((bioEnabled && orig.sex ? orig.sex : "Unknown") as ListingSex) ?? "Unknown";
+    const speciesToSubmit = bioEnabled ? normText(orig.species) : "";
+    const waterTypeToSubmit = bioEnabled && (orig as any).waterType ? ((orig as any).waterType as WaterType) : null;
+    const sizeToSubmit = bioDisabled ? "" : normText((orig as any).size ?? "");
+
+    const custom = normText(decoded.details.customPriceText);
+    const body = normText(decoded.body);
+    const finalDescription = encodeSaleDetailsIntoDescription(
+      { quantity: qty, priceType: decoded.details.priceType, customPriceText: custom, willingToShip: decoded.details.willingToShip },
+      body
+    );
+
+    return {
+      title: normText(orig.title),
+      category: cat,
+      species: speciesToSubmit,
+      sex: sexToSubmit,
+      waterType: waterTypeToSubmit,
+      size: sizeToSubmit,
+      shippingOffered: Boolean(decoded.details.willingToShip),
+      priceCents: Number(orig.priceCents ?? 0),
+      location: normText(orig.location),
+      phone: normText(orig.phone ?? ""),
+      description: finalDescription,
+      imagesKey: baselineImagesKey,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orig, baselineImagesKey, bioRequiredCategories, otherCategoryName]);
+
+  const saleCanonicalCurrent = useMemo(() => {
+    const qty = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
+    const priceCentsMaybe = priceIsSpecial ? 0 : dollarsToCents(priceDollars);
+    const priceCents = priceCentsMaybe ?? 0;
+
+    const sexToSubmit: ListingSex = ((bioFieldsEnabled && sex ? sex : "Unknown") as ListingSex) ?? "Unknown";
+    const speciesToSubmit = bioFieldsEnabled ? normText(species) : "";
+    const waterTypeToSubmit = bioFieldsEnabled && waterType ? waterType : null;
+    const sizeToSubmit = bioFieldsDisabled ? "" : normText(size);
+
+    const custom = normText(customPriceText);
+    const body = normText(description);
+    const finalDescription = encodeSaleDetailsIntoDescription({ quantity: qty, priceType, customPriceText: custom, willingToShip }, body);
+
+    return {
+      title: normText(title),
+      category: String(category ?? ""),
+      species: speciesToSubmit,
+      sex: sexToSubmit,
+      waterType: waterTypeToSubmit,
+      size: sizeToSubmit,
+      shippingOffered: Boolean(willingToShip),
+      priceCents,
+      location: normText(location),
+      phone: normText(phone),
+      description: finalDescription,
+      imagesKey: effectiveImagesKey,
+    };
+  }, [
+    bioFieldsDisabled,
+    bioFieldsEnabled,
+    category,
+    customPriceText,
+    description,
+    effectiveImagesKey,
+    location,
+    phone,
+    priceDollars,
+    priceIsSpecial,
+    priceType,
+    quantity,
+    sex,
+    species,
+    size,
+    title,
+    waterType,
+    willingToShip,
+  ]);
+
+  const hasChanges = useMemo(() => {
+    if (relistMode) return true;
+    if (!orig) return false;
+    return JSON.stringify(saleCanonicalFromOrig) !== JSON.stringify(saleCanonicalCurrent);
+  }, [orig, relistMode, saleCanonicalCurrent, saleCanonicalFromOrig]);
+
+  const canSave = !loading && hasChanges;
   const detailsPrefix = useMemo(
     () => buildSaleDetailsPrefix({ quantity, priceType, customPriceText, willingToShip }),
     [quantity, priceType, customPriceText, willingToShip]
@@ -583,7 +698,12 @@ function SaleEditForm() {
             )}
 
             {/* Images */}
-            <PhotoUploader ref={photoUploaderRef} initialAssets={initialPhotoAssets} disabled={loading} />
+            <PhotoUploader
+              ref={photoUploaderRef}
+              initialAssets={initialPhotoAssets}
+              disabled={loading}
+              onChange={(next) => setPhotoItemsKey(next.itemsKey)}
+            />
 
             {/* Fields */}
             <div className="grid gap-3 sm:grid-cols-3">
@@ -1065,6 +1185,7 @@ function WantedEditForm() {
   const relistMode = sp.get("relist") === "1";
   const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
   const [initialPhotoAssets, setInitialPhotoAssets] = useState<ImageAsset[]>([]);
+  const [photoItemsKey, setPhotoItemsKey] = useState("");
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [waterTypes, setWaterTypes] = useState<WaterType[]>([]);
@@ -1288,6 +1409,95 @@ function WantedEditForm() {
     }
   }
 
+  const baselineImagesKey = useMemo(() => {
+    return imagesKeyFromAssets(((item as any)?.images ?? []) as ImageAsset[]);
+  }, [item ? (((item as any).images ?? []) as any[]).map((a: any) => a.fullUrl).join("|") : ""]);
+
+  const effectiveImagesKey = photoItemsKey || baselineImagesKey;
+
+  const wantedCanonicalFromItem = useMemo(() => {
+    if (!item) return null;
+    const decoded = decodeWantedDetailsFromDescription(item.description);
+    const qty = Number.isFinite(Number((item as any).quantity)) ? Math.max(1, Math.floor(Number((item as any).quantity))) : 1;
+    const cat = String(item.category ?? "");
+    const bioDisabled = isBioFieldsDisabledForCategory({ category: cat, otherCategoryName, bioRequiredCategories });
+    const bioEnabled = !bioDisabled;
+
+    const speciesToSubmit = bioEnabled ? (normText((item as any).species) ? normText((item as any).species) : null) : null;
+    const waterTypeToSubmit = bioEnabled && (item as any).waterType ? ((item as any).waterType as WaterType) : null;
+    const sexToSubmit = bioEnabled && (item as any).sex ? ((item as any).sex as ListingSex) : null;
+
+    const custom = normText(decoded.details.customPriceText);
+    const body = normText(decoded.body);
+    const finalDescription = encodeWantedDetailsIntoDescription({ priceType: decoded.details.priceType, customPriceText: custom }, body);
+
+    return {
+      title: normText(item.title),
+      category: cat,
+      species: speciesToSubmit,
+      waterType: waterTypeToSubmit,
+      sex: sexToSubmit,
+      size: normText((item as any).size ?? ""),
+      quantity: qty,
+      budgetCents: (item as any).budgetCents ?? null,
+      location: normText(item.location),
+      phone: normText((item as any).phone ?? ""),
+      description: finalDescription,
+      imagesKey: baselineImagesKey,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item, baselineImagesKey, bioRequiredCategories, otherCategoryName]);
+
+  const wantedCanonicalCurrent = useMemo(() => {
+    const qty = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
+    const bioEnabled = !bioFieldsDisabled;
+
+    const speciesToSubmit = bioEnabled ? (normText(species) ? normText(species) : null) : null;
+    const waterTypeToSubmit = bioEnabled && waterType ? waterType : null;
+    const sexToSubmit = bioEnabled && sex ? sex : null;
+
+    const custom = normText(customPriceText);
+    const body = normText(description);
+    const finalDescription = encodeWantedDetailsIntoDescription({ priceType, customPriceText: custom }, body);
+
+    return {
+      title: normText(title),
+      category: String(category ?? ""),
+      species: speciesToSubmit,
+      waterType: waterTypeToSubmit,
+      sex: sexToSubmit,
+      size: normText(size),
+      quantity: qty,
+      budgetCents: dollarsToCentsMaybe(budget),
+      location: normText(location),
+      phone: normText(phone),
+      description: finalDescription,
+      imagesKey: effectiveImagesKey,
+    };
+  }, [
+    bioFieldsDisabled,
+    budget,
+    category,
+    customPriceText,
+    description,
+    effectiveImagesKey,
+    location,
+    phone,
+    priceType,
+    quantity,
+    sex,
+    species,
+    size,
+    title,
+    waterType,
+  ]);
+
+  const hasChanges = useMemo(() => {
+    if (relistMode) return true;
+    if (!item) return false;
+    return JSON.stringify(wantedCanonicalFromItem) !== JSON.stringify(wantedCanonicalCurrent);
+  }, [item, relistMode, wantedCanonicalCurrent, wantedCanonicalFromItem]);
+
   return (
     <div className="min-h-full">
       <Header maxWidth="7xl" />
@@ -1307,7 +1517,12 @@ function WantedEditForm() {
               </div>
             )}
 
-            <PhotoUploader ref={photoUploaderRef} initialAssets={initialPhotoAssets} disabled={saving || !isOwner} />
+            <PhotoUploader
+              ref={photoUploaderRef}
+              initialAssets={initialPhotoAssets}
+              disabled={saving || !isOwner}
+              onChange={(next) => setPhotoItemsKey(next.itemsKey)}
+            />
 
             <div className="grid gap-3 sm:grid-cols-3">
               <label className="block sm:col-span-2">
@@ -1557,7 +1772,7 @@ function WantedEditForm() {
             <div className="flex gap-2">
               <button
                 type="submit"
-                disabled={saving || !isOwner}
+                disabled={saving || !isOwner || (!relistMode && !hasChanges)}
                 className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
               >
                 {saving ? "Saving..." : "Update listing"}
@@ -1575,6 +1790,9 @@ function WantedEditForm() {
                 Cancel
               </button>
             </div>
+            {!relistMode && isOwner && !hasChanges ? (
+              <div className="text-center text-xs font-semibold text-slate-500">No changes to save.</div>
+            ) : null}
           </form>
         )}
       </main>

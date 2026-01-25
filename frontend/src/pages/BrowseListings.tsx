@@ -524,9 +524,6 @@ export default function BrowseListings() {
     };
   }, [bottomScrollPending, loading, page]);
 
-  const activeCount = browseType === "sale" ? saleItems.length : wantedItems.length;
-  const showingFrom = total === 0 ? 0 : (page - 1) * per + 1;
-  const showingTo = Math.min(total, (page - 1) * per + activeCount);
   const canPrev = page > 1;
   const canNext = page < totalPages;
 
@@ -575,7 +572,7 @@ export default function BrowseListings() {
                 <h1 className="text-xl font-extrabold text-slate-900">Browse</h1>
               </div>
               <div className="mt-1 text-sm text-slate-600">
-                {loading ? "Loading..." : total === 0 ? "0 results" : `Showing ${showingFrom}–${showingTo} of ${total}`}
+                {loading ? "Loading..." : total === 0 ? "0 results" : `Page ${Math.min(page, totalPages)} of ${totalPages}`}
               </div>
             </div>
 

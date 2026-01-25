@@ -1542,7 +1542,7 @@ export default function MyListingsPage() {
 
                             <td className="px-4 py-4 align-top text-right">
                               <div className="text-sm font-semibold text-slate-700">{Number(l.views ?? 0).toLocaleString()}</div>
-                              <div className="text-xs font-semibold text-slate-500">({Number(l.viewsToday ?? 0).toLocaleString()} today)</div>
+                              <div className="text-sm font-semibold text-slate-700">({Number(l.viewsToday ?? 0).toLocaleString()} today)</div>
                             </td>
 
                             <td className="px-4 py-4 align-top text-left">

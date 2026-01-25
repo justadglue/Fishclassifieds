@@ -459,7 +459,7 @@ export default function MyListingsPage() {
   }) {
     const { label, title, onClick, disabled, variant = "default", icon, className = "" } = props;
     const base =
-      "inline-flex h-9 items-center justify-center rounded-xl border text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-60";
+      "inline-flex h-12 flex-col items-center justify-center gap-0.5 rounded-xl border px-2 text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-60";
     const cls =
       variant === "primary"
         ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800 focus-visible:ring-slate-400 focus-visible:ring-offset-slate-50"
@@ -479,6 +479,7 @@ export default function MyListingsPage() {
         className={`${base} ${cls} ${className}`}
       >
         {icon}
+        <span className="max-w-full text-center text-[10px] font-bold leading-[1.05] line-clamp-2">{label}</span>
       </button>
     );
   }
@@ -1148,12 +1149,13 @@ export default function MyListingsPage() {
                                   aria-label="Resume draft"
                                   title={Boolean(l.ownerBlockEdit) ? undefined : "Resume draft"}
                                   className={[
-                                    "inline-flex h-9 min-w-11 flex-1 basis-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900",
+                                    "inline-flex h-12 min-w-11 flex-1 basis-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-white px-2 text-slate-700 hover:bg-slate-50 hover:text-slate-900",
                                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50",
                                     Boolean(l.ownerBlockEdit) ? "pointer-events-none opacity-60" : "",
                                   ].join(" ")}
                                 >
                                   <Pencil aria-hidden="true" className="h-4 w-4" />
+                                  <span className="max-w-full text-center text-[10px] font-bold leading-[1.05] line-clamp-2">Resume</span>
                                 </Link>
                               ) : !isSold ? (
                                 <>
@@ -1170,7 +1172,7 @@ export default function MyListingsPage() {
                                     disabled={!canFeature}
                                     onClick={() => nav(`/feature/${encodeURIComponent(l.id)}`)}
                                     icon={isFeatured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : <Star aria-hidden="true" className="h-4 w-4" />}
-                                    className="min-w-11 flex-1 basis-0"
+                                    className="min-w-16 flex-[1.25] basis-0"
                                   />
 
                                   <Link
@@ -1178,12 +1180,13 @@ export default function MyListingsPage() {
                                     aria-label="Edit"
                                     title={Boolean(l.ownerBlockEdit) ? undefined : "Edit"}
                                     className={[
-                                      "inline-flex h-9 min-w-11 flex-1 basis-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900",
+                                      "inline-flex h-12 min-w-11 flex-1 basis-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-white px-2 text-slate-700 hover:bg-slate-50 hover:text-slate-900",
                                       "focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50",
                                       Boolean(l.ownerBlockEdit) ? "pointer-events-none opacity-60" : "",
                                     ].join(" ")}
                                   >
                                     <Pencil aria-hidden="true" className="h-4 w-4" />
+                                    <span className="max-w-full text-center text-[10px] font-bold leading-[1.05] line-clamp-2">Edit</span>
                                   </Link>
 
                                   <IconAction
@@ -1338,12 +1341,13 @@ export default function MyListingsPage() {
                                 aria-label="Resume draft"
                                 title={Boolean(w.ownerBlockEdit) ? undefined : "Resume draft"}
                                 className={[
-                                  "inline-flex h-9 min-w-11 flex-1 basis-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900",
+                                  "inline-flex h-12 min-w-11 flex-1 basis-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-white px-2 text-slate-700 hover:bg-slate-50 hover:text-slate-900",
                                   "focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50",
                                   Boolean(w.ownerBlockEdit) ? "pointer-events-none opacity-60" : "",
                                 ].join(" ")}
                               >
                                 <Pencil aria-hidden="true" className="h-4 w-4" />
+                                <span className="max-w-full text-center text-[10px] font-bold leading-[1.05] line-clamp-2">Resume</span>
                               </Link>
                             ) : (
                               <>
@@ -1360,7 +1364,7 @@ export default function MyListingsPage() {
                                   disabled={!canFeature}
                                   onClick={() => nav(`/feature/${encodeURIComponent(w.id)}`)}
                                   icon={isFeatured ? <CircleCheck aria-hidden="true" className="h-4 w-4" /> : <Star aria-hidden="true" className="h-4 w-4" />}
-                                  className="min-w-11 flex-1 basis-0"
+                                  className="min-w-16 flex-[1.25] basis-0"
                                 />
 
                                 <Link
@@ -1368,12 +1372,13 @@ export default function MyListingsPage() {
                                   aria-label="Edit"
                                   title={Boolean(w.ownerBlockEdit) ? undefined : "Edit"}
                                   className={[
-                                    "inline-flex h-9 min-w-11 flex-1 basis-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900",
+                                    "inline-flex h-12 min-w-11 flex-1 basis-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-white px-2 text-slate-700 hover:bg-slate-50 hover:text-slate-900",
                                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50",
                                     Boolean(w.ownerBlockEdit) ? "pointer-events-none opacity-60" : "",
                                   ].join(" ")}
                                 >
                                   <Pencil aria-hidden="true" className="h-4 w-4" />
+                                  <span className="max-w-full text-center text-[10px] font-bold leading-[1.05] line-clamp-2">Edit</span>
                                 </Link>
 
                                 <IconAction

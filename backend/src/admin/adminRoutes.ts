@@ -347,12 +347,16 @@ ${whereSql}
     .get(...params) as any;
   const total = Number(totalRow?.c ?? 0);
 
+  const nowMs = Date.now();
+  const sinceMs = nowMs - 24 * 60 * 60 * 1000;
+
   const rows = db
     .prepare(
       `
 SELECT
   l.id,l.user_id,l.listing_type,l.status,l.title,l.category,l.species,l.sex,l.water_type,l.size,
   l.shipping_offered,l.quantity,l.price_cents,l.budget_cents,l.location,l.phone,l.views,
+  COALESCE(v24.views_24h, 0) as views_today,
   l.owner_block_edit,l.owner_block_pause_resume,l.owner_block_status_changes,l.owner_block_featuring,l.owner_block_reason,l.owner_block_updated_at,l.owner_block_actor_user_id,
   l.featured_until,l.published_at,l.expires_at,l.created_at,l.updated_at,l.deleted_at,
   u.username as user_username,u.email as user_email,u.first_name as user_first_name,u.last_name as user_last_name,
@@ -360,6 +364,12 @@ SELECT
 FROM listings l
 LEFT JOIN users u ON u.id = l.user_id
 LEFT JOIN user_profiles p ON p.user_id = l.user_id
+LEFT JOIN (
+  SELECT listing_id, SUM(views) as views_24h
+  FROM listing_views_hourly
+  WHERE hour_start_ms >= ?
+  GROUP BY listing_id
+) v24 ON v24.listing_id = l.id
 LEFT JOIN listing_images li
   ON li.listing_id = l.id
  AND li.sort_order = (
@@ -370,7 +380,7 @@ ORDER BY ${orderBySql}
 LIMIT ? OFFSET ?
 `
     )
-    .all(...params, limit, offset) as any[];
+    .all(sinceMs, ...params, limit, offset) as any[];
 
   const items = rows.map((r) => ({
     kind: Number(r.listing_type) === 1 ? ("wanted" as const) : ("sale" as const),
@@ -399,6 +409,7 @@ LIMIT ? OFFSET ?
     location: String(r.location ?? ""),
     phone: r.phone != null ? String(r.phone) : "",
     views: Number(r.views ?? 0),
+    viewsToday: Number((r as any).views_today ?? 0),
     featuredUntil: r.featured_until != null ? Number(r.featured_until) : null,
     publishedAt: r.published_at != null ? String(r.published_at) : null,
     expiresAt: r.expires_at != null ? String(r.expires_at) : null,

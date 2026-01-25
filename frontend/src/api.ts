@@ -21,6 +21,7 @@ export type Listing = {
   ownerBlockFeaturing?: boolean;
   ownerBlockReason?: string | null;
   views?: number;
+  viewsToday?: number;
   sellerUsername?: string | null;
   sellerAvatarUrl?: string | null;
   sellerBio?: string | null;
@@ -43,7 +44,16 @@ export type Listing = {
   updatedAt: string;
 };
 
-export type SortMode = "newest" | "price_asc" | "price_desc" | "budget_asc" | "budget_desc";
+// Curated marketplace sort modes for Browse.
+// Note: Not every mode applies to every browseType (sale vs wanted).
+export type SortMode =
+  | "newest"
+  | "relevance"
+  | "views_desc"
+  | "price_asc"
+  | "price_desc"
+  | "budget_asc"
+  | "budget_desc";
 
 export type WantedPost = {
   id: string;
@@ -59,6 +69,7 @@ export type WantedPost = {
   ownerBlockFeaturing?: boolean;
   ownerBlockReason?: string | null;
   views?: number;
+  viewsToday?: number;
   title: string;
   category: Category;
   species: string | null;
@@ -472,6 +483,7 @@ export type AdminListingListItem = {
   location: string;
   phone: string;
   views: number;
+  viewsToday?: number;
   featuredUntil: number | null;
   publishedAt: string | null;
   expiresAt: string | null;

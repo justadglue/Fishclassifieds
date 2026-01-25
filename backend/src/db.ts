@@ -267,6 +267,26 @@ CREATE TABLE IF NOT EXISTS listing_images(
   FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE CASCADE
 );
 
+-- Daily view counters (for "views today" UI).
+-- day is a local-day key like 'YYYY-MM-DD' (server-local time).
+CREATE TABLE IF NOT EXISTS listing_views_daily(
+  listing_id TEXT NOT NULL,
+  day TEXT NOT NULL,
+  views INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(listing_id, day),
+  FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE CASCADE
+);
+
+-- Rolling 24h view counters: hour buckets (epoch ms at start of hour).
+-- This allows efficient SUM(views) over the last 24 hours without storing per-view events.
+CREATE TABLE IF NOT EXISTS listing_views_hourly(
+  listing_id TEXT NOT NULL,
+  hour_start_ms INTEGER NOT NULL,
+  views INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(listing_id, hour_start_ms),
+  FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_listings_created_at ON listings(created_at);
 CREATE INDEX IF NOT EXISTS idx_listings_updated_at ON listings(updated_at);
 CREATE INDEX IF NOT EXISTS idx_listings_species ON listings(species);
@@ -283,6 +303,8 @@ CREATE INDEX IF NOT EXISTS idx_listings_listing_type ON listings(listing_type);
 CREATE INDEX IF NOT EXISTS idx_listings_listing_type_created_at ON listings(listing_type, created_at);
 CREATE INDEX IF NOT EXISTS idx_listings_listing_type_user_id ON listings(listing_type, user_id);
 CREATE INDEX IF NOT EXISTS idx_listing_images_listing_id ON listing_images(listing_id);
+CREATE INDEX IF NOT EXISTS idx_listing_views_daily_day ON listing_views_daily(day, listing_id);
+CREATE INDEX IF NOT EXISTS idx_listing_views_hourly_time ON listing_views_hourly(hour_start_ms, listing_id);
 `);
 }
 

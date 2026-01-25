@@ -1054,6 +1054,7 @@ export default function AdminListingsPage() {
                                             <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
                                                 <Eye aria-hidden="true" className="h-4 w-4" />
                                                 {Number(it.views ?? 0).toLocaleString()}
+                                                <span className="text-slate-500">({Number(it.viewsToday ?? 0).toLocaleString()} today)</span>
                                             </span>
                                             <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1" title={postedTitle}>
                                                 <Clock aria-hidden="true" className="h-4 w-4" />
@@ -1588,6 +1589,7 @@ export default function AdminListingsPage() {
                                         {visibleCols.views ? (
                                             <td className="px-2 py-3 align-top text-right">
                                                 <div className="text-sm font-semibold text-slate-700">{Number(it.views ?? 0).toLocaleString()}</div>
+                                                <div className="text-xs font-semibold text-slate-500">({Number(it.viewsToday ?? 0).toLocaleString()} today)</div>
                                             </td>
                                         ) : null}
 

@@ -1,7 +1,7 @@
 // frontend/src/pages/ListingPage.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { Flag } from "lucide-react";
+import { Eye, Flag } from "lucide-react";
 import { createReport, fetchListing, fetchWantedPost, getListingOptionsCached, resolveAssets, type Listing, type WantedPost } from "../api";
 import Header from "../components/Header";
 import NoPhotoPlaceholder from "../components/NoPhotoPlaceholder";
@@ -431,6 +431,21 @@ export default function ListingPage() {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
+                      {/* Views (rolling last 24h). Desktop: plain text. Mobile: icon + text. */}
+                      <span className="ml-1" aria-hidden="true">
+                        {" "}•{" "}
+                      </span>
+                      <span className="hidden md:inline" title={`${Number((item as any).viewsToday ?? 0).toLocaleString()} views in the last 24h`}>
+                        {Number((item as any).views ?? 0).toLocaleString()} views ({Number((item as any).viewsToday ?? 0).toLocaleString()} today)
+                      </span>
+                      <span
+                        className="inline-flex items-center gap-1 md:hidden"
+                        title={`${Number((item as any).viewsToday ?? 0).toLocaleString()} views in the last 24h`}
+                      >
+                        <Eye aria-hidden="true" className="h-3.5 w-3.5" />
+                        {Number((item as any).views ?? 0).toLocaleString()}
+                        <span>({Number((item as any).viewsToday ?? 0).toLocaleString()} today)</span>
+                      </span>
                     </div>
                     <button
                       type="button"

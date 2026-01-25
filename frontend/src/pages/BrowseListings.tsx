@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { MapPin } from "lucide-react";
+import { Eye, MapPin } from "lucide-react";
 import {
   fetchListings,
   fetchWanted,
@@ -508,7 +508,9 @@ export default function BrowseListings() {
                       "min-w-[190px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400",
                     ].join(" ")}
                   >
+                    {q.trim() ? <option value="relevance">Relevance</option> : null}
                     <option value="newest">Newest</option>
+                    <option value="views_desc">Popular</option>
                     {browseType === "sale" ? (
                       <>
                         <option value="price_asc">Price: Low → High</option>
@@ -664,7 +666,13 @@ export default function BrowseListings() {
                       </div>
 
                       <div className="absolute bottom-4 left-4 text-[11px] font-semibold text-slate-500">
-                        {relativeTime(l.publishedAt ?? l.createdAt)}
+                        <span className="inline-flex items-center gap-2">
+                          <span>{relativeTime(l.publishedAt ?? l.createdAt)}</span>
+                          <span className="inline-flex items-center gap-1" title={`${Number(l.views ?? 0).toLocaleString()} views`}>
+                            <Eye aria-hidden="true" className="h-3.5 w-3.5" />
+                            {Number(l.views ?? 0).toLocaleString()}
+                          </span>
+                        </span>
                       </div>
                       <div className="absolute bottom-4 right-4 rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold text-white shadow-sm">
                         {pricePillText}
@@ -722,7 +730,13 @@ export default function BrowseListings() {
                     </div>
 
                     <div className="absolute bottom-4 left-4 text-[11px] font-semibold text-slate-500">
-                      {relativeTime(w.publishedAt ?? w.createdAt)}
+                      <span className="inline-flex items-center gap-2">
+                        <span>{relativeTime(w.publishedAt ?? w.createdAt)}</span>
+                        <span className="inline-flex items-center gap-1" title={`${Number(w.views ?? 0).toLocaleString()} views`}>
+                          <Eye aria-hidden="true" className="h-3.5 w-3.5" />
+                          {Number(w.views ?? 0).toLocaleString()}
+                        </span>
+                      </span>
                     </div>
                     <div className="absolute bottom-4 right-4 rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold text-white shadow-sm">
                       {budgetPillText(w)}

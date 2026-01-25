@@ -34,6 +34,27 @@ app.set("trust proxy", 1);
 const viewTrackingCache = new Map<string, number>();
 const VIEW_DEDUPE_WINDOW_MS = 3000;
 
+function hourStartMs(nowMs: number) {
+  const HOUR_MS = 60 * 60 * 1000;
+  return nowMs - (nowMs % HOUR_MS);
+}
+
+function viewsLast24h(listingId: string) {
+  const nowMs = Date.now();
+  const sinceMs = nowMs - 24 * 60 * 60 * 1000;
+  const row = db
+    .prepare(
+      `
+SELECT COALESCE(SUM(views), 0) as v
+FROM listing_views_hourly
+WHERE listing_id = ?
+  AND hour_start_ms >= ?
+`
+    )
+    .get(listingId, sinceMs) as any;
+  return Number(row?.v ?? 0);
+}
+
 function shouldIncrementView(listingId: string, req: express.Request): boolean {
   // Use session ID (if logged in) or IP as client key
   const clientKey = req.user?.id ? `user:${req.user.id}` : `ip:${req.ip}`;
@@ -1283,16 +1304,26 @@ app.get("/api/my/listings", requireAuth, (req, res) => {
   const totalRow = db.prepare(`SELECT COUNT(*)as c FROM listings ${whereSql}`).get(...params) as any;
   const total = Number(totalRow?.c ?? 0);
 
+  const nowMs = Date.now();
+  const sinceMs = nowMs - 24 * 60 * 60 * 1000;
+
   const rows = db
     .prepare(
       `
-SELECT * FROM listings
+SELECT l.*, COALESCE(v24.views_24h, 0) as views_today
+FROM listings l
+LEFT JOIN (
+  SELECT listing_id, SUM(views) as views_24h
+  FROM listing_views_hourly
+  WHERE hour_start_ms >= ?
+  GROUP BY listing_id
+) v24 ON v24.listing_id = l.id
 ${whereSql}
-ORDER BY updated_at DESC, created_at DESC, id DESC
+ORDER BY l.updated_at DESC, l.created_at DESC, l.id DESC
 LIMIT ? OFFSET ?
 `
     )
-    .all(...params, limit, offset) as (ListingRow & any)[];
+    .all(sinceMs, ...params, limit, offset) as (ListingRow & any)[];
 
   return res.json({
     items: rows.map((r) => mapListing(req, r)),
@@ -1323,18 +1354,27 @@ app.get("/api/my/wanted", requireAuth, (req, res) => {
   const totalRow = db.prepare(`SELECT COUNT(*)as c FROM listings l ${whereSql}`).get(...params) as any;
   const total = Number(totalRow?.c ?? 0);
 
+  const nowMs = Date.now();
+  const sinceMs = nowMs - 24 * 60 * 60 * 1000;
+
   const rows = db
     .prepare(
       `
-SELECT l.*, u.username as user_username
+SELECT l.*, u.username as user_username, COALESCE(v24.views_24h, 0) as views_today
 FROM listings l
 JOIN users u ON u.id = l.user_id
+LEFT JOIN (
+  SELECT listing_id, SUM(views) as views_24h
+  FROM listing_views_hourly
+  WHERE hour_start_ms >= ?
+  GROUP BY listing_id
+) v24 ON v24.listing_id = l.id
 ${whereSql}
 ORDER BY l.updated_at DESC, l.created_at DESC, l.id DESC
 LIMIT ? OFFSET ?
 `
     )
-    .all(...params, limit, offset) as any[];
+    .all(sinceMs, ...params, limit, offset) as any[];
 
   return res.json({
     items: rows.map((r) => mapWantedRow(req, r)),
@@ -1484,21 +1524,56 @@ ${whereSql}
     .get(...params) as any;
   const total = Number(totalRow?.c ?? 0);
 
+  const nowMs = Date.now();
+  const sinceMs = nowMs - 24 * 60 * 60 * 1000;
+
+  // Sorting (curated marketplace defaults).
+  // Note: SQLite stores ISO timestamps as TEXT; ordering works lexicographically.
+  const sortKey = String(sort ?? "newest");
   let orderBy = "COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
-  if (sort === "price_asc") orderBy = "l.price_cents ASC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
-  if (sort === "price_desc") orderBy = "l.price_cents DESC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
+  // Extra params for ORDER BY when needed (e.g., relevance scoring).
+  const orderParams: any[] = [];
+
+  if (sortKey === "price_asc") orderBy = "l.price_cents ASC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
+  if (sortKey === "price_desc") orderBy = "l.price_cents DESC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
+  // Most viewed (last 24h).
+  if (sortKey === "views_desc") orderBy = "COALESCE(v24.views_24h, 0) DESC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
+  if (sortKey === "ending_soon") {
+    // Put known expiries first; within that, soonest first.
+    orderBy =
+      "(l.expires_at IS NULL) ASC, l.expires_at ASC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
+  }
+  if (sortKey === "relevance" && q) {
+    // Lightweight relevance without FTS:
+    // title/species matches rank higher than description/location matches.
+    // (Uses LIKE which is already used by filtering; keeps query simple and predictable.)
+    const pat = `%${q}%`;
+    orderBy = `(
+      (CASE WHEN lower(l.title) LIKE ? THEN 4 ELSE 0 END) +
+      (CASE WHEN lower(l.species) LIKE ? THEN 2 ELSE 0 END) +
+      (CASE WHEN lower(l.description) LIKE ? THEN 1 ELSE 0 END) +
+      (CASE WHEN lower(l.location) LIKE ? THEN 1 ELSE 0 END)
+    ) DESC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC`;
+    orderParams.push(pat, pat, pat, pat);
+  }
 
   const sql = `
-SELECT l.*
+SELECT l.*, COALESCE(v24.views_24h, 0) as views_today
 FROM listings l
 JOIN users u ON u.id = l.user_id
 LEFT JOIN user_moderation m ON m.user_id = u.id
+LEFT JOIN (
+  SELECT listing_id, SUM(views) as views_24h
+  FROM listing_views_hourly
+  WHERE hour_start_ms >= ?
+  GROUP BY listing_id
+) v24 ON v24.listing_id = l.id
 ${whereSql}
 ORDER BY ${orderBy}
 LIMIT ? OFFSET ?
 `;
 
-  const rows = db.prepare(sql).all(...params, limit, offset) as (ListingRow & any)[];
+  const rows = db.prepare(sql).all(sinceMs, ...params, ...orderParams, limit, offset) as (ListingRow & any)[];
 
   return res.json({
     items: rows.map((r) => mapListing(req, r)),
@@ -1531,10 +1606,20 @@ app.get("/api/listings/:id", optionalAuth, (req, res) => {
 
   // Track views for public (non-owner) listing detail views.
   if (!isOwner && isPublic && !isAdminViewContext(req, isAdmin) && shouldIncrementView(id, req)) {
+    const nowMs = Date.now();
     db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ? AND listing_type = 0`).run(id);
+    db.prepare(
+      `
+INSERT INTO listing_views_hourly(listing_id, hour_start_ms, views)
+VALUES(?, ?, 1)
+ON CONFLICT(listing_id, hour_start_ms) DO UPDATE SET views = views + 1
+`
+    ).run(id, hourStartMs(nowMs));
     row = db.prepare("SELECT * FROM listings WHERE id = ? AND listing_type = 0").get(id) as (ListingRow & any) | undefined;
   }
 
+  // Attach rolling 24h views for the detail page.
+  (row as any).views_today = viewsLast24h(id);
   return res.json(mapListing(req, row));
 });
 
@@ -1842,6 +1927,7 @@ function mapWantedRow(req: express.Request, row: any) {
     ownerBlockFeaturing: Boolean(Number((row as any).owner_block_featuring ?? 0)),
     ownerBlockReason: (row as any).owner_block_reason != null ? String((row as any).owner_block_reason) : null,
     views: Number((row as any).views ?? 0),
+    viewsToday: Number((row as any).views_today ?? 0),
     title: String(row.title),
     category: String(row.category),
     species: row.species && String(row.species).trim() ? String(row.species) : null,
@@ -1955,25 +2041,54 @@ ${whereSql}
     .get(...params) as any;
   const total = Number(totalRow?.c ?? 0);
 
+  const nowMs = Date.now();
+  const sinceMs = nowMs - 24 * 60 * 60 * 1000;
+
+  // Sorting (curated marketplace defaults).
+  const sortKey = String(sort ?? "newest");
   let orderBy = "COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
-  if (sort === "budget_asc")
+  const orderParams: any[] = [];
+
+  if (sortKey === "budget_asc")
     orderBy = "(l.budget_cents IS NULL) ASC, l.budget_cents ASC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
-  if (sort === "budget_desc")
+  if (sortKey === "budget_desc")
     orderBy = "(l.budget_cents IS NULL) ASC, l.budget_cents DESC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
+  // Most viewed (last 24h).
+  if (sortKey === "views_desc") orderBy = "COALESCE(v24.views_24h, 0) DESC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
+  if (sortKey === "ending_soon") {
+    orderBy =
+      "(l.expires_at IS NULL) ASC, l.expires_at ASC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC";
+  }
+  if (sortKey === "relevance" && q) {
+    const pat = `%${q}%`;
+    orderBy = `(
+      (CASE WHEN lower(l.title) LIKE ? THEN 4 ELSE 0 END) +
+      (CASE WHEN lower(l.species) LIKE ? THEN 2 ELSE 0 END) +
+      (CASE WHEN lower(l.description) LIKE ? THEN 1 ELSE 0 END) +
+      (CASE WHEN lower(l.location) LIKE ? THEN 1 ELSE 0 END)
+    ) DESC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC`;
+    orderParams.push(pat, pat, pat, pat);
+  }
 
   const rows = db
     .prepare(
       `
-SELECT l.*, u.username as user_username
+SELECT l.*, u.username as user_username, COALESCE(v24.views_24h, 0) as views_today
 FROM listings l
 JOIN users u ON u.id = l.user_id
 LEFT JOIN user_moderation m ON m.user_id = u.id
+LEFT JOIN (
+  SELECT listing_id, SUM(views) as views_24h
+  FROM listing_views_hourly
+  WHERE hour_start_ms >= ?
+  GROUP BY listing_id
+) v24 ON v24.listing_id = l.id
 ${whereSql}
 ORDER BY ${orderBy}
 LIMIT ? OFFSET ?
 `
     )
-    .all(...params, limit, offset) as any[];
+    .all(sinceMs, ...params, ...orderParams, limit, offset) as any[];
 
   return res.json({
     items: rows.map((r) => mapWantedRow(req, r)),
@@ -2016,7 +2131,15 @@ AND l.listing_type = 1
 
   // Track views for public (non-owner) wanted detail views.
   if (!isOwner && isPublic && !isAdminViewContext(req, isAdmin) && shouldIncrementView(id, req)) {
+    const nowMs = Date.now();
     db.prepare(`UPDATE listings SET views = COALESCE(views, 0) + 1 WHERE id = ? AND listing_type = 1`).run(id);
+    db.prepare(
+      `
+INSERT INTO listing_views_hourly(listing_id, hour_start_ms, views)
+VALUES(?, ?, 1)
+ON CONFLICT(listing_id, hour_start_ms) DO UPDATE SET views = views + 1
+`
+    ).run(id, hourStartMs(nowMs));
     row = db
       .prepare(
         `
@@ -2029,6 +2152,7 @@ AND l.listing_type = 1
       )
       .get(id) as any | undefined;
   }
+  (row as any).views_today = viewsLast24h(id);
   return res.json(mapWantedRow(req, row));
 });
 
@@ -2950,6 +3074,7 @@ function mapListing(req: express.Request, row: ListingRow & any) {
     ownerBlockFeaturing: Boolean(Number((row as any).owner_block_featuring ?? 0)),
     ownerBlockReason: (row as any).owner_block_reason != null ? String((row as any).owner_block_reason) : null,
     views: Number((row as any).views ?? 0),
+    viewsToday: Number((row as any).views_today ?? 0),
     sellerUsername,
     sellerAvatarUrl,
     sellerBio,

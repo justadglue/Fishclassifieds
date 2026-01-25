@@ -45,12 +45,54 @@ export function useBrowseFilterState() {
     const budgetDollars = sp.get("budget") ?? "";
     const rawSort = (sp.get("sort") ?? "newest") as SortMode;
     const sort: SortMode = (() => {
+        // Only allow relevance if a search term is present (otherwise it behaves like newest).
+        const hasQuery = Boolean(String(q ?? "").trim());
         if (browseType === "sale") {
-            return rawSort === "price_asc" || rawSort === "price_desc" || rawSort === "newest" ? rawSort : "newest";
+            return rawSort === "newest" ||
+                rawSort === "views_desc" ||
+                rawSort === "price_asc" ||
+                rawSort === "price_desc" ||
+                (rawSort === "relevance" && hasQuery)
+                ? rawSort
+                : "newest";
         }
         // wanted
-        return rawSort === "budget_asc" || rawSort === "budget_desc" || rawSort === "newest" ? rawSort : "newest";
+        return rawSort === "newest" ||
+            rawSort === "views_desc" ||
+            rawSort === "budget_asc" ||
+            rawSort === "budget_desc" ||
+            (rawSort === "relevance" && hasQuery)
+            ? rawSort
+            : "newest";
     })();
+
+    // Default sorting behavior:
+    // - If arriving with a search query and no explicit sort, default to Relevance.
+    // - If the user types a search query while still on the default "Newest" sort, switch to Relevance.
+    // - If query is cleared and URL still says relevance, normalize back to Newest.
+    useEffect(() => {
+        const hasQuery = Boolean(String(q ?? "").trim());
+        const curSort = String(sp.get("sort") ?? "").trim();
+        const hasExplicitSort = sp.has("sort");
+
+        // If the user hasn't chosen a sort (no param), or is still on the default "newest",
+        // switch to relevance as soon as a search term exists.
+        if (hasQuery && (!hasExplicitSort || curSort === "newest")) {
+            const next = new URLSearchParams(sp);
+            next.set("sort", "relevance");
+            // keep page stable: query changes already reset page elsewhere; but ensure sane default if missing
+            if (!next.get("page")) next.set("page", "1");
+            setSp(next, { replace: true });
+            return;
+        }
+
+        if (!hasQuery && curSort === "relevance") {
+            const next = new URLSearchParams(sp);
+            next.set("sort", "newest");
+            if (!next.get("page")) next.set("page", "1");
+            setSp(next, { replace: true });
+        }
+    }, [q, setSp, sp]);
 
     const page = clampInt(sp.get("page"), 1, 1, 999999);
     const per = BROWSE_PER_PAGE;

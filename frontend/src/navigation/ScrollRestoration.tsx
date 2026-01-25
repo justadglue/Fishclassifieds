@@ -3,6 +3,32 @@ import { useLocation, useNavigationType } from "react-router-dom";
 
 const STORAGE_KEY = "fc_scroll_by_key_v1";
 
+/**
+ * Detect if the current page load is a hard refresh (F5 / Cmd+R) vs normal navigation.
+ * Uses the Performance API which is well-supported in modern browsers.
+ */
+function isHardRefresh(): boolean {
+    try {
+        const entries = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+        const navEntry = entries[0];
+        if (navEntry?.type === "reload") return true;
+
+        // Legacy fallback (older Safari / older browsers)
+        // 0: TYPE_NAVIGATE, 1: TYPE_RELOAD, 2: TYPE_BACK_FORWARD, 255: TYPE_RESERVED
+        const legacy = (performance as any).navigation?.type;
+        if (legacy === 1) return true;
+
+        return false;
+    } catch {
+        try {
+            const legacy = (performance as any).navigation?.type;
+            return legacy === 1;
+        } catch {
+            return false;
+        }
+    }
+}
+
 function readMap(): Record<string, number> {
     try {
         const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -40,6 +66,7 @@ export function ScrollRestorationManager() {
     const navType = useNavigationType();
     const urlKey = `${loc.pathname}${loc.search ?? ""}`;
     const prevLocRef = useRef<{ pathname: string; search: string } | null>(null);
+    const isInitialMountRef = useRef(true);
 
     // Continuously save scroll position for the current route key.
     // This is more reliable than only saving on effect cleanup (which can run after layout changes).
@@ -81,7 +108,9 @@ export function ScrollRestorationManager() {
         const yByKey = restoreScroll(loc.key);
         const yByUrl = restoreScroll(urlKey);
         const y = yByKey ?? yByUrl;
+        // NOTE: we previously read PerformanceNavigationTiming.type here for debug instrumentation.
         if (hash) {
+            isInitialMountRef.current = false;
             const id = hash.replace(/^#/, "");
             window.requestAnimationFrame(() => {
                 const el = document.getElementById(id);
@@ -92,6 +121,38 @@ export function ScrollRestorationManager() {
         }
 
         if (navType === "POP") {
+            // On initial mount (hard refresh), scroll to top instead of restoring.
+            // This makes a browser refresh behave like a fresh page load.
+            // Back/forward navigations within the SPA will have prevLoc set (not initial mount).
+            if (isInitialMountRef.current && isHardRefresh()) {
+                isInitialMountRef.current = false;
+
+                // Critical: clear any previously saved scroll for this URL so a refresh behaves like a fresh load.
+                // This also prevents StrictMode double-mount from restoring a stale scroll after we scroll to top.
+                try {
+                    const map = readMap();
+                    delete (map as any)[String(loc.key)];
+                    delete (map as any)[String(urlKey)];
+                    writeMap(map);
+                } catch {
+                    // ignore
+                }
+
+                // Disable browser's native scroll restoration for this session
+                try {
+                    window.history.scrollRestoration = "manual";
+                } catch {
+                    // ignore
+                }
+                // Aggressively scroll to top to beat any browser scroll restoration
+                window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+                window.requestAnimationFrame(() => {
+                    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+                });
+                return;
+            }
+            isInitialMountRef.current = false;
+
             const chosen = y ?? 0;
             const de = document.documentElement;
             const getMaxScroll = () => Math.max(0, (de?.scrollHeight ?? 0) - (de?.clientHeight ?? 0));
@@ -154,6 +215,7 @@ export function ScrollRestorationManager() {
         // For same-path REPLACE navigations (typically query-param updates from in-page controls),
         // keep the user's scroll position stable. This prevents "jump to top" when toggling filters/sort.
         if (prevLoc && prevLoc.pathname === loc.pathname && navType === "REPLACE") {
+            isInitialMountRef.current = false;
             return;
         }
 
@@ -173,10 +235,14 @@ export function ScrollRestorationManager() {
                     break;
                 }
             }
-            if (onlyPageChanged) return;
+            if (onlyPageChanged) {
+                isInitialMountRef.current = false;
+                return;
+            }
         }
 
         window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+        isInitialMountRef.current = false;
     }, [loc.key, loc.hash, navType, urlKey, loc.pathname]);
 
     return null;

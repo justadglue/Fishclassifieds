@@ -1,7 +1,16 @@
 import { useMemo } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useNavHistory } from "../../navigation/NavHistory";
 import { MoveLeft } from "lucide-react";
+
+function canGoBackInBrowserHistory() {
+  try {
+    const idx = (window.history.state as any)?.idx;
+    return typeof idx === "number" && idx > 0;
+  } catch {
+    return false;
+  }
+}
 
 export default function BackToButton(props: {
   fallbackTo: string;
@@ -10,6 +19,7 @@ export default function BackToButton(props: {
 }) {
   const { fallbackTo, fallbackLabel = "home", className = "" } = props;
   const location = useLocation();
+  const nav = useNavigate();
   const { prev, prevNonTemp, goBack, goBackNonTemp } = useNavHistory();
 
   const from = (location.state as any)?.from as
@@ -29,6 +39,13 @@ export default function BackToButton(props: {
     <button
       type="button"
       onClick={() => {
+        // If the user refreshed this page, our in-app NavHistory stack resets.
+        // Prefer browser history back when possible so we preserve scroll state exactly like the Back button.
+        if (canGoBackInBrowserHistory()) {
+          nav(-1);
+          return;
+        }
+
         // Prefer true history back (restores scroll + URL state).
         // If we have an explicit `from`, just go back one entry (it should be the right place).
         // Otherwise, skip temporary routes like /edit/* and jump to the last non-temporary page.

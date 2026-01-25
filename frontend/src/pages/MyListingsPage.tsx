@@ -893,7 +893,7 @@ export default function MyListingsPage() {
                 type="button"
                 onClick={() => setViewType("all")}
                 className={[
-                  "flex-1 px-3 py-2 text-center text-sm font-bold sm:flex-none sm:px-4",
+                  "flex-1 h-9 whitespace-nowrap px-3 text-center text-sm font-bold max-[380px]:flex-[0.8_1_0%] max-[380px]:px-2",
                   viewType === "all" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
                 ].join(" ")}
                 aria-pressed={viewType === "all"}
@@ -904,7 +904,7 @@ export default function MyListingsPage() {
                 type="button"
                 onClick={() => setViewType("sale")}
                 className={[
-                  "flex-1 px-3 py-2 text-center text-sm font-bold sm:flex-none sm:px-4",
+                  "flex-1 h-9 whitespace-nowrap px-3 text-center text-sm font-bold max-[380px]:flex-[1.25_1_0%] max-[380px]:px-2",
                   viewType === "sale" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
                 ].join(" ")}
                 aria-pressed={viewType === "sale"}
@@ -915,7 +915,7 @@ export default function MyListingsPage() {
                 type="button"
                 onClick={() => setViewType("wanted")}
                 className={[
-                  "flex-1 px-3 py-2 text-center text-sm font-bold sm:flex-none sm:px-4",
+                  "flex-1 h-9 whitespace-nowrap px-3 text-center text-sm font-bold max-[380px]:px-2",
                   viewType === "wanted" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
                 ].join(" ")}
                 aria-pressed={viewType === "wanted"}
@@ -926,7 +926,7 @@ export default function MyListingsPage() {
                 type="button"
                 onClick={() => setViewType("drafts")}
                 className={[
-                  "flex-1 px-3 py-2 text-center text-sm font-bold sm:flex-none sm:px-4",
+                  "flex-1 h-9 whitespace-nowrap px-3 text-center text-sm font-bold max-[380px]:px-2",
                   viewType === "drafts" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
                 ].join(" ")}
                 aria-pressed={viewType === "drafts"}
@@ -936,36 +936,44 @@ export default function MyListingsPage() {
             </div>
 
             {/* Mobile: keep Sort + Include on one row (scroll if needed) */}
-            <div className="flex w-full items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:w-auto md:overflow-visible md:pb-0">
-              <label className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 select-none md:hidden">
+            <div className="flex max-w-full flex-wrap items-center gap-2 pb-1 sm:flex-nowrap sm:overflow-x-auto sm:[-ms-overflow-style:none] sm:[scrollbar-width:none] sm:[&::-webkit-scrollbar]:hidden md:w-auto md:overflow-visible md:pb-0">
+              <label className="inline-flex h-9 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 hover:bg-slate-50 select-none md:hidden">
                 <ArrowUpDown aria-hidden="true" className="h-4 w-4 text-slate-500" />
                 <select
-                  value={`${sort.key}:${sort.dir}`}
+                  value={sort.key}
                   onChange={(e) => {
-                    const raw = String(e.target.value ?? "");
-                    const [kRaw, dRaw] = raw.split(":");
-                    const k = (kRaw as SortKey) ?? "status";
-                    const d = (dRaw as SortDir) ?? "asc";
-                    applySort(k, d);
+                    const k = (String(e.target.value ?? "") as SortKey) || "status";
+                    applySort(k, defaultDirByKey[k] ?? "asc");
                   }}
-                  className="bg-transparent text-sm font-bold text-slate-900 outline-none"
+                  className="h-9 bg-transparent text-sm font-bold text-slate-900 outline-none"
                   aria-label="Sort listings"
                 >
-                  <option value="status:asc">Status</option>
-                  <option value="published:desc">Posted ▼</option>
-                  <option value="published:asc">Posted ▲</option>
-                  <option value="views:desc">Views ▼</option>
-                  <option value="views:asc">Views ▲</option>
-                  <option value="price:desc">Price/Budget ▼</option>
-                  <option value="price:asc">Price/Budget ▲</option>
-                  <option value="expiresIn:asc">Expiry ▲</option>
-                  <option value="expiresIn:desc">Expiry ▼</option>
-                  <option value="updated:desc">Updated ▼</option>
-                  <option value="updated:asc">Updated ▲</option>
+                  <option value="status">Status</option>
+                  <option value="published">Posted</option>
+                  <option value="updated">Updated</option>
+                  <option value="views">Views</option>
+                  <option value="price">Price/Budget</option>
+                  <option value="expiresIn">Expiry</option>
                 </select>
               </label>
 
-              <label className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 select-none">
+              <button
+                type="button"
+                onClick={() => applySort(sort.key, sort.dir === "asc" ? "desc" : "asc")}
+                className="md:hidden inline-flex h-9 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                aria-label="Toggle sort direction"
+                title="Toggle sort direction"
+              >
+                <span className="text-slate-500" aria-hidden="true">
+                  {sort.dir === "asc" ? "↑" : "↓"}
+                </span>
+                <span>{sort.dir === "asc" ? "Asc" : "Desc"}</span>
+              </button>
+
+              <label
+                className="inline-flex h-9 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 hover:bg-slate-50 select-none whitespace-nowrap"
+                title="Include sold/closed listings in the list"
+              >
                 <input
                   type="checkbox"
                   checked={includeResolved}
@@ -977,19 +985,16 @@ export default function MyListingsPage() {
                   }}
                   className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
                 />
-                <span className="inline-flex items-center gap-1">
-                  <CircleCheck aria-hidden="true" className="h-4 w-4 text-slate-500" />
-                  Include resolved
-                </span>
+                <span>Show sold/closed</span>
               </label>
             </div>
           </div>
         </div>
 
-        {err && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
+        {err && <div className="mt-2 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
         {!loading && viewType === "sale" && items.length === 0 && (
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="mt-2 md:mt-6 rounded-2xl border border-slate-200 bg-white p-6">
             <div className="text-sm font-semibold text-slate-900">No listings yet</div>
             <div className="mt-1 text-sm text-slate-600">Post one and it will show here.</div>
             <Link to="/post" className="mt-4 inline-block rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
@@ -999,7 +1004,7 @@ export default function MyListingsPage() {
         )}
 
         {!loading && viewType === "all" && items.length === 0 && wantedItems.length === 0 && (
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="mt-2 md:mt-6 rounded-2xl border border-slate-200 bg-white p-6">
             <div className="text-sm font-semibold text-slate-900">No listings yet</div>
             <div className="mt-1 text-sm text-slate-600">Post a for sale listing or a wanted post and it will show here.</div>
             <div className="mt-4 flex flex-wrap gap-2">
@@ -1017,7 +1022,7 @@ export default function MyListingsPage() {
         )}
 
         {!loading && viewType === "wanted" && wantedItems.length === 0 && (
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="mt-2 md:mt-6 rounded-2xl border border-slate-200 bg-white p-6">
             <div className="text-sm font-semibold text-slate-900">No wanted posts yet</div>
             <div className="mt-1 text-sm text-slate-600">Post one and it will show here.</div>
             <Link
@@ -1030,7 +1035,7 @@ export default function MyListingsPage() {
         )}
 
         {!loading && viewType === "drafts" && items.length === 0 && wantedItems.length === 0 && (
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="mt-2 md:mt-6 rounded-2xl border border-slate-200 bg-white p-6">
             <div className="text-sm font-semibold text-slate-900">No drafts yet</div>
             <div className="mt-1 text-sm text-slate-600">Start a listing and save it as a draft to finish later.</div>
             <Link to="/post" className="mt-4 inline-block rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
@@ -1045,7 +1050,7 @@ export default function MyListingsPage() {
           (viewType === "all" && (items.length > 0 || wantedItems.length > 0)) ? (
           <>
             {/* Mobile cards */}
-            <div className="mt-6 md:hidden">
+            <div className="mt-2 md:hidden">
               <MobileCardList>
                 {displayRows.map((row) => {
                   if (row.kind === "sale") {

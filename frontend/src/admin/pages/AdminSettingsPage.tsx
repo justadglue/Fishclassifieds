@@ -1013,6 +1013,11 @@ export default function AdminSettingsPage() {
                         value={customLabelDraft}
                         onChange={(e) => setCustomLabelDraft(e.target.value)}
                         onKeyDown={(e) => {
+                          if (e.key === "Escape") {
+                            setCustomLabelDraft("");
+                            setCustomLabelOpen(false);
+                            return;
+                          }
                           if (e.key !== "Enter") return;
                           const label = customLabelDraft.trim();
                           if (!label) return;
@@ -1024,29 +1029,44 @@ export default function AdminSettingsPage() {
                           setCustomLabelDraft("");
                           setCustomLabelOpen(false);
                         }}
-                        placeholder="Custom label…"
+                        placeholder="Add label…"
                         className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none focus:border-slate-400 sm:w-72"
                       />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const label = customLabelDraft.trim();
-                          if (!label) return;
-                          const id = (globalThis.crypto as any)?.randomUUID?.() ? (globalThis.crypto as any).randomUUID() : `custom-${Date.now()}`;
-                          setDraftItems((prev) => [
-                            ...prev,
-                            { id, rank: prev.length + 1, label, includedTerms: [], confidence: null, enabled: true },
-                          ]);
-                          setCustomLabelDraft("");
-                          setCustomLabelOpen(false);
-                        }}
-                        className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60 sm:w-auto"
-                        disabled={!customLabelDraft.trim() || draftGenerating || draftLoading}
-                        title="Add"
-                        aria-label="Add"
-                      >
-                        <Plus className="h-4 w-4" aria-hidden="true" />
-                      </button>
+                      <div className="flex w-full gap-2 sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const label = customLabelDraft.trim();
+                            if (!label) return;
+                            const id = (globalThis.crypto as any)?.randomUUID?.() ? (globalThis.crypto as any).randomUUID() : `custom-${Date.now()}`;
+                            setDraftItems((prev) => [
+                              ...prev,
+                              { id, rank: prev.length + 1, label, includedTerms: [], confidence: null, enabled: true },
+                            ]);
+                            setCustomLabelDraft("");
+                            setCustomLabelOpen(false);
+                          }}
+                          className="inline-flex h-10 flex-1 items-center justify-center rounded-xl border border-slate-900 bg-slate-900 px-3 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-60 sm:flex-none"
+                          disabled={!customLabelDraft.trim() || draftGenerating || draftLoading}
+                          title="Add"
+                          aria-label="Add"
+                        >
+                          Add
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCustomLabelDraft("");
+                            setCustomLabelOpen(false);
+                          }}
+                          className="inline-flex h-10 flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60 sm:flex-none"
+                          disabled={draftGenerating || draftLoading}
+                          title="Cancel"
+                          aria-label="Cancel"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </>
                   ) : (
                     <>

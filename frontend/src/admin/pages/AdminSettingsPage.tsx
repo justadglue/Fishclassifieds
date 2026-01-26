@@ -1005,7 +1005,12 @@ export default function AdminSettingsPage() {
               ) : null}
 
               {draftSet && draftSet.status === "draft" ? (
-                <div className="mt-3 pr-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <div
+                  className={[
+                    "mt-3 pr-3 flex flex-col gap-2 sm:flex-row sm:items-center",
+                    customLabelOpen ? "sm:justify-center" : "sm:justify-end",
+                  ].join(" ")}
+                >
                   {customLabelOpen ? (
                     <>
                       <input

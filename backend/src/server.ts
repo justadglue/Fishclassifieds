@@ -1915,9 +1915,11 @@ app.get("/api/listings/:id", optionalAuth, (req, res) => {
 
   const isOwner = isListingOwner(req, row);
   const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.isSuperadmin));
+  const isSuperadmin = Boolean(req.user && req.user.isSuperadmin);
   const status = String(row.status ?? "active") as ListingStatus;
 
-  if (!isOwner && !isAdmin && status === "deleted") return res.status(404).json({ error: "Not found" });
+  // Deleted listings are only viewable by superadmins (defense-in-depth).
+  if (status === "deleted" && !isSuperadmin) return res.status(404).json({ error: "Not found" });
 
   const isPublic = PUBLIC_LIFECYCLE.includes(status);
   const canView = isOwner || isPublic || (isAdmin && status === "pending");
@@ -2445,8 +2447,11 @@ AND l.listing_type = 1
   if (!row) return res.status(404).json({ error: "Not found" });
   const isOwner = requireWantedOwner(req, row);
   const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.isSuperadmin));
+  const isSuperadmin = Boolean(req.user && req.user.isSuperadmin);
   const status = String(row.status ?? "active") as ListingStatus;
-  if (!isOwner && !isAdmin && (status === "deleted" || status === "expired" || status === "sold" || status === "closed")) {
+  // Deleted wanted posts are only viewable by superadmins (defense-in-depth).
+  if (status === "deleted" && !isSuperadmin) return res.status(404).json({ error: "Not found" });
+  if (!isOwner && !isAdmin && (status === "expired" || status === "sold" || status === "closed")) {
     return res.status(404).json({ error: "Not found" });
   }
 

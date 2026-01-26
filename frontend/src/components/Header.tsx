@@ -351,6 +351,9 @@ export default function Header(props: { maxWidth?: "3xl" | "5xl" | "6xl" | "7xl"
       const meta = n.metaJson ? JSON.parse(n.metaJson) : null;
       const listingId = meta?.listingId ?? meta?.targetId ?? null;
       const listingType = meta?.listingType ?? meta?.targetKind ?? null;
+      const nextStatus = meta?.nextStatus != null ? String(meta.nextStatus) : null;
+      // Defense-in-depth: never offer a "view deleted listing" action unless superadmin.
+      if (nextStatus === "deleted" && !user?.isSuperadmin) return null;
       if (listingId && (listingType === "sale" || listingType === "wanted")) {
         return { href: `/listing/${listingType}/${listingId}`, label: "Open listing" };
       }

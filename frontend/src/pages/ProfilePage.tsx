@@ -535,46 +535,46 @@ export default function ProfilePage() {
               </div>
 
               {isDirty && (
-              <div className="mt-5 flex items-center gap-2">
-                <button
-                  type="submit"
-                  disabled={loading || authLoading || !user}
-                  className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-60"
-                >
-                  {loading ? "Saving..." : "Save changes"}
-                </button>
+                <div className="mt-5 flex items-center gap-2">
+                  <button
+                    type="submit"
+                    disabled={loading || authLoading || !user}
+                    className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-60"
+                  >
+                    {loading ? "Saving..." : "Save changes"}
+                  </button>
 
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => {
-                    if (!data) return;
-                    setFirstName(data.account.firstName ?? "");
-                    setLastName(data.account.lastName ?? "");
-                    setAvatarUrl(data.profile.avatarUrl ?? "");
-                    setLocation(data.profile.location ?? "");
-                    setPhone(data.profile.phone ?? "");
-                    setWebsite(data.profile.website ?? "");
-                    setBio(data.profile.bio ?? "");
-                    setErr(null);
-                    setAvatarErr(null);
-                    if (avatarDraftUrl) URL.revokeObjectURL(avatarDraftUrl);
-                    setAvatarDraftUrl("");
-                    setAvatarDraftFile(null);
-                    setAvatarRemovePending(false);
-                    setSavedMsg(null);
-                  }}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
-                >
-                  Reset
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => {
+                      if (!data) return;
+                      setFirstName(data.account.firstName ?? "");
+                      setLastName(data.account.lastName ?? "");
+                      setAvatarUrl(data.profile.avatarUrl ?? "");
+                      setLocation(data.profile.location ?? "");
+                      setPhone(data.profile.phone ?? "");
+                      setWebsite(data.profile.website ?? "");
+                      setBio(data.profile.bio ?? "");
+                      setErr(null);
+                      setAvatarErr(null);
+                      if (avatarDraftUrl) URL.revokeObjectURL(avatarDraftUrl);
+                      setAvatarDraftUrl("");
+                      setAvatarDraftFile(null);
+                      setAvatarRemovePending(false);
+                      setSavedMsg(null);
+                    }}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    Reset
+                  </button>
+                </div>
               )}
 
               <div className="mt-8 border-t border-slate-100 pt-6">
                 <div className="text-sm font-bold text-slate-900">Delete account</div>
                 <div className="mt-2 text-sm text-slate-600">
-                  This permanently deletes your account and logs you out.
+                  Permanently delete you account.
                 </div>
 
                 <div className="mt-4">

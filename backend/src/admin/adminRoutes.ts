@@ -12,7 +12,7 @@ import { requireReauth } from "./requireReauth.js";
 import { decryptSecret, encryptSecret } from "../llm/secretBox.js";
 import { generatePopularSearchesOpenAI } from "../llm/openai.js";
 import { generatePopularSearchesGemini } from "../llm/gemini.js";
-import { PopularSearchParamsSchema, type PopularSearchCandidate } from "../llm/types.js";
+import type { PopularSearchCandidate } from "../llm/types.js";
 import { DEFAULT_POPULAR_SEARCHES_META_PROMPT } from "../llm/defaultMetaPrompt.js";
 
 const router = Router();
@@ -1288,6 +1288,51 @@ function labelFromParams(params: any) {
   return out.slice(0, 80).trim();
 }
 
+function deriveParamsFromIncludedTerms(input: {
+  label: string;
+  includedTerms: string[];
+  candidateStatsByTerm: Map<string, { saleUnique: number; wantedUnique: number; saleCount: number; wantedCount: number; topCategory: string | null }>;
+}) {
+  // Heuristic: choose browse type based on which side has more unique interest for the included terms.
+  // Default to sale if unknown.
+  let saleU = 0;
+  let wantedU = 0;
+  let saleC = 0;
+  let wantedC = 0;
+  const categoryVotes = new Map<string, number>();
+
+  for (const t of input.includedTerms) {
+    const s = input.candidateStatsByTerm.get(String(t).toLowerCase()) ?? null;
+    if (!s) continue;
+    saleU += s.saleUnique;
+    wantedU += s.wantedUnique;
+    saleC += s.saleCount;
+    wantedC += s.wantedCount;
+    if (s.topCategory) categoryVotes.set(s.topCategory, (categoryVotes.get(s.topCategory) ?? 0) + 1);
+  }
+
+  const type = wantedU > saleU ? "wanted" : "sale";
+  const q = String(input.label ?? "").trim();
+
+  // Category: pick the most voted, but avoid setting blank categories.
+  let category: string | undefined = undefined;
+  let bestCat = "";
+  let bestVotes = 0;
+  for (const [k, v] of categoryVotes.entries()) {
+    if (!k) continue;
+    if (v > bestVotes) {
+      bestVotes = v;
+      bestCat = k;
+    }
+  }
+  if (bestCat) category = bestCat;
+
+  // We intentionally use q (not species) to keep results broad/community-driven.
+  const params: Record<string, string> = { type, q };
+  if (category) params.category = category;
+  return params;
+}
+
 router.get("/settings", requireSuperadmin, (req, res) => {
   const db = getDb(req);
   const rows = db.prepare(`SELECT key,value_json,updated_at,updated_by_user_id FROM site_settings`).all() as any[];
@@ -1575,25 +1620,80 @@ LIMIT ?
     const setId = crypto.randomUUID();
     const now = nowIso();
 
+    // Build candidate stats index for derived params + expandable raw term details.
+    const categoryVotesByTerm = new Map<string, Map<string, number>>();
+    const candidateStatsByTerm = new Map<
+      string,
+      { saleUnique: number; wantedUnique: number; saleCount: number; wantedCount: number; topCategory: string | null }
+    >();
+
+    for (const c of candidates) {
+      const t = String(c.term ?? "").trim().toLowerCase();
+      if (!t) continue;
+      const cur = candidateStatsByTerm.get(t) ?? { saleUnique: 0, wantedUnique: 0, saleCount: 0, wantedCount: 0, topCategory: null };
+      if (c.browseType === "wanted") {
+        cur.wantedUnique += Number(c.unique ?? 0) || 0;
+        cur.wantedCount += Number(c.count ?? 0) || 0;
+      } else {
+        cur.saleUnique += Number(c.unique ?? 0) || 0;
+        cur.saleCount += Number(c.count ?? 0) || 0;
+      }
+      candidateStatsByTerm.set(t, cur);
+
+      const cat = String(c.category ?? "").trim();
+      if (cat) {
+        const m = categoryVotesByTerm.get(t) ?? new Map<string, number>();
+        m.set(cat, (m.get(cat) ?? 0) + 1);
+        categoryVotesByTerm.set(t, m);
+      }
+    }
+
+    for (const [t, stats] of candidateStatsByTerm.entries()) {
+      const votes = categoryVotesByTerm.get(t) ?? null;
+      if (votes) {
+        let best = "";
+        let bestV = 0;
+        for (const [k, v] of votes.entries()) {
+          if (v > bestV) {
+            bestV = v;
+            best = k;
+          }
+        }
+        stats.topCategory = best || null;
+      }
+    }
+
     // Build items (sanitize params and enforce either q or species).
     const items = (llmOut?.items ?? [])
       .map((it: any, idx: number) => {
-        const paramsParsed = PopularSearchParamsSchema.safeParse(it?.params ?? {});
-        if (!paramsParsed.success) return null;
-
-        const params = paramsParsed.data as any;
-        const hasQ = Boolean(String(params.q ?? "").trim());
-        const hasSpecies = Boolean(String(params.species ?? "").trim());
-        if (hasQ && hasSpecies) {
-          // Prefer species (more structured) and drop q.
-          delete params.q;
-        }
-
-        const label = sanitizePopularSearchLabel(it?.label) || labelFromParams(params);
+        const includeTermsRaw = Array.isArray(it?.include_terms) ? it.include_terms.map((x: any) => String(x)).filter(Boolean) : [];
+        const includeTerms = includeTermsRaw.map((x: string) => x.trim()).filter(Boolean).slice(0, 80);
+        const label = sanitizePopularSearchLabel(it?.label) || sanitizePopularSearchLabel(includeTerms[0] ?? "") || sanitizePopularSearchLabel("");
         if (!label) return null;
 
-        const includeTerms = Array.isArray(it?.include_terms) ? it.include_terms.map((x: any) => String(x)).filter(Boolean).slice(0, 80) : [];
         const conf = it?.confidence != null && Number.isFinite(Number(it.confidence)) ? Number(it.confidence) : null;
+
+        // Build candidate stats index (term -> aggregate) once per request.
+        // (closed over via outer scope below)
+        const includedLower = includeTerms.map((t: string) => t.toLowerCase());
+        const params = deriveParamsFromIncludedTerms({
+          label,
+          includedTerms: includedLower.length ? includedLower : [label.toLowerCase()],
+          candidateStatsByTerm,
+        });
+
+        const includedDetails = (includedLower.length ? includedLower : [label.toLowerCase()]).map((t) => {
+          const s = candidateStatsByTerm.get(t);
+          return {
+            term: t,
+            saleUnique: s?.saleUnique ?? 0,
+            wantedUnique: s?.wantedUnique ?? 0,
+            saleCount: s?.saleCount ?? 0,
+            wantedCount: s?.wantedCount ?? 0,
+            topCategory: s?.topCategory ?? null,
+          };
+        });
+
         return {
           id: crypto.randomUUID(),
           setId,
@@ -1601,7 +1701,7 @@ LIMIT ?
           label,
           params,
           paramsJson: JSON.stringify(params),
-          includedTermsJson: includeTerms.length ? JSON.stringify(includeTerms) : null,
+          includedTermsJson: includedDetails.length ? JSON.stringify(includedDetails) : null,
           confidence: conf,
           enabled: 1,
         };
@@ -1675,8 +1775,7 @@ INSERT INTO popular_search_items(
         id: it.id,
         rank: it.rank,
         label: it.label,
-        params: it.params,
-        includedTerms: it.includedTermsJson ? (JSON.parse(it.includedTermsJson) as string[]) : [],
+        includedTerms: it.includedTermsJson ? (JSON.parse(it.includedTermsJson) as any[]) : [],
         confidence: it.confidence,
         enabled: Boolean(it.enabled),
       })),
@@ -1714,16 +1813,9 @@ router.get("/popular-searches/sets/:id", requireSuperadmin, (req, res) => {
       id: String(r.id),
       rank: Number(r.rank ?? 0),
       label: String(r.label ?? ""),
-      params: (() => {
-        try {
-          return JSON.parse(String(r.params_json ?? "{}"));
-        } catch {
-          return {};
-        }
-      })(),
       includedTerms: (() => {
         try {
-          return r.included_terms_json ? (JSON.parse(String(r.included_terms_json)) as string[]) : [];
+          return r.included_terms_json ? (JSON.parse(String(r.included_terms_json)) as any[]) : [];
         } catch {
           return [];
         }
@@ -1768,16 +1860,9 @@ LIMIT 1
       id: String(r.id),
       rank: Number(r.rank ?? 0),
       label: String(r.label ?? ""),
-      params: (() => {
-        try {
-          return JSON.parse(String(r.params_json ?? "{}"));
-        } catch {
-          return {};
-        }
-      })(),
       includedTerms: (() => {
         try {
-          return r.included_terms_json ? (JSON.parse(String(r.included_terms_json)) as string[]) : [];
+          return r.included_terms_json ? (JSON.parse(String(r.included_terms_json)) as any[]) : [];
         } catch {
           return [];
         }
@@ -1788,16 +1873,42 @@ LIMIT 1
   });
 });
 
+router.get("/popular-searches/latest-published", requireSuperadmin, (req, res) => {
+  const db = getDb(req);
+  const set = db
+    .prepare(
+      `
+SELECT id, window_start_iso, window_end_iso, provider, model, status, created_at, updated_at
+FROM popular_search_sets
+WHERE status = 'published'
+ORDER BY updated_at DESC
+LIMIT 1
+`
+    )
+    .get() as any | undefined;
+
+  if (!set) return res.json({ set: null });
+  return res.json({
+    set: {
+      id: String(set.id),
+      windowStartIso: String(set.window_start_iso),
+      windowEndIso: String(set.window_end_iso),
+      provider: String(set.provider) as any,
+      model: String(set.model),
+      status: "published" as const,
+      createdAt: String(set.created_at),
+      updatedAt: String(set.updated_at),
+    },
+  });
+});
+
 const PopularSearchDraftItemEditSchema = z.object({
-  id: z.string().optional(),
+  id: z.string().min(1),
   label: z.string().min(1).max(80),
   enabled: z.boolean().optional().default(true),
-  params: PopularSearchParamsSchema,
-  includedTerms: z.array(z.string()).optional(),
-  confidence: z.number().min(0).max(1).optional().nullable(),
 });
 const UpdatePopularSearchSetSchema = z.object({
-  items: z.array(PopularSearchDraftItemEditSchema).min(1).max(50),
+  items: z.array(PopularSearchDraftItemEditSchema).max(50),
 });
 
 router.put("/popular-searches/sets/:id", requireSuperadmin, (req, res) => {
@@ -1813,21 +1924,36 @@ router.put("/popular-searches/sets/:id", requireSuperadmin, (req, res) => {
   if (String(set.status) !== "draft") return res.status(400).json({ error: "Only draft sets can be edited" });
 
   const now = nowIso();
-  const items = parsed.data.items.map((it, idx) => {
-    const params = it.params as any;
-    const hasQ = Boolean(String(params.q ?? "").trim());
-    const hasSpecies = Boolean(String(params.species ?? "").trim());
-    if (hasQ && hasSpecies) delete params.q;
-    return {
-      id: it.id ? String(it.id) : crypto.randomUUID(),
-      rank: idx + 1,
-      label: sanitizePopularSearchLabel(it.label) || labelFromParams(params),
-      paramsJson: JSON.stringify(params),
-      includedTermsJson: (it.includedTerms ?? []).length ? JSON.stringify(it.includedTerms ?? []) : null,
-      confidence: it.confidence != null && Number.isFinite(Number(it.confidence)) ? Number(it.confidence) : null,
-      enabled: it.enabled ? 1 : 0,
-    };
-  });
+
+  const existing = db.prepare(`SELECT * FROM popular_search_items WHERE set_id = ?`).all(id) as any[];
+  const byId = new Map<string, any>();
+  for (const r of existing) byId.set(String(r.id), r);
+
+  function paramsJsonFromLabel(label: string) {
+    const raw = String(label ?? "").trim();
+    const m = raw.match(/^(.*)\s+\(([^)]+)\)\s*$/);
+    const q = (m ? String(m[1] ?? "").trim() : raw).trim();
+    const category = (m ? String(m[2] ?? "").trim() : "").trim();
+    const params: Record<string, string> = { type: "sale" };
+    if (category) params.category = category;
+    if (q) params.q = q;
+    return JSON.stringify(params);
+  }
+
+  const items = parsed.data.items
+    .map((it, idx) => {
+      const prev = byId.get(String(it.id));
+      return {
+        id: String(it.id),
+        rank: idx + 1,
+        label: sanitizePopularSearchLabel(it.label),
+        paramsJson: prev ? String(prev.params_json ?? "{}") : paramsJsonFromLabel(it.label),
+        includedTermsJson: prev && prev.included_terms_json != null ? String(prev.included_terms_json) : null,
+        confidence: prev && prev.confidence != null ? Number(prev.confidence) : null,
+        enabled: it.enabled ? 1 : 0,
+      };
+    })
+    .filter(Boolean) as any[];
 
   const tx = db.transaction(() => {
     db.prepare(`DELETE FROM popular_search_items WHERE set_id = ?`).run(id);
@@ -1837,9 +1963,7 @@ INSERT INTO popular_search_items(id,set_id,rank,label,params_json,included_terms
 VALUES(?,?,?,?,?,?,?,?)
 `
     );
-    for (const it of items) {
-      ins.run(it.id, id, it.rank, it.label, it.paramsJson, it.includedTermsJson, it.confidence, it.enabled);
-    }
+    for (const it of items) ins.run(it.id, id, it.rank, it.label, it.paramsJson, it.includedTermsJson, it.confidence, it.enabled);
     db.prepare(`UPDATE popular_search_sets SET updated_at = ? WHERE id = ?`).run(now, id);
   });
 

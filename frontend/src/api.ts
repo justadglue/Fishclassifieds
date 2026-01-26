@@ -494,8 +494,17 @@ export type AdminPopularSearchDraftItem = {
   id: string;
   rank: number;
   label: string;
-  params: Record<string, string>;
-  includedTerms: string[];
+  includedTerms: Array<
+    | string
+    | {
+      term: string;
+      saleUnique?: number;
+      wantedUnique?: number;
+      saleCount?: number;
+      wantedCount?: number;
+      topCategory?: string | null;
+    }
+  >;
   confidence: number | null;
   enabled: boolean;
 };
@@ -539,7 +548,14 @@ export function adminGetLatestPopularSearchDraft() {
   return apiFetch<{ set: AdminPopularSearchSet | null; items: AdminPopularSearchDraftItem[] }>(`/api/admin/popular-searches/latest-draft`);
 }
 
-export function adminUpdatePopularSearchSet(id: string, input: { items: Array<Omit<AdminPopularSearchDraftItem, "rank">> }) {
+export function adminGetLatestPublishedPopularSearchSet() {
+  return apiFetch<{ set: AdminPopularSearchSet | null }>(`/api/admin/popular-searches/latest-published`);
+}
+
+export function adminUpdatePopularSearchSet(
+  id: string,
+  input: { items: Array<{ id: string; label: string; enabled: boolean }> }
+) {
   return apiFetch<{ ok: true }>(`/api/admin/popular-searches/sets/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },

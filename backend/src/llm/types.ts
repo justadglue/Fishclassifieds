@@ -8,16 +8,8 @@ export type PopularSearchCandidate = {
   unique: number;
 };
 
-export const PopularSearchParamsSchema = z.object({
-  type: z.enum(["sale", "wanted"]),
-  category: z.string().optional(),
-  q: z.string().optional(),
-  species: z.string().optional(),
-});
-
 export const PopularSearchItemSchema = z.object({
   label: z.string().min(1).max(80),
-  params: PopularSearchParamsSchema,
   include_terms: z.array(z.string().min(1)).max(100).optional().default([]),
   exclude_terms: z.array(z.string().min(1)).max(100).optional().default([]),
   confidence: z.number().min(0).max(1).optional().nullable(),

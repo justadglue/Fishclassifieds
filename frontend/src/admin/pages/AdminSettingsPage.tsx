@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, ChevronUp, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
 import {
   adminGeneratePopularSearchDraft,
   adminGetPopularSearchLlmSettings,
+  adminGetLatestPublishedPopularSearchSet,
   adminGetLatestPopularSearchDraft,
   adminPublishPopularSearchSet,
   adminSavePopularSearchLlmSettings,
   adminUpdatePopularSearchSet,
   adminGetSettings,
   adminUpdateSettings,
+  fetchListings,
   type AdminPopularSearchDraftItem,
   type AdminPopularSearchLlmSettings,
   type AdminPopularSearchSet,
@@ -50,9 +53,28 @@ export default function AdminSettingsPage() {
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftGenerating, setDraftGenerating] = useState(false);
   const [draftMsg, setDraftMsg] = useState<string | null>(null);
+  const [latestPublishedSet, setLatestPublishedSet] = useState<AdminPopularSearchSet | null>(null);
+  const [expandedRaw, setExpandedRaw] = useState<Set<string>>(() => new Set());
   const [inputSummary, setInputSummary] = useState<{ windowHours: number; candidatesTotal: number; candidatesUsed: number; candidatesDropped: number } | null>(
     null
   );
+  const [generateWindowValue, setGenerateWindowValue] = useState<string>("24");
+  const [generateWindowUnit, setGenerateWindowUnit] = useState<"hours" | "days" | "weeks">("hours");
+  const [saleMatchCounts, setSaleMatchCounts] = useState<Record<string, { loading: boolean; count: number | null; q: string; category?: string }>>({});
+  const [unmatchedOverrides, setUnmatchedOverrides] = useState<Set<string>>(() => new Set());
+  const [customLabelDraft, setCustomLabelDraft] = useState<string>("");
+  const [customLabelOpen, setCustomLabelOpen] = useState(false);
+  const customLabelInputRef = useRef<HTMLInputElement | null>(null);
+
+  function parseLabelToSaleSearch(label: string): { q: string; category?: string } {
+    const raw = String(label ?? "").trim();
+    if (!raw) return { q: "" };
+    const m = raw.match(/^(.*)\s+\(([^)]+)\)\s*$/);
+    if (!m) return { q: raw };
+    const q = (m[1] ?? "").trim();
+    const category = (m[2] ?? "").trim();
+    return { q, category: category || undefined };
+  }
 
   async function load() {
     setLoading(true);
@@ -108,8 +130,40 @@ export default function AdminSettingsPage() {
         // ignore
       }
     })();
+
+    (async () => {
+      try {
+        const p = await adminGetLatestPublishedPopularSearchSet();
+        setLatestPublishedSet(p.set ?? null);
+      } catch {
+        // ignore
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuper]);
+
+  function timeAgoLabel(iso: string) {
+    const t = Date.parse(String(iso ?? ""));
+    if (!Number.isFinite(t)) return null;
+    const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+    if (sec < 60) return "just now";
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 48) return `${hr}h ago`;
+    const day = Math.floor(hr / 24);
+    return `${day}d ago`;
+  }
+
+  function windowDurationLabel(startIso: string, endIso: string) {
+    const a = Date.parse(String(startIso ?? ""));
+    const b = Date.parse(String(endIso ?? ""));
+    if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return null;
+    const hours = Math.max(1, Math.round((b - a) / (60 * 60 * 1000)));
+    if (hours % 168 === 0) return `${hours / 168}w`;
+    if (hours % 24 === 0) return `${hours / 24}d`;
+    return `${hours}h`;
+  }
 
   if (!isSuper) {
     return (
@@ -161,7 +215,11 @@ export default function AdminSettingsPage() {
     setDraftGenerating(true);
     setDraftMsg(null);
     try {
-      const res = await adminGeneratePopularSearchDraft({ windowHours: 24, candidateLimit: 200, outputLimit: 12 });
+      const parsed = Number.parseInt(generateWindowValue, 10);
+      const value = Number.isFinite(parsed) ? Math.max(1, Math.min(52, Math.floor(parsed))) : 24;
+      const factor = generateWindowUnit === "weeks" ? 168 : generateWindowUnit === "days" ? 24 : 1;
+      const windowHours = Math.max(1, Math.min(24 * 365, value * factor));
+      const res = await adminGeneratePopularSearchDraft({ windowHours, candidateLimit: 200, outputLimit: 12 });
       setDraftSet(res.set as any);
       setDraftItems(res.items ?? []);
       setInputSummary(res.inputSummary ?? null);
@@ -173,7 +231,7 @@ export default function AdminSettingsPage() {
     }
   }
 
-  const canSaveDraft = Boolean(draftSet && draftSet.status === "draft" && draftItems.length);
+  const canSaveDraft = Boolean(draftSet && draftSet.status === "draft");
   const hasAnyEnabled = useMemo(() => (draftItems ?? []).some((x) => x.enabled), [draftItems]);
 
   async function saveDraftEdits() {
@@ -182,14 +240,7 @@ export default function AdminSettingsPage() {
     setDraftMsg(null);
     try {
       await adminUpdatePopularSearchSet(draftSet.id, {
-        items: draftItems.map((x) => ({
-          id: x.id,
-          label: x.label,
-          params: x.params,
-          includedTerms: x.includedTerms,
-          confidence: x.confidence,
-          enabled: x.enabled,
-        })) as any,
+        items: draftItems.map((x) => ({ id: x.id, label: x.label, enabled: x.enabled })),
       });
       setDraftMsg("Draft saved.");
     } catch (e: any) {
@@ -204,15 +255,142 @@ export default function AdminSettingsPage() {
     setDraftLoading(true);
     setDraftMsg(null);
     try {
+      // Persist current edits before publishing (so auto-disabled unmatched items are excluded).
+      await adminUpdatePopularSearchSet(draftSet.id, {
+        items: draftItems.map((x) => ({ id: x.id, label: x.label, enabled: x.enabled })),
+      });
       await adminPublishPopularSearchSet(draftSet.id);
       setDraftMsg("Published. Homepage will now use this curated list.");
-      setDraftSet((prev) => (prev ? { ...prev, status: "published" } : prev));
+      const nowIso = new Date().toISOString();
+      setDraftSet((prev) => (prev ? { ...prev, status: "published", updatedAt: nowIso } : prev));
+      setLatestPublishedSet((prev) => {
+        if (!draftSet) return prev;
+        return { ...draftSet, status: "published", updatedAt: nowIso };
+      });
     } catch (e: any) {
       setDraftMsg(e?.message ?? "Failed to publish");
     } finally {
       setDraftLoading(false);
     }
   }
+
+  function moveDraftItemBy(id: string, delta: number) {
+    setDraftItems((prev) => {
+      const fromIdx = prev.findIndex((x) => x.id === id);
+      if (fromIdx < 0) return prev;
+      const toIdx = fromIdx + delta;
+      if (toIdx < 0 || toIdx >= prev.length) return prev;
+
+      const isUnmatched = (itemId: string) => {
+        const s = saleMatchCounts[itemId];
+        return Boolean(s && !s.loading && s.q && s.count === 0 && !unmatchedOverrides.has(itemId));
+      };
+      const firstUnmatchedIdx = prev.findIndex((x) => isUnmatched(x.id));
+      if (firstUnmatchedIdx >= 0) {
+        const movingIsUnmatched = isUnmatched(id);
+        // Keep unmatched items at the bottom segment.
+        if (movingIsUnmatched && toIdx < firstUnmatchedIdx) return prev;
+        if (!movingIsUnmatched && toIdx >= firstUnmatchedIdx) return prev;
+      }
+
+      return moveItem(prev, fromIdx, toIdx);
+    });
+  }
+
+  // Fetch "for sale browse" match counts for each draft label (shows how many results would appear on /browse/for-sale).
+  const saleCountsKey = useMemo(() => draftItems.map((it) => `${it.id}:${it.label}`).join("\n"), [draftItems]);
+  useEffect(() => {
+    if (!draftItems.length) return;
+
+    const t = window.setTimeout(() => {
+      (async () => {
+        // mark loading for current items
+        setSaleMatchCounts((prev) => {
+          const next: Record<string, { loading: boolean; count: number | null; q: string; category?: string }> = { ...prev };
+          for (const it of draftItems) {
+            const { q, category } = parseLabelToSaleSearch(it.label);
+            next[it.id] = { loading: Boolean(q), count: q ? (prev[it.id]?.q === q && prev[it.id]?.category === category ? prev[it.id]?.count ?? null : null) : null, q, category };
+          }
+          return next;
+        });
+
+        const results = await Promise.allSettled(
+          draftItems.map(async (it) => {
+            const { q, category } = parseLabelToSaleSearch(it.label);
+            if (!q) return { id: it.id, q, category, total: null as number | null };
+            const res = await fetchListings({ q, category, limit: 1, offset: 0 });
+            return { id: it.id, q, category, total: res.total ?? 0 };
+          })
+        );
+
+        setSaleMatchCounts((prev) => {
+          const next = { ...prev };
+          for (const r of results) {
+            if (r.status !== "fulfilled") continue;
+            const { id, q, category, total } = r.value;
+            const cur = next[id];
+            // Only apply if the label-derived query still matches (avoid stale updates while typing).
+            if (!cur || cur.q !== q || cur.category !== category) continue;
+            next[id] = { ...cur, loading: false, count: total };
+          }
+          return next;
+        });
+      })().catch(() => {
+        // ignore (counts are best-effort UI)
+      });
+    }, 400);
+
+    return () => window.clearTimeout(t);
+  }, [saleCountsKey]);
+
+  useEffect(() => {
+    if (!customLabelOpen) return;
+    const t = window.setTimeout(() => customLabelInputRef.current?.focus(), 0);
+    return () => window.clearTimeout(t);
+  }, [customLabelOpen]);
+
+  // Auto-move unmatched labels (0 sale matches) to the bottom and disable them so they won't publish.
+  const saleCountsSignature = useMemo(() => {
+    return draftItems
+      .map((it) => {
+        const s = saleMatchCounts[it.id];
+        const l = s?.loading ? "1" : "0";
+        const c = s?.count == null ? "n" : String(s.count);
+        const q = s?.q ?? "";
+        const cat = s?.category ?? "";
+        return `${it.id}:${l}:${c}:${q}:${cat}`;
+      })
+      .join("|");
+  }, [draftItems, saleMatchCounts]);
+
+  useEffect(() => {
+    if (!draftItems.length) return;
+    setDraftItems((prev) => {
+      const isZero = (itemId: string) => {
+        const s = saleMatchCounts[itemId];
+        return Boolean(s && !s.loading && s.q && s.count === 0);
+      };
+      const isUnmatched = (itemId: string) => isZero(itemId) && !unmatchedOverrides.has(itemId);
+      const isOverridden = (itemId: string) => isZero(itemId) && unmatchedOverrides.has(itemId);
+
+      const hasAnyUnmatched = prev.some((x) => isUnmatched(x.id));
+      const hasAnyOverridden = prev.some((x) => isOverridden(x.id));
+      if (!hasAnyUnmatched && !hasAnyOverridden) return prev;
+
+      const withEnabled = prev.map((x) => {
+        if (isUnmatched(x.id)) return { ...x, enabled: false };
+        if (isOverridden(x.id)) return { ...x, enabled: true };
+        return x;
+      });
+
+      // Stable partition: matched first, then overridden-zero, then unmatched-zero.
+      const matched = withEnabled.filter((x) => !isZero(x.id));
+      const overridden = withEnabled.filter((x) => isOverridden(x.id));
+      const unmatched = withEnabled.filter((x) => isUnmatched(x.id));
+      return [...matched, ...overridden, ...unmatched];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saleCountsSignature, unmatchedOverrides]);
 
   return (
     <div>
@@ -330,7 +508,7 @@ export default function AdminSettingsPage() {
             </div>
 
             <div className="mt-4 grid gap-3">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <div className="text-sm font-semibold text-slate-700">Provider</div>
                 <select
                   value={llmProvider}
@@ -341,20 +519,20 @@ export default function AdminSettingsPage() {
                     setLlmModelPreset(presets[0] ?? "");
                     setLlmModelCustom("");
                   }}
-                  className="w-48 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-slate-400"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-slate-400 sm:w-48"
                 >
                   <option value="openai">OpenAI</option>
                   <option value="gemini">Gemini</option>
                 </select>
               </div>
 
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <div className="text-sm font-semibold text-slate-700">Model</div>
                 <div className="flex items-center gap-2">
                   <select
                     value={llmModelPreset}
                     onChange={(e) => setLlmModelPreset(e.target.value)}
-                    className="w-56 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-slate-400"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-slate-400 sm:w-56"
                   >
                     {(llmProvider === "gemini" ? GEMINI_MODEL_PRESETS : OPENAI_MODEL_PRESETS).map((m) => (
                       <option key={m} value={m}>
@@ -369,20 +547,20 @@ export default function AdminSettingsPage() {
                       value={llmModelCustom}
                       onChange={(e) => setLlmModelCustom(e.target.value)}
                       placeholder={llmProvider === "gemini" ? "gemini-2.0-flash" : "gpt-4o-mini"}
-                      className="w-64 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-slate-400"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-slate-400 sm:w-64"
                     />
                   ) : null}
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <div className="text-sm font-semibold text-slate-700">API key</div>
                 <input
                   type="password"
                   value={llmApiKey}
                   onChange={(e) => setLlmApiKey(e.target.value)}
                   placeholder={llm && llm.apiKeySet ? "•••••••• (set)" : "Enter API key"}
-                  className="w-64 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-slate-400"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-slate-400 sm:w-64"
                 />
               </div>
 
@@ -403,7 +581,7 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3 pt-2">
+              <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <div className="text-xs text-slate-600">{llm ? `Saved provider: ${llm.provider ?? "—"} • model: ${llm.model ?? "—"}` : ""}</div>
                 <button
                   type="button"
@@ -414,7 +592,7 @@ export default function AdminSettingsPage() {
                     (!llmApiKey && !(llm?.apiKeySet ?? false)) ||
                     llmMetaPrompt.trim().length < 10
                   }
-                  className="rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-60"
+                  className="w-full rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-60 sm:w-auto"
                 >
                   Save LLM settings
                 </button>
@@ -441,24 +619,107 @@ export default function AdminSettingsPage() {
 
             {draftSet ? (
               <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                Draft set: <span className="font-mono">{draftSet.id}</span> • Status: {draftSet.status}
+                {(() => {
+                  const status = String((draftSet as any).status ?? "");
+                  const startIso = String((draftSet as any).windowStartIso ?? "");
+                  const endIso = String((draftSet as any).windowEndIso ?? "");
+                  const updatedAt = String((draftSet as any).updatedAt ?? "");
+                  const windowLabel = (() => {
+                    const a = Date.parse(startIso);
+                    const b = Date.parse(endIso);
+                    if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return null;
+                    const hours = Math.max(1, Math.round((b - a) / (60 * 60 * 1000)));
+                    if (hours % 168 === 0) return `${hours / 168}w`;
+                    if (hours % 24 === 0) return `${hours / 24}d`;
+                    return `${hours}h`;
+                  })();
+
+                  return (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div>
+                        Set: <span className="font-mono">{draftSet.id}</span>
+                      </div>
+                      <div className="text-slate-400">•</div>
+                      <div>
+                        Status: <span className="font-extrabold">{status}</span>
+                      </div>
+                      {windowLabel ? (
+                        <>
+                          <div className="text-slate-400">•</div>
+                          <div>
+                            Window: <span className="font-extrabold">{windowLabel}</span>
+                          </div>
+                        </>
+                      ) : null}
+                      {status === "published" && updatedAt ? (
+                        <>
+                          <div className="text-slate-400">•</div>
+                          <div>
+                            Published at: <span className="font-extrabold">{new Date(updatedAt).toLocaleString()}</span>
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
+                  );
+                })()}
               </div>
             ) : null}
 
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={generateDraft}
-                disabled={draftLoading || draftGenerating || !(llm?.apiKeySet ?? false)}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-              >
-                {draftGenerating ? "Generating…" : "Generate from last 24h"}
-              </button>
+            {latestPublishedSet ? (
+              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                {(() => {
+                  const ago = timeAgoLabel(latestPublishedSet.updatedAt);
+                  const dur = windowDurationLabel(latestPublishedSet.windowStartIso, latestPublishedSet.windowEndIso);
+                  return (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="font-extrabold">Latest published</div>
+                      <div className="text-emerald-700">{ago ? `• ${ago}` : ""}</div>
+                      {dur ? <div className="text-emerald-700">• Window {dur}</div> : null}
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="flex w-full gap-2 sm:w-auto">
+                <button
+                  type="button"
+                  onClick={generateDraft}
+                  disabled={draftLoading || draftGenerating || !(llm?.apiKeySet ?? false)}
+                  className="flex h-10 flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60 sm:flex-none"
+                >
+                  {draftGenerating ? "Generating…" : "Generate"}
+                </button>
+                <div className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3">
+                  <select
+                    value={generateWindowUnit}
+                    onChange={(e) => setGenerateWindowUnit(e.target.value as any)}
+                    className="h-10 border-0 bg-transparent py-0 text-sm font-bold leading-10 text-slate-700 outline-none"
+                    aria-label="Window units"
+                    title="Window units"
+                  >
+                    <option value="hours">Hours</option>
+                    <option value="days">Days</option>
+                    <option value="weeks">Weeks</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={generateWindowValue}
+                    onChange={(e) => setGenerateWindowValue(e.target.value.replace(/[^\d]/g, ""))}
+                    className="h-10 w-16 border-0 bg-transparent py-0 text-sm font-bold leading-10 text-slate-900 outline-none"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    aria-label="Window value"
+                    title="Window value"
+                  />
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={saveDraftEdits}
                 disabled={draftLoading || draftGenerating || !canSaveDraft}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60 sm:w-auto"
               >
                 Save draft
               </button>
@@ -466,7 +727,7 @@ export default function AdminSettingsPage() {
                 type="button"
                 onClick={publishDraft}
                 disabled={draftLoading || draftGenerating || !canSaveDraft || !hasAnyEnabled}
-                className="rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-60"
+                className="h-10 w-full rounded-xl border border-slate-900 bg-slate-900 px-3 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-60 sm:w-auto"
               >
                 Publish
               </button>
@@ -476,174 +737,336 @@ export default function AdminSettingsPage() {
               <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">{draftMsg}</div>
             ) : null}
 
-            {draftGenerating ? (
-              <div className="mt-3 flex items-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 p-3 text-sm font-semibold text-indigo-900">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-900" aria-hidden="true" />
-                Generating draft…
-              </div>
-            ) : null}
-          </div>
-        </div>
 
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <div className="text-sm font-extrabold text-slate-900">Draft editor</div>
-              <div className="mt-1 text-sm text-slate-600">Edit labels/params, toggle items, and reorder before publishing.</div>
-            </div>
-          </div>
 
-          {draftGenerating ? (
-            <div className="mt-3 text-sm text-slate-600">Generating…</div>
-          ) : !draftItems.length ? (
-            <div className="mt-3 text-sm text-slate-600">No draft loaded. Click “Generate from last 24h”.</div>
-          ) : (
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[900px] border-separate border-spacing-0">
-                <thead>
-                  <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-500">
-                    <th className="pb-2">On</th>
-                    <th className="pb-2">Label</th>
-                    <th className="pb-2">Type</th>
-                    <th className="pb-2">Category</th>
-                    <th className="pb-2">Mode</th>
-                    <th className="pb-2">Value</th>
-                    <th className="pb-2">Order</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {draftItems.map((it, idx) => {
-                    const type = String(it.params?.type ?? "sale");
-                    const category = String(it.params?.category ?? "");
-                    const species = String(it.params?.species ?? "");
-                    const q = String(it.params?.q ?? "");
-                    const mode = species ? "species" : "q";
-                    const value = species ? species : q;
-
-                    return (
-                      <tr key={it.id} className="border-t border-slate-100 align-top">
-                        <td className="py-2 pr-3">
-                          <input
-                            type="checkbox"
-                            checked={it.enabled}
-                            onChange={(e) =>
-                              setDraftItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, enabled: e.target.checked } : x)))
-                            }
-                          />
-                        </td>
-                        <td className="py-2 pr-3">
-                          <div className="w-72">
-                            <input
-                              value={it.label}
-                              onChange={(e) =>
-                                setDraftItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, label: e.target.value } : x)))
-                              }
-                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-slate-400"
-                            />
-                            {(it.includedTerms ?? []).length ? (
-                              <div className="mt-1 text-[11px] font-semibold text-slate-500" title={(it.includedTerms ?? []).join(", ")}>
-                                Merged terms: {(it.includedTerms ?? []).length}
-                              </div>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="py-2 pr-3">
-                          <select
-                            value={type}
-                            onChange={(e) =>
-                              setDraftItems((prev) =>
-                                prev.map((x) => (x.id === it.id ? { ...x, params: { ...x.params, type: e.target.value } } : x))
-                              )
-                            }
-                            className="w-28 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-slate-400"
-                          >
-                            <option value="sale">sale</option>
-                            <option value="wanted">wanted</option>
-                          </select>
-                        </td>
-                        <td className="py-2 pr-3">
-                          <input
-                            value={category}
-                            onChange={(e) =>
-                              setDraftItems((prev) =>
-                                prev.map((x) => (x.id === it.id ? { ...x, params: { ...x.params, category: e.target.value } } : x))
-                              )
-                            }
-                            placeholder="(optional)"
-                            className="w-40 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-slate-400"
-                          />
-                        </td>
-                        <td className="py-2 pr-3">
-                          <select
-                            value={mode}
-                            onChange={(e) => {
-                              const m = e.target.value;
-                              setDraftItems((prev) =>
-                                prev.map((x) => {
-                                  if (x.id !== it.id) return x;
-                                  const next = { ...x, params: { ...x.params } } as any;
-                                  if (m === "species") {
-                                    delete next.params.q;
-                                    next.params.species = value || "";
-                                  } else {
-                                    delete next.params.species;
-                                    next.params.q = value || "";
-                                  }
-                                  return next;
-                                })
-                              );
-                            }}
-                            className="w-28 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-slate-400"
-                          >
-                            <option value="species">species</option>
-                            <option value="q">q</option>
-                          </select>
-                        </td>
-                        <td className="py-2 pr-3">
-                          <input
-                            value={value}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              setDraftItems((prev) =>
-                                prev.map((x) => {
-                                  if (x.id !== it.id) return x;
-                                  const next = { ...x, params: { ...x.params } } as any;
-                                  if (mode === "species") next.params.species = v;
-                                  else next.params.q = v;
-                                  return next;
-                                })
-                              );
-                            }}
-                            className="w-56 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-slate-400"
-                          />
-                        </td>
-                        <td className="py-2">
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setDraftItems((prev) => moveItem(prev, idx, Math.max(0, idx - 1)))}
-                              disabled={idx === 0}
-                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-                            >
-                              Up
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDraftItems((prev) => moveItem(prev, idx, Math.min(prev.length - 1, idx + 1)))}
-                              disabled={idx === draftItems.length - 1}
-                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-                            >
-                              Down
-                            </button>
-                          </div>
-                        </td>
+            {/* Draft editor (inline) */}
+            <div className="mt-5">
+              {draftGenerating ? (
+                <div className="text-sm text-slate-600">Generating…</div>
+              ) : !draftSet ? (
+                <div className="text-sm text-slate-600">No draft loaded. Click “Generate”.</div>
+              ) : draftItems.length ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full table-fixed border-collapse">
+                    <thead>
+                      <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                        <th className="pb-2">Label</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody>
+                      {draftItems.map((it, idx) => {
+                        const isExpanded = expandedRaw.has(it.id);
+                        const canDelete = true;
+                        const canMoveUp = idx > 0;
+                        const canMoveDown = idx < draftItems.length - 1;
+
+                        return (
+                          <Fragment key={it.id}>
+                            <tr className="border-t border-slate-200 align-top">
+                              <td className="py-2 pr-3">
+                                <div className="flex w-full min-w-0 flex-col gap-1">
+                                  {/* Row 1: Label + (sm+: Eye + Delete) + Move buttons (right) */}
+                                  <div className="flex w-full min-w-0 items-center justify-between gap-2">
+                                    {/* Left group: label + inline buttons (can shrink) */}
+                                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                                      <input
+                                        value={it.label}
+                                        onChange={(e) =>
+                                          setDraftItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, label: e.target.value } : x)))
+                                        }
+                                        className="h-10 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none focus:border-slate-400"
+                                        style={{ maxWidth: "18rem" }}
+                                      />
+
+                                      {/* On sm+ screens, eye + delete appear inline after label */}
+                                      <div className="hidden shrink-0 items-center gap-1 sm:flex">
+                                        {(() => {
+                                          const s = saleMatchCounts[it.id];
+                                          const isZero = Boolean(s && !s.loading && s.q && s.count === 0);
+                                          const isOverridden = isZero && unmatchedOverrides.has(it.id);
+                                          const cls = isZero
+                                            ? isOverridden
+                                              ? "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-xs font-extrabold text-amber-800"
+                                              : "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-xs font-extrabold text-red-700"
+                                            : "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs font-extrabold text-slate-700";
+                                          return (
+                                            <button
+                                              type="button"
+                                              className={cls}
+                                              title={
+                                                isZero
+                                                  ? isOverridden
+                                                    ? "0 matches (overridden to include)"
+                                                    : "0 matches (click to include anyway)"
+                                                  : "For sale matches (if searched on browse)"
+                                              }
+                                              onClick={() => {
+                                                if (!isZero) return;
+                                                setUnmatchedOverrides((prev) => {
+                                                  const next = new Set(prev);
+                                                  if (next.has(it.id)) next.delete(it.id);
+                                                  else next.add(it.id);
+                                                  return next;
+                                                });
+                                              }}
+                                            >
+                                              {saleMatchCounts[it.id]?.loading
+                                                ? "…"
+                                                : saleMatchCounts[it.id]?.count == null
+                                                  ? "—"
+                                                  : saleMatchCounts[it.id]!.count!.toLocaleString()}
+                                              {isOverridden ? <Check className="ml-0.5 h-3.5 w-3.5" aria-hidden="true" /> : null}
+                                            </button>
+                                          );
+                                        })()}
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setExpandedRaw((prev) => {
+                                              const next = new Set(prev);
+                                              if (next.has(it.id)) next.delete(it.id);
+                                              else next.add(it.id);
+                                              return next;
+                                            })
+                                          }
+                                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                                          aria-expanded={isExpanded}
+                                          aria-label={isExpanded ? "Hide Merged raw queries" : "Show Merged raw queries"}
+                                          title={isExpanded ? "Hide Merged raw queries" : "Show Merged raw queries"}
+                                        >
+                                          {isExpanded ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          disabled={!canDelete}
+                                          onClick={() => {
+                                            setDraftItems((prev) => prev.filter((x) => x.id !== it.id));
+                                            setExpandedRaw((prev) => {
+                                              const next = new Set(prev);
+                                              next.delete(it.id);
+                                              return next;
+                                            });
+                                          }}
+                                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
+                                          aria-label="Delete item"
+                                          title={canDelete ? "Delete item" : "At least one item is required"}
+                                        >
+                                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex shrink-0 items-center gap-1">
+                                      <button
+                                        type="button"
+                                        disabled={!canMoveUp}
+                                        onClick={() => moveDraftItemBy(it.id, -1)}
+                                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
+                                        aria-label="Move up"
+                                        title="Move up"
+                                      >
+                                        <ChevronUp className="h-4 w-4" aria-hidden="true" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={!canMoveDown}
+                                        onClick={() => moveDraftItemBy(it.id, 1)}
+                                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
+                                        aria-label="Move down"
+                                        title="Move down"
+                                      >
+                                        <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Row 2 (small screens only): Eye + Delete, left-aligned under label */}
+                                  <div className="flex items-center gap-2 sm:hidden">
+                                    {(() => {
+                                      const s = saleMatchCounts[it.id];
+                                      const isZero = Boolean(s && !s.loading && s.q && s.count === 0);
+                                      const isOverridden = isZero && unmatchedOverrides.has(it.id);
+                                      const cls = isZero
+                                        ? isOverridden
+                                          ? "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-xs font-extrabold text-amber-800"
+                                          : "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-xs font-extrabold text-red-700"
+                                        : "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs font-extrabold text-slate-700";
+                                      return (
+                                        <button
+                                          type="button"
+                                          className={cls}
+                                          title={
+                                            isZero
+                                              ? isOverridden
+                                                ? "0 matches (overridden to include)"
+                                                : "0 matches (tap to include anyway)"
+                                              : "For sale matches (if searched on browse)"
+                                          }
+                                          onClick={() => {
+                                            if (!isZero) return;
+                                            setUnmatchedOverrides((prev) => {
+                                              const next = new Set(prev);
+                                              if (next.has(it.id)) next.delete(it.id);
+                                              else next.add(it.id);
+                                              return next;
+                                            });
+                                          }}
+                                        >
+                                          {saleMatchCounts[it.id]?.loading
+                                            ? "…"
+                                            : saleMatchCounts[it.id]?.count == null
+                                              ? "—"
+                                              : saleMatchCounts[it.id]!.count!.toLocaleString()}
+                                          {isOverridden ? <Check className="ml-0.5 h-3.5 w-3.5" aria-hidden="true" /> : null}
+                                        </button>
+                                      );
+                                    })()}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setExpandedRaw((prev) => {
+                                          const next = new Set(prev);
+                                          if (next.has(it.id)) next.delete(it.id);
+                                          else next.add(it.id);
+                                          return next;
+                                        })
+                                      }
+                                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                                      aria-expanded={isExpanded}
+                                      aria-label={isExpanded ? "Hide Merged raw queries" : "Show Merged raw queries"}
+                                      title={isExpanded ? "Hide Merged raw queries" : "Show Merged raw queries"}
+                                    >
+                                      {isExpanded ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      disabled={!canDelete}
+                                      onClick={() => {
+                                        setDraftItems((prev) => prev.filter((x) => x.id !== it.id));
+                                        setExpandedRaw((prev) => {
+                                          const next = new Set(prev);
+                                          next.delete(it.id);
+                                          return next;
+                                        });
+                                      }}
+                                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
+                                      aria-label="Delete item"
+                                      title={canDelete ? "Delete item" : "At least one item is required"}
+                                    >
+                                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                    </button>
+                                  </div>
+
+                                  {/* Row 3: Merged raw queries count (always below label) */}
+                                  <div className="text-[11px] font-semibold text-slate-500">
+                                    Merged raw queries: {(it.includedTerms ?? []).length}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {isExpanded ? (
+                              <tr className="border-t border-slate-200">
+                                <td className="py-3">
+                                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-800">
+                                    <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Merged raw queries</div>
+                                    <div className="mt-2 grid gap-1">
+                                      {(it.includedTerms ?? []).map((x, i) => {
+                                        if (typeof x === "string") return <div key={`${it.id}-t-${i}`}>{x}</div>;
+                                        const term = String((x as any).term ?? "");
+                                        const saleU = Number((x as any).saleUnique ?? 0);
+                                        const wantedU = Number((x as any).wantedUnique ?? 0);
+                                        const saleC = Number((x as any).saleCount ?? 0);
+                                        const wantedC = Number((x as any).wantedCount ?? 0);
+                                        const cat = (x as any).topCategory != null ? String((x as any).topCategory) : null;
+                                        const uniq = saleU + wantedU;
+                                        const cnt = saleC + wantedC;
+                                        return (
+                                          <div key={`${it.id}-t-${i}`} className="flex flex-wrap items-center gap-2">
+                                            <span className="font-semibold">{term}</span>
+                                            <span className="text-slate-600">Unique searchers {uniq.toLocaleString()} • Total searches {cnt.toLocaleString()}</span>
+                                            {cat ? <span className="text-slate-600">• {cat}</span> : null}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : null}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+
+              {draftSet && draftSet.status === "draft" ? (
+                <div className="mt-3 pr-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                  {customLabelOpen ? (
+                    <>
+                      <input
+                        ref={customLabelInputRef}
+                        value={customLabelDraft}
+                        onChange={(e) => setCustomLabelDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          const label = customLabelDraft.trim();
+                          if (!label) return;
+                          const id = (globalThis.crypto as any)?.randomUUID?.() ? (globalThis.crypto as any).randomUUID() : `custom-${Date.now()}`;
+                          setDraftItems((prev) => [
+                            ...prev,
+                            { id, rank: prev.length + 1, label, includedTerms: [], confidence: null, enabled: true },
+                          ]);
+                          setCustomLabelDraft("");
+                          setCustomLabelOpen(false);
+                        }}
+                        placeholder="Custom label…"
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none focus:border-slate-400 sm:w-72"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const label = customLabelDraft.trim();
+                          if (!label) return;
+                          const id = (globalThis.crypto as any)?.randomUUID?.() ? (globalThis.crypto as any).randomUUID() : `custom-${Date.now()}`;
+                          setDraftItems((prev) => [
+                            ...prev,
+                            { id, rank: prev.length + 1, label, includedTerms: [], confidence: null, enabled: true },
+                          ]);
+                          setCustomLabelDraft("");
+                          setCustomLabelOpen(false);
+                        }}
+                        className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60 sm:w-auto"
+                        disabled={!customLabelDraft.trim() || draftGenerating || draftLoading}
+                        title="Add"
+                        aria-label="Add"
+                      >
+                        <Plus className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-xs font-semibold text-slate-500 sm:mr-2">Add label</div>
+                      <button
+                        type="button"
+                        onClick={() => setCustomLabelOpen(true)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+                        title="Add label"
+                        aria-label="Add label"
+                        disabled={draftGenerating || draftLoading}
+                      >
+                        <Plus className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : null}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

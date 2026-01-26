@@ -1722,6 +1722,24 @@ app.get("/api/listings", (req, res) => {
   const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
 
+  function escapeLike(s: string) {
+    // Escape LIKE wildcards and the escape char itself.
+    return s.replace(/[\\%_]/g, "\\$&");
+  }
+
+  function fuzzyLikePatternFromToken(token: string) {
+    const t = String(token ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+    // Avoid super-short tokens (too broad) and very long ones (expensive).
+    if (t.length < 4 || t.length > 24) return null;
+    // Interleaved pattern allows extra characters (e.g. "beta" matches "betta").
+    // Example: beta => %b%e%t%a%
+    const parts = t.split("").map((ch) => escapeLike(ch));
+    return `%${parts.join("%")}%`;
+  }
+
   // Log search analytics (q/species only; skip carousel "featured" fetch).
   if (featured !== "1") {
     tryLogSearchEvent({ req, browseType: "sale", qRaw, speciesRaw, categoryRaw, offset });
@@ -1744,9 +1762,41 @@ app.get("/api/listings", (req, res) => {
   }
 
   if (q) {
-    where.push("(lower(l.title)LIKE ? OR lower(l.description)LIKE ? OR lower(l.location)LIKE ? OR lower(l.species)LIKE ?)");
-    const pat = `%${q}%`;
+    const ors: string[] = [];
+    // Normal substring matching (existing behavior).
+    ors.push("lower(l.title) LIKE ? ESCAPE '\\'");
+    ors.push("lower(l.description) LIKE ? ESCAPE '\\'");
+    ors.push("lower(l.location) LIKE ? ESCAPE '\\'");
+    ors.push("lower(l.species) LIKE ? ESCAPE '\\'");
+    const pat = `%${escapeLike(q)}%`;
     params.push(pat, pat, pat, pat);
+
+    // Fuzzy fallback for likely-typo tokens (title/species only, to reduce noise).
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const fuzzyTokens = tokens
+      .map((t) => ({ t, p: fuzzyLikePatternFromToken(t) }))
+      .filter((x) => Boolean(x.p))
+      .slice(0, 2); // cap to keep query small/predictable
+
+    for (const ft of fuzzyTokens) {
+      ors.push("lower(l.title) LIKE ? ESCAPE '\\'");
+      ors.push("lower(l.species) LIKE ? ESCAPE '\\'");
+      params.push(ft.p, ft.p);
+    }
+
+    // Phonetic fallback for common substitution typos (e.g., oskar -> oscar).
+    // SQLite ships with soundex(), which is cheap and doesn't require extensions.
+    const soundexTokens = tokens
+      .map((t) => String(t ?? "").trim().toLowerCase().replace(/[^a-z]/g, ""))
+      .filter((t) => t.length >= 4 && t.length <= 24)
+      .slice(0, 2);
+    for (const t of soundexTokens) {
+      ors.push("soundex(l.title) = soundex(?)");
+      ors.push("soundex(l.species) = soundex(?)");
+      params.push(t, t);
+    }
+
+    where.push(`(${ors.join(" OR ")})`);
   }
   if (species) {
     where.push("lower(l.species)= ?");
@@ -1821,12 +1871,12 @@ ${whereSql}
     // Lightweight relevance without FTS:
     // title/species matches rank higher than description/location matches.
     // (Uses LIKE which is already used by filtering; keeps query simple and predictable.)
-    const pat = `%${q}%`;
+    const pat = `%${escapeLike(q)}%`;
     orderBy = `(
-      (CASE WHEN lower(l.title) LIKE ? THEN 4 ELSE 0 END) +
-      (CASE WHEN lower(l.species) LIKE ? THEN 2 ELSE 0 END) +
-      (CASE WHEN lower(l.description) LIKE ? THEN 1 ELSE 0 END) +
-      (CASE WHEN lower(l.location) LIKE ? THEN 1 ELSE 0 END)
+      (CASE WHEN lower(l.title) LIKE ? ESCAPE '\\' THEN 4 ELSE 0 END) +
+      (CASE WHEN lower(l.species) LIKE ? ESCAPE '\\' THEN 2 ELSE 0 END) +
+      (CASE WHEN lower(l.description) LIKE ? ESCAPE '\\' THEN 1 ELSE 0 END) +
+      (CASE WHEN lower(l.location) LIKE ? ESCAPE '\\' THEN 1 ELSE 0 END)
     ) DESC, COALESCE(l.published_at, l.created_at) DESC, l.id DESC`;
     orderParams.push(pat, pat, pat, pat);
   }

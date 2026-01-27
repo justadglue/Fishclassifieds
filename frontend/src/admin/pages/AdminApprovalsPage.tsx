@@ -249,7 +249,8 @@ export default function AdminApprovalsPage() {
       setTotal((t) => Math.max(0, t - 1));
       // Refresh history if open so it appears immediately.
       if (historyOpen) {
-        await loadHistory({ offset: histOffset });
+        setHistOffset(0);
+        await loadHistory({ offset: 0 });
       }
     } catch (e: any) {
       setErr(e?.message ?? "Failed to apply decision");

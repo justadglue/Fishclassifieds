@@ -1273,15 +1273,9 @@ export default function AdminListingsPage() {
                                                                     title="Unfeature"
                                                                     variant="feature"
                                                                     onClick={async () => {
-                                                                        setRestrictionsDraft((p) =>
-                                                                            p && p.listingId === it.id
-                                                                                ? {
-                                                                                    ...p,
-                                                                                    desiredFeaturedUntil: (it.featuredUntil ?? null) === null ? undefined : null,
-                                                                                    blockFeaturing: true,
-                                                                                }
-                                                                                : p
-                                                                        );
+                                                                        // Apply immediately (don't require Save).
+                                                                        await adminSetListingFeaturedUntil(it.id, null);
+                                                                        await load({ preserveOrder: true });
                                                                     }}
                                                                     icon={<CircleCheck aria-hidden="true" className="h-4 w-4" />}
                                                                 />
@@ -1303,15 +1297,9 @@ export default function AdminListingsPage() {
                                                                         if (daysRaw === null) return;
                                                                         const days = Math.max(1, Math.min(3650, Math.floor(Number(daysRaw))));
                                                                         if (!Number.isFinite(days)) return;
-                                                                        setRestrictionsDraft((p) =>
-                                                                            p && p.listingId === it.id
-                                                                                ? {
-                                                                                    ...p,
-                                                                                    desiredFeaturedUntil: Date.now() + days * 24 * 60 * 60 * 1000,
-                                                                                    blockFeaturing: false,
-                                                                                }
-                                                                                : p
-                                                                        );
+                                                                        // Apply immediately (don't require Save).
+                                                                        await adminSetListingFeaturedUntil(it.id, Date.now() + days * 24 * 60 * 60 * 1000);
+                                                                        await load({ preserveOrder: true });
                                                                     }}
                                                                     icon={<Star aria-hidden="true" className="h-4 w-4" />}
                                                                 />
@@ -1795,15 +1783,9 @@ export default function AdminListingsPage() {
                                                                                 title="Unfeature"
                                                                                 variant="feature"
                                                                                 onClick={async () => {
-                                                                                    setRestrictionsDraft((p) =>
-                                                                                        p && p.listingId === it.id
-                                                                                            ? {
-                                                                                                ...p,
-                                                                                                desiredFeaturedUntil: (it.featuredUntil ?? null) === null ? undefined : null,
-                                                                                                blockFeaturing: true,
-                                                                                            }
-                                                                                            : p
-                                                                                    );
+                                                                                    // Apply immediately (don't require Save).
+                                                                                    await adminSetListingFeaturedUntil(it.id, null);
+                                                                                    await load({ preserveOrder: true });
                                                                                 }}
                                                                                 icon={<CircleCheck aria-hidden="true" className="h-4 w-4" />}
                                                                             />
@@ -1825,15 +1807,9 @@ export default function AdminListingsPage() {
                                                                                     if (daysRaw === null) return;
                                                                                     const days = Math.max(1, Math.min(3650, Math.floor(Number(daysRaw))));
                                                                                     if (!Number.isFinite(days)) return;
-                                                                                    setRestrictionsDraft((p) =>
-                                                                                        p && p.listingId === it.id
-                                                                                            ? {
-                                                                                                ...p,
-                                                                                                desiredFeaturedUntil: Date.now() + days * 24 * 60 * 60 * 1000,
-                                                                                                blockFeaturing: false,
-                                                                                            }
-                                                                                            : p
-                                                                                    );
+                                                                                    // Apply immediately (don't require Save).
+                                                                                    await adminSetListingFeaturedUntil(it.id, Date.now() + days * 24 * 60 * 60 * 1000);
+                                                                                    await load({ preserveOrder: true });
                                                                                 }}
                                                                                 icon={<Star aria-hidden="true" className="h-4 w-4" />}
                                                                             />

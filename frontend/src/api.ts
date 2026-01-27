@@ -220,6 +220,7 @@ export function resolveAssets(images: ImageAsset[] | null | undefined): ImageAss
 export type AdminApprovalItem = {
   kind: "sale" | "wanted";
   id: string;
+  heroUrl?: string | null;
   title: string;
   category: string;
   location: string;
@@ -272,6 +273,48 @@ export function adminReject(kind: "sale" | "wanted", id: string, note?: string) 
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ note: note ?? null }),
+  });
+}
+
+export type AdminApprovalHistoryItem = {
+  id: string;
+  createdAt: string;
+  action: "approve" | "reject" | "approval_decision_changed";
+  kind: "sale" | "wanted";
+  listing: { id: string; title: string; status: ListingStatus | null; heroUrl?: string | null };
+  owner: { userId: number; username: string | null; email: string | null } | null;
+  actor: { userId: number; username: string | null; email: string | null };
+  prevStatus: ListingStatus | null;
+  nextStatus: ListingStatus | null;
+  note: string | null;
+};
+
+export function adminFetchApprovalsHistory(params?: {
+  kind?: "all" | "sale" | "wanted";
+  title?: string;
+  ownerUsername?: string;
+  actorUsername?: string;
+  action?: "all" | "approve" | "reject" | "approval_decision_changed";
+  limit?: number;
+  offset?: number;
+}) {
+  const qs = new URLSearchParams();
+  if (params?.kind) qs.set("kind", params.kind);
+  if (params?.title) qs.set("title", params.title);
+  if (params?.ownerUsername) qs.set("owner", params.ownerUsername);
+  if (params?.actorUsername) qs.set("actor", params.actorUsername);
+  if (params?.action) qs.set("action", params.action);
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<{ items: AdminApprovalHistoryItem[]; total: number; limit: number; offset: number }>(`/api/admin/approvals/history${suffix}`);
+}
+
+export function adminSetApprovalDecision(input: { kind: "sale" | "wanted"; id: string; decision: "approve" | "reject" | "pending"; note?: string | null }) {
+  return apiFetch<{ ok: true; prevStatus: string; nextStatus: string }>(`/api/admin/approvals/${input.kind}/${encodeURIComponent(input.id)}/set-decision`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ decision: input.decision, note: input.note ?? null }),
   });
 }
 

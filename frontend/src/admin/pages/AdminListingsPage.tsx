@@ -1242,6 +1242,8 @@ export default function AdminListingsPage() {
                                                                 label="Delete"
                                                                 title="Delete"
                                                                 variant="danger"
+                                                                // If the listing is already deleted in the DB, don't allow "deleting" again (no-op).
+                                                                disabled={it.status === "deleted"}
                                                                 onClick={async () => {
                                                                     setRestrictionsDraft((p) =>
                                                                         p && p.listingId === it.id
@@ -1256,6 +1258,8 @@ export default function AdminListingsPage() {
                                                                 label="Restore"
                                                                 title="Restore"
                                                                 variant="primary"
+                                                                // Only enable restore when the listing is actually deleted in the DB (otherwise it's a no-op).
+                                                                disabled={it.status !== "deleted"}
                                                                 onClick={async () => {
                                                                     setRestrictionsDraft((p) =>
                                                                         p && p.listingId === it.id
@@ -1758,6 +1762,8 @@ export default function AdminListingsPage() {
                                                                             label="Delete"
                                                                             title="Delete"
                                                                             variant="danger"
+                                                                            // If the listing is already deleted in the DB, don't allow "deleting" again (no-op).
+                                                                            disabled={it.status === "deleted"}
                                                                             onClick={async () => {
                                                                                 setRestrictionsDraft((p) =>
                                                                                     p && p.listingId === it.id
@@ -1772,6 +1778,8 @@ export default function AdminListingsPage() {
                                                                             label="Restore"
                                                                             title="Restore"
                                                                             variant="primary"
+                                                                            // Only enable restore when the listing is actually deleted in the DB (otherwise it's a no-op).
+                                                                            disabled={it.status !== "deleted"}
                                                                             onClick={async () => {
                                                                                 setRestrictionsDraft((p) =>
                                                                                     p && p.listingId === it.id

@@ -2067,9 +2067,15 @@ ${whereSql}
     .prepare(
       `
 SELECT l.id,l.listing_type,l.title,l.category,l.location,l.created_at,l.updated_at,
-       u.id as user_id,u.username as user_username,u.email as user_email
+       u.id as user_id,u.username as user_username,u.email as user_email,
+       li.thumb_url as hero_thumb_url, li.medium_url as hero_medium_url, li.url as hero_url
 FROM listings l
 JOIN users u ON u.id = l.user_id
+LEFT JOIN listing_images li
+  ON li.listing_id = l.id
+ AND li.sort_order = (
+   SELECT MIN(sort_order) FROM listing_images WHERE listing_id = l.id
+ )
 ${whereSql}
 ORDER BY ${orderBySql}
 LIMIT ? OFFSET ?
@@ -2080,6 +2086,14 @@ LIMIT ? OFFSET ?
   const items = rows.map((r) => ({
     kind: Number(r.listing_type) === 1 ? ("wanted" as const) : ("sale" as const),
     id: String(r.id),
+    heroUrl:
+      r.hero_thumb_url != null
+        ? String(r.hero_thumb_url)
+        : r.hero_medium_url != null
+          ? String(r.hero_medium_url)
+          : r.hero_url != null
+            ? String(r.hero_url)
+            : null,
     title: String(r.title ?? ""),
     category: String(r.category ?? ""),
     location: String(r.location ?? ""),
@@ -2117,7 +2131,7 @@ WHERE id = ?
 AND listing_type = ?
 `
   ).run(now, now, id, lt);
-  audit(db, req.user!.id, "approve", kind, id, { prevStatus: row.status });
+  audit(db, req.user!.id, "approve", kind, id, { prevStatus: row.status, nextStatus: "active" });
   const ownerUserId = row.user_id != null ? Number(row.user_id) : null;
   if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
     const title = String(row.title ?? "").trim() || "your listing";
@@ -2149,12 +2163,12 @@ router.post("/approvals/:kind/:id/reject", (req, res) => {
 
   const now = nowIso();
   db.prepare(`UPDATE listings SET status = 'deleted', deleted_at = ?, updated_at = ? WHERE id = ? AND listing_type = ?`).run(now, now, id, lt);
-  audit(db, req.user!.id, "reject", kind, id, { prevStatus: row.status, note: parsed.data.note ?? null });
+  audit(db, req.user!.id, "reject", kind, id, { prevStatus: row.status, nextStatus: "deleted", note: parsed.data.note ?? null });
   const ownerUserId = row.user_id != null ? Number(row.user_id) : null;
   if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
     const title = String(row.title ?? "").trim() || "your listing";
     const note = parsed.data.note ?? null;
-    const body = note ? `Your listing was rejected by an admin.\n\nNote: ${note}` : "Your listing was rejected by an admin.";
+    const body = note ? `Your listing was rejected by an admin.\n\nReason: ${note}` : "Your listing was rejected by an admin.";
     notify(
       db,
       ownerUserId,
@@ -2165,6 +2179,221 @@ router.post("/approvals/:kind/:id/reject", (req, res) => {
     );
   }
   return res.json({ ok: true });
+});
+
+// --- Approvals history + decision changes ---
+router.get("/approvals/history", (req, res) => {
+  const db = getDb(req);
+
+  const kindRaw = String(req.query.kind ?? "all").trim();
+  const kind = kindRaw === "sale" || kindRaw === "wanted" ? kindRaw : "all";
+  const titleQuery = String(req.query.title ?? "").trim().toLowerCase();
+  const ownerQuery = String(req.query.owner ?? "").trim().toLowerCase();
+  const actorQuery = String(req.query.actor ?? "").trim().toLowerCase();
+  const actionRaw = String(req.query.action ?? "all").trim().toLowerCase();
+  const action = actionRaw === "approve" || actionRaw === "reject" || actionRaw === "approval_decision_changed" ? actionRaw : "all";
+
+  const limitRaw = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw!))) : 50;
+  const offsetRaw = req.query.offset !== undefined ? Number(req.query.offset) : undefined;
+  const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw!)) : 0;
+
+  const where: string[] = [];
+  const params: any[] = [];
+
+  where.push(`a.target_kind IN ('sale','wanted')`);
+  where.push(`a.action IN ('approve','reject','approval_decision_changed')`);
+
+  if (kind !== "all") {
+    where.push(`a.target_kind = ?`);
+    params.push(kind);
+  }
+  if (action !== "all") {
+    where.push(`a.action = ?`);
+    params.push(action);
+  }
+
+  const likePat = (s: string) => `%${escapeSqlLike(s)}%`;
+  if (titleQuery) {
+    const pat = likePat(titleQuery);
+    where.push(`lower(COALESCE(l.title,'')) LIKE ? ESCAPE '\\'`);
+    params.push(pat);
+  }
+  if (ownerQuery) {
+    const pat = likePat(ownerQuery);
+    where.push(`lower(COALESCE(ou.username,'')) LIKE ? ESCAPE '\\'`);
+    params.push(pat);
+  }
+  if (actorQuery) {
+    const pat = likePat(actorQuery);
+    where.push(`lower(COALESCE(au.username,'')) LIKE ? ESCAPE '\\'`);
+    params.push(pat);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  const totalRow = db
+    .prepare(
+      `
+SELECT COUNT(*) as c
+FROM admin_audit a
+LEFT JOIN users au ON au.id = a.actor_user_id
+LEFT JOIN listings l
+  ON l.id = a.target_id
+ AND l.listing_type = (CASE WHEN a.target_kind = 'wanted' THEN 1 ELSE 0 END)
+LEFT JOIN users ou ON ou.id = l.user_id
+${whereSql}
+`
+    )
+    .get(...params) as any;
+  const total = Number(totalRow?.c ?? 0);
+
+  const rows = db
+    .prepare(
+      `
+SELECT a.id,a.created_at,a.action,a.target_kind,a.target_id,a.meta_json,
+       au.id as actor_user_id, au.username as actor_username, au.email as actor_email,
+       l.title as listing_title, l.status as listing_status, l.user_id as owner_user_id,
+       ou.username as owner_username, ou.email as owner_email,
+       li.thumb_url as hero_thumb_url, li.medium_url as hero_medium_url, li.url as hero_url
+FROM admin_audit a
+LEFT JOIN users au ON au.id = a.actor_user_id
+LEFT JOIN listings l
+  ON l.id = a.target_id
+ AND l.listing_type = (CASE WHEN a.target_kind = 'wanted' THEN 1 ELSE 0 END)
+LEFT JOIN users ou ON ou.id = l.user_id
+LEFT JOIN listing_images li
+  ON li.listing_id = l.id
+ AND li.sort_order = (
+   SELECT MIN(sort_order) FROM listing_images WHERE listing_id = l.id
+ )
+${whereSql}
+ORDER BY a.created_at DESC, a.id DESC
+LIMIT ? OFFSET ?
+`
+    )
+    .all(...params, limit, offset) as any[];
+
+  const items = rows.map((r) => {
+    let meta: any = null;
+    try {
+      meta = r.meta_json != null ? JSON.parse(String(r.meta_json)) : null;
+    } catch {
+      meta = null;
+    }
+    return {
+      id: String(r.id),
+      createdAt: String(r.created_at),
+      action: String(r.action),
+      kind: String(r.target_kind) === "wanted" ? ("wanted" as const) : ("sale" as const),
+      listing: {
+        id: String(r.target_id),
+        title: r.listing_title != null ? String(r.listing_title) : "",
+        status: r.listing_status != null ? String(r.listing_status) : null,
+        heroUrl:
+          r.hero_thumb_url != null
+            ? String(r.hero_thumb_url)
+            : r.hero_medium_url != null
+              ? String(r.hero_medium_url)
+              : r.hero_url != null
+                ? String(r.hero_url)
+                : null,
+      },
+      owner:
+        r.owner_user_id != null
+          ? { userId: Number(r.owner_user_id), username: r.owner_username ? String(r.owner_username) : null, email: r.owner_email ? String(r.owner_email) : null }
+          : null,
+      actor: { userId: Number(r.actor_user_id), username: r.actor_username ? String(r.actor_username) : null, email: r.actor_email ? String(r.actor_email) : null },
+      prevStatus: meta?.prevStatus != null ? String(meta.prevStatus) : null,
+      nextStatus: meta?.nextStatus != null ? String(meta.nextStatus) : null,
+      note: meta?.note != null ? String(meta.note) : null,
+    };
+  });
+
+  return res.json({ items, total, limit, offset });
+});
+
+const SetApprovalDecisionSchema = z.object({
+  decision: z.enum(["approve", "reject", "pending"]),
+  note: z.string().max(500).optional().nullable(),
+});
+router.post("/approvals/:kind/:id/set-decision", (req, res) => {
+  const kind = String(req.params.kind ?? "").trim();
+  const id = String(req.params.id ?? "").trim();
+  if (kind !== "sale" && kind !== "wanted") return res.status(400).json({ error: "Invalid kind" });
+  if (!id) return res.status(400).json({ error: "Missing id" });
+  const parsed = SetApprovalDecisionSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+
+  const db = getDb(req);
+  const lt = kind === "sale" ? 0 : 1;
+  const row = db.prepare(`SELECT id,user_id,title,status,published_at,deleted_at FROM listings WHERE id = ? AND listing_type = ?`).get(id, lt) as any | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+
+  const ownerUserId = row.user_id != null ? Number(row.user_id) : null;
+  const title = String(row.title ?? "").trim() || "your listing";
+  const prevStatus = String(row.status ?? "");
+  const now = nowIso();
+
+  const decision = parsed.data.decision;
+  const note = parsed.data.note != null && String(parsed.data.note).trim() ? String(parsed.data.note).trim() : null;
+
+  let nextStatus: string = prevStatus;
+  if (decision === "approve") {
+    nextStatus = "active";
+    db.prepare(
+      `
+UPDATE listings
+SET status='active',
+    published_at = COALESCE(NULLIF(published_at,''), ?),
+    deleted_at = NULL,
+    updated_at = ?
+WHERE id = ? AND listing_type = ?
+`
+    ).run(now, now, id, lt);
+  } else if (decision === "reject") {
+    nextStatus = "deleted";
+    db.prepare(
+      `
+UPDATE listings
+SET status='deleted',
+    deleted_at = COALESCE(NULLIF(deleted_at,''), ?),
+    updated_at = ?
+WHERE id = ? AND listing_type = ?
+`
+    ).run(now, now, id, lt);
+  } else {
+    nextStatus = "pending";
+    db.prepare(
+      `
+UPDATE listings
+SET status='pending',
+    published_at = NULL,
+    deleted_at = NULL,
+    updated_at = ?
+WHERE id = ? AND listing_type = ?
+`
+    ).run(now, id, lt);
+  }
+
+  audit(db, req.user!.id, "approval_decision_changed", kind, id, { prevStatus, nextStatus, note });
+
+  // Notify owner (best-effort; aligns with the normal approval/reject notifications).
+  if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
+    if (nextStatus === "active") {
+      notify(db, ownerUserId, "listing_approved", withListingTitle("Listing approved", title), "Your listing was approved and is now live.", { listingId: id, listingType: kind });
+    } else if (nextStatus === "deleted") {
+      const body = note ? `Your listing was rejected by an admin.\n\nReason: ${note}` : "Your listing was rejected by an admin.";
+      notify(db, ownerUserId, "listing_rejected", withListingTitle("Listing rejected", title), body, { listingId: id, listingType: kind, note });
+    } else {
+      // pending
+      const notifTitle = withListingTitle(listingStatusTitle("pending"), title);
+      const body = listingStatusBodyForUser(prevStatus, "pending", { actor: "admin", reason: note });
+      notify(db, ownerUserId, "listing_status_changed", notifTitle, body, { listingId: id, listingType: kind, prevStatus, nextStatus: "pending", reason: note });
+    }
+  }
+
+  return res.json({ ok: true, prevStatus, nextStatus });
 });
 
 // --- Reports ---

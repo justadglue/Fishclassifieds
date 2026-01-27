@@ -2674,26 +2674,32 @@ router.post("/reports/:id/action", (req, res) => {
 
   const reporterUserId = report.reporter_user_id != null ? Number(report.reporter_user_id) : null;
 
-  // If the report action affected the target user/listing owner, notify them too (best-effort).
+  // Notifications:
+  // - resolve_only: no notification
+  // - warn_user: notify owner with a warning (no reference to reports)
+  // - suspend_user / ban_user: no notification (they'll be logged out / blocked)
+  // - hide_listing: notify owner via listing_status_changed (no reference to reports)
   if (targetUserId != null && Number.isFinite(targetUserId) && targetUserId !== req.user!.id && targetUserId !== reporterUserId) {
-    const listingTitle = listing?.title ? String(listing.title) : "a listing";
-    const notifTitle =
-      action === "hide_listing"
-        ? withListingTitle("Listing removed", listingTitle)
-        : action === "suspend_user"
-          ? withListingTitle("Account suspended", listingTitle)
-          : action === "ban_user"
-            ? withListingTitle("Account banned", listingTitle)
-            : withListingTitle("Report reviewed", listingTitle);
-    const body =
-      action === "hide_listing"
-        ? "This listing is no longer visible."
-        : action === "suspend_user"
-          ? "Your account was suspended."
-          : action === "ban_user"
-            ? "Your account was banned."
-            : "A report related to this listing was reviewed.";
-    notify(db, targetUserId, "report_moderation", notifTitle, body, { reportId: id, targetKind, targetId, action, note });
+    const listingTitle = listing?.title ? String(listing.title) : "your listing";
+    const prevStatus = listing?.status != null ? String(listing.status) : null;
+    if (action === "warn_user") {
+      const body = note ? `You received a warning from an admin.\n\nReason: ${note}` : "You received a warning from an admin.";
+      notify(db, targetUserId, "moderation_warning", withListingTitle("Warning", listingTitle), body, {
+        targetKind,
+        targetId,
+        reason: note,
+      });
+    } else if (action === "hide_listing") {
+      const notifTitle = withListingTitle(listingStatusTitle("deleted"), listingTitle);
+      const body = listingStatusBodyForUser(prevStatus, "deleted", { actor: "admin", reason: note });
+      notify(db, targetUserId, "listing_status_changed", notifTitle, body, {
+        listingId: targetId,
+        listingType: targetKind === "wanted" ? "wanted" : "sale",
+        prevStatus,
+        nextStatus: "deleted",
+        reason: note,
+      });
+    }
   }
 
   return res.json({ ok: true });

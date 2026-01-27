@@ -118,6 +118,12 @@ function withListingTitle(prefix: string, title: string) {
   return `${prefix} — ${t}`;
 }
 
+function addDaysIso(iso: string, days: number) {
+  const t = new Date(String(iso ?? "")).getTime();
+  if (!Number.isFinite(t)) return String(iso ?? "");
+  return new Date(t + Math.max(0, Math.floor(Number(days) || 0)) * 24 * 60 * 60 * 1000).toISOString();
+}
+
 function parseSortDir(raw: any, fallback: "asc" | "desc" = "desc"): "asc" | "desc" {
   const s = String(raw ?? "").trim().toLowerCase();
   if (s === "asc" || s === "desc") return s;
@@ -626,6 +632,54 @@ router.post("/listings/:id/set-status", (req, res) => {
     );
   }
   return res.json({ ok: true });
+});
+
+router.post("/listings/:id/reset-posted", (req, res) => {
+  const db = getDb(req);
+  const id = String(req.params.id ?? "").trim();
+  if (!id) return res.status(400).json({ error: "Missing id" });
+
+  const parsed = z
+    .object({
+      resetViews: z.boolean().optional(),
+    })
+    .safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+
+  const resetViews = Boolean(parsed.data.resetViews);
+
+  const row = db.prepare(`SELECT id,status,published_at,expires_at,views FROM listings WHERE id = ?`).get(id) as any | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+
+  const status = String(row.status ?? "");
+  if (status === "draft") return res.status(400).json({ error: "Draft listings don't have a posted time." });
+  if (status === "deleted") return res.status(400).json({ error: "Deleted listings can't be reset. Restore it first." });
+
+  const now = nowIso();
+  const ttlDaysRaw = getSiteSetting(db, "listingTtlDays");
+  const ttlDays = Number.isFinite(Number(ttlDaysRaw)) ? Math.max(1, Math.min(365, Math.floor(Number(ttlDaysRaw)))) : 30;
+  const expiresAt = addDaysIso(now, ttlDays);
+
+  const tx = db.transaction(() => {
+    db.prepare(`UPDATE listings SET published_at = ?, expires_at = ?, updated_at = ? WHERE id = ?`).run(now, expiresAt, now, id);
+    if (resetViews) {
+      db.prepare(`UPDATE listings SET views = 0 WHERE id = ?`).run(id);
+      db.prepare(`DELETE FROM listing_views_hourly WHERE listing_id = ?`).run(id);
+      db.prepare(`DELETE FROM listing_views_daily WHERE listing_id = ?`).run(id);
+    }
+  });
+  tx();
+
+  audit(db, req.user!.id, "reset_listing_posted_time", "listing", id, {
+    prevPublishedAt: row.published_at ?? null,
+    prevExpiresAt: row.expires_at ?? null,
+    prevViews: row.views ?? null,
+    nextPublishedAt: now,
+    nextExpiresAt: expiresAt,
+    resetViews,
+  });
+
+  return res.json({ ok: true, publishedAt: now, expiresAt });
 });
 
 const AdminSetFeaturedSchema = z.object({ featuredUntil: z.number().int().min(0).nullable() });

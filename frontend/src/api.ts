@@ -645,6 +645,14 @@ export function adminSetListingStatus(id: string, status: ListingStatus, reason?
   });
 }
 
+export function adminResetListingPostedNow(id: string, opts?: { resetViews?: boolean }) {
+  return apiFetch<{ ok: true; publishedAt: string; expiresAt: string }>(`/api/admin/listings/${encodeURIComponent(id)}/reset-posted`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ resetViews: Boolean(opts?.resetViews) }),
+  });
+}
+
 export function adminSetListingFeaturedUntil(id: string, featuredUntil: number | null) {
   return apiFetch<{ ok: true }>(`/api/admin/listings/${encodeURIComponent(id)}/set-featured`, {
     method: "POST",

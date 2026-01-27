@@ -9,6 +9,11 @@ type ConfirmOptions = {
   destructive?: boolean;
 };
 
+type ConfirmWithCheckboxOptions = ConfirmOptions & {
+  checkboxLabel: string;
+  checkboxDefaultChecked?: boolean;
+};
+
 type PromptOptions = {
   title: string;
   body?: ReactNode;
@@ -28,12 +33,14 @@ type AlertOptions = {
 
 type DialogApi = {
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
+  confirmWithCheckbox: (opts: ConfirmWithCheckboxOptions) => Promise<{ ok: boolean; checked: boolean }>;
   prompt: (opts: PromptOptions) => Promise<string | null>;
   alert: (opts: AlertOptions) => Promise<void>;
 };
 
 type ActiveDialog =
   | { type: "confirm"; opts: ConfirmOptions; resolve: (v: boolean) => void }
+  | { type: "confirm_checkbox"; opts: ConfirmWithCheckboxOptions; resolve: (v: { ok: boolean; checked: boolean }) => void }
   | { type: "prompt"; opts: PromptOptions; resolve: (v: string | null) => void }
   | { type: "alert"; opts: AlertOptions; resolve: () => void };
 
@@ -53,6 +60,7 @@ export function DialogProvider(props: { children: ReactNode }) {
   const active = queue[0] ?? null;
 
   const [promptVal, setPromptVal] = useState("");
+  const [confirmCheckboxVal, setConfirmCheckboxVal] = useState(false);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
   const cancelBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -68,6 +76,9 @@ export function DialogProvider(props: { children: ReactNode }) {
 
     if (active.type === "prompt") {
       setPromptVal(active.opts.defaultValue ?? "");
+    }
+    if (active.type === "confirm_checkbox") {
+      setConfirmCheckboxVal(Boolean(active.opts.checkboxDefaultChecked));
     }
 
     const t = window.setTimeout(() => {
@@ -85,6 +96,9 @@ export function DialogProvider(props: { children: ReactNode }) {
           setQueue((q) => q.slice(1));
         } else if (active.type === "confirm") {
           active.resolve(false);
+          setQueue((q) => q.slice(1));
+        } else if (active.type === "confirm_checkbox") {
+          active.resolve({ ok: false, checked: confirmCheckboxVal });
           setQueue((q) => q.slice(1));
         } else {
           active.resolve(null);
@@ -120,6 +134,10 @@ export function DialogProvider(props: { children: ReactNode }) {
         new Promise<boolean>((resolve) => {
           enqueue({ type: "confirm", opts, resolve }, resolve);
         }),
+      confirmWithCheckbox: (opts) =>
+        new Promise<{ ok: boolean; checked: boolean }>((resolve) => {
+          enqueue({ type: "confirm_checkbox", opts, resolve }, resolve);
+        }),
       prompt: (opts) =>
         new Promise<string | null>((resolve) => {
           enqueue({ type: "prompt", opts, resolve }, resolve);
@@ -136,6 +154,7 @@ export function DialogProvider(props: { children: ReactNode }) {
     if (!active) return;
     if (active.type === "alert") active.resolve();
     else if (active.type === "confirm") active.resolve(false);
+    else if (active.type === "confirm_checkbox") active.resolve({ ok: false, checked: confirmCheckboxVal });
     else active.resolve(null);
     setQueue((q) => q.slice(1));
   }
@@ -149,6 +168,11 @@ export function DialogProvider(props: { children: ReactNode }) {
     }
     if (active.type === "confirm") {
       active.resolve(true);
+      setQueue((q) => q.slice(1));
+      return;
+    }
+    if (active.type === "confirm_checkbox") {
+      active.resolve({ ok: true, checked: confirmCheckboxVal });
       setQueue((q) => q.slice(1));
       return;
     }
@@ -179,6 +203,18 @@ export function DialogProvider(props: { children: ReactNode }) {
               <div className="px-5 py-4">
                 <BodyContent body={active.opts.body} />
 
+                {active.type === "confirm_checkbox" ? (
+                  <label className="mt-4 flex cursor-pointer select-none items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={confirmCheckboxVal}
+                      onChange={(e) => setConfirmCheckboxVal(e.target.checked)}
+                    />
+                    <span>{active.opts.checkboxLabel}</span>
+                  </label>
+                ) : null}
+
                 {active.type === "prompt" ? (
                   <div className="mt-4">
                     {active.opts.multiline ? (
@@ -205,7 +241,7 @@ export function DialogProvider(props: { children: ReactNode }) {
               </div>
 
               <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-slate-100 bg-white px-5 py-4">
-                {active.type === "confirm" || active.type === "prompt" ? (
+                {active.type === "confirm" || active.type === "confirm_checkbox" || active.type === "prompt" ? (
                   <button
                     ref={cancelBtnRef}
                     type="button"

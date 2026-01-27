@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { ArrowUpDown, CircleCheck, Clock, Eye, Hourglass, MoveDown, MoveUp, Pause, Play, Star, Trash2, User as UserIcon } from "lucide-react";
 import {
     adminFetchListings,
+    adminResetListingPostedNow,
     adminSetListingFeaturedUntil,
     adminSetListingRestrictions,
     adminSetListingStatus,
@@ -1217,6 +1218,25 @@ export default function AdminListingsPage() {
                                                             icon={effectiveStatus === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
                                                         />
 
+                                                        <ActionButton
+                                                            label="Reset posted time"
+                                                            title="Reset posted time"
+                                                            disabled={effectiveStatus === "draft" || effectiveStatus === "deleted"}
+                                                            onClick={async () => {
+                                                                const r = await dialogs.confirmWithCheckbox({
+                                                                    title: "Reset posted time?",
+                                                                    confirmText: "Reset posted time",
+                                                                    cancelText: "Cancel",
+                                                                    checkboxLabel: "Reset views",
+                                                                    checkboxDefaultChecked: true,
+                                                                });
+                                                                if (!r.ok) return;
+                                                                await adminResetListingPostedNow(it.id, { resetViews: r.checked });
+                                                                await load({ preserveOrder: true });
+                                                            }}
+                                                            icon={<Clock aria-hidden="true" className="h-4 w-4" />}
+                                                        />
+
                                                         {effectiveStatus !== "deleted" ? (
                                                             <ActionButton
                                                                 label="Delete"
@@ -1718,6 +1738,25 @@ export default function AdminListingsPage() {
                                                                             );
                                                                         }}
                                                                         icon={effectiveStatus === "paused" ? <Play aria-hidden="true" className="h-4 w-4" /> : <Pause aria-hidden="true" className="h-4 w-4" />}
+                                                                    />
+
+                                                                    <ActionButton
+                                                                        label="Reset posted time"
+                                                                        title="Reset posted time"
+                                                                        disabled={effectiveStatus === "draft" || effectiveStatus === "deleted"}
+                                                                        onClick={async () => {
+                                                                            const r = await dialogs.confirmWithCheckbox({
+                                                                                title: "Reset posted time?",
+                                                                                confirmText: "Reset posted time",
+                                                                                cancelText: "Cancel",
+                                                                                checkboxLabel: "Reset views",
+                                                                                checkboxDefaultChecked: true,
+                                                                            });
+                                                                            if (!r.ok) return;
+                                                                            await adminResetListingPostedNow(it.id, { resetViews: r.checked });
+                                                                            await load({ preserveOrder: true });
+                                                                        }}
+                                                                        icon={<Clock aria-hidden="true" className="h-4 w-4" />}
                                                                     />
 
                                                                     {effectiveStatus !== "deleted" ? (

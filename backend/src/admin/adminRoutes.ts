@@ -70,6 +70,48 @@ function listingStatusTitle(status: string) {
   }
 }
 
+function listingStatusBodyForUser(
+  prevStatusRaw: string | null | undefined,
+  nextStatusRaw: string | null | undefined,
+  opts?: { actor?: "admin" | "system"; reason?: string | null }
+) {
+  const prevStatus = prevStatusRaw != null ? String(prevStatusRaw).trim().toLowerCase() : "";
+  const nextStatus = nextStatusRaw != null ? String(nextStatusRaw).trim().toLowerCase() : "";
+  const actor = opts?.actor ?? "admin";
+  const byAdmin = actor === "admin" ? " by an admin" : "";
+  const reason = opts?.reason != null && String(opts.reason).trim() ? String(opts.reason).trim() : null
+
+  // Keep this copy user-friendly; the pills already show raw statuses.
+  const base = (() => {
+    switch (nextStatus) {
+      case "deleted":
+        return `Your listing was deleted${byAdmin}.`;
+      case "paused":
+        return `Your listing was paused${byAdmin}.`;
+      case "active":
+        if (prevStatus === "paused") return `Your listing was restored and is now live.`;
+        if (prevStatus === "deleted") return `Your listing was restored and is now live.`;
+        if (prevStatus === "pending") return `Your listing was approved and is now live.`;
+        return `Your listing is now live.`;
+      case "sold":
+        return `Your listing was marked as sold${byAdmin}.`;
+      case "closed":
+        return `Your listing was closed${byAdmin}.`;
+      case "expired":
+        return actor === "admin" ? `Your listing was marked as expired by an admin.` : `Your listing has expired.`;
+      case "pending":
+        return `Your listing is pending review.`;
+      case "draft":
+        return `Your listing was moved back to draft${byAdmin}.`;
+      default:
+        return `Your listing status was updated.`;
+    }
+  })();
+
+  if (!reason) return base;
+  return `${base}\n\nReason: ${reason}`;
+}
+
 function withListingTitle(prefix: string, title: string) {
   const t = String(title ?? "").trim();
   if (!t) return prefix;
@@ -508,7 +550,7 @@ ORDER BY sort_order ASC`
   });
 });
 
-const AdminSetStatusSchema = z.object({ status: ListingStatusSchema });
+const AdminSetStatusSchema = z.object({ status: ListingStatusSchema, reason: z.string().max(400).optional().nullable() });
 router.post("/listings/:id/set-status", (req, res) => {
   const db = getDb(req);
   const id = String(req.params.id ?? "").trim();
@@ -519,7 +561,7 @@ router.post("/listings/:id/set-status", (req, res) => {
   const row = db
     .prepare(
       `SELECT id,user_id,title,status,listing_type,
-              owner_block_edit,owner_block_pause_resume,owner_block_status_changes,owner_block_featuring,owner_block_reason
+              owner_block_reason
        FROM listings WHERE id = ?`
     )
     .get(id) as any | undefined;
@@ -528,13 +570,7 @@ router.post("/listings/:id/set-status", (req, res) => {
   const ownerUserId = row.user_id != null ? Number(row.user_id) : null;
   const prevStatus = String(row.status ?? "active");
   const nextStatus = String(parsed.data.status);
-  const prevBlocks = {
-    blockEdit: Boolean(Number(row.owner_block_edit ?? 0)),
-    blockPauseResume: Boolean(Number(row.owner_block_pause_resume ?? 0)),
-    blockStatusChanges: Boolean(Number(row.owner_block_status_changes ?? 0)),
-    blockFeaturing: Boolean(Number(row.owner_block_featuring ?? 0)),
-    reason: row.owner_block_reason != null ? String(row.owner_block_reason) : null,
-  };
+  const reason = parsed.data.reason != null && String(parsed.data.reason).trim() ? String(parsed.data.reason).trim() : null;
   const now = nowIso();
 
   if (nextStatus === "deleted") {
@@ -549,7 +585,6 @@ router.post("/listings/:id/set-status", (req, res) => {
 
   // Default restrictions derived from admin status actions.
   // paused -> block resume + featuring. active -> clear all restrictions.
-  let restrictionsChanged = false;
   if (nextStatus === "paused") {
     db.prepare(
       `UPDATE listings
@@ -561,8 +596,6 @@ router.post("/listings/:id/set-status", (req, res) => {
            updated_at = ?
        WHERE id = ?`
     ).run(now, req.user!.id, now, id);
-    restrictionsChanged =
-      !prevBlocks.blockPauseResume || prevBlocks.blockStatusChanges || !prevBlocks.blockFeaturing;
   } else if (nextStatus === "active") {
     db.prepare(
       `UPDATE listings
@@ -576,51 +609,21 @@ router.post("/listings/:id/set-status", (req, res) => {
            updated_at = ?
        WHERE id = ?`
     ).run(now, req.user!.id, now, id);
-    restrictionsChanged =
-      prevBlocks.blockEdit || prevBlocks.blockPauseResume || prevBlocks.blockStatusChanges || prevBlocks.blockFeaturing || prevBlocks.reason != null;
   }
 
-  audit(db, req.user!.id, "set_listing_status", "listing", id, { prevStatus, nextStatus });
+  audit(db, req.user!.id, "set_listing_status", "listing", id, { prevStatus, nextStatus, reason });
   if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
     const title = String(row.title ?? "").trim() || "your listing";
     const notifTitle = withListingTitle(listingStatusTitle(nextStatus), title);
-    const body = prevStatus === nextStatus ? `Status: ${nextStatus}.` : `Status changed from ${prevStatus} to ${nextStatus}.`;
+    const body = listingStatusBodyForUser(prevStatus, nextStatus, { actor: "admin", reason });
     notify(
       db,
       ownerUserId,
       "listing_status_changed",
       notifTitle,
       body,
-      { listingId: id, listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale", prevStatus, nextStatus }
+      { listingId: id, listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale", prevStatus, nextStatus, reason }
     );
-    if (restrictionsChanged) {
-      const r2 = db
-        .prepare(
-          `SELECT owner_block_edit,owner_block_pause_resume,owner_block_status_changes,owner_block_featuring,owner_block_reason
-           FROM listings WHERE id = ?`
-        )
-        .get(id) as any;
-      const nextBlocks = {
-        blockEdit: Boolean(Number(r2?.owner_block_edit ?? 0)),
-        blockPauseResume: Boolean(Number(r2?.owner_block_pause_resume ?? 0)),
-        blockStatusChanges: Boolean(Number(r2?.owner_block_status_changes ?? 0)),
-        blockFeaturing: Boolean(Number(r2?.owner_block_featuring ?? 0)),
-        reason: r2?.owner_block_reason != null ? String(r2.owner_block_reason) : null,
-      };
-      notify(
-        db,
-        ownerUserId,
-        "listing_restrictions_changed",
-        withListingTitle("Moderation restrictions updated", title),
-        null,
-        {
-          listingId: id,
-          listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale",
-          prev: prevBlocks,
-          next: nextBlocks,
-        }
-      );
-    }
   }
   return res.json({ ok: true });
 });
@@ -645,13 +648,6 @@ router.post("/listings/:id/set-featured", requireSuperadmin, (req, res) => {
   const ownerUserId = row.user_id != null ? Number(row.user_id) : null;
   const prev = row.featured_until != null ? Number(row.featured_until) : null;
   const next = parsed.data.featuredUntil;
-  const prevBlocks = {
-    blockEdit: Boolean(Number(row.owner_block_edit ?? 0)),
-    blockPauseResume: Boolean(Number(row.owner_block_pause_resume ?? 0)),
-    blockStatusChanges: Boolean(Number(row.owner_block_status_changes ?? 0)),
-    blockFeaturing: Boolean(Number(row.owner_block_featuring ?? 0)),
-    reason: row.owner_block_reason != null ? String(row.owner_block_reason) : null,
-  };
   const now = nowIso();
 
   if (next === null) {
@@ -661,7 +657,6 @@ router.post("/listings/:id/set-featured", requireSuperadmin, (req, res) => {
   }
 
   // Default restriction derived from admin "unfeature": block owner from featuring until admin clears.
-  let restrictionsChanged = false;
   if (next === null) {
     db.prepare(
       `UPDATE listings
@@ -671,7 +666,6 @@ router.post("/listings/:id/set-featured", requireSuperadmin, (req, res) => {
            updated_at = ?
        WHERE id = ?`
     ).run(now, req.user!.id, now, id);
-    restrictionsChanged = !prevBlocks.blockFeaturing;
   }
 
   audit(db, req.user!.id, "set_listing_featured", "listing", id, { prevFeaturedUntil: prev, nextFeaturedUntil: next });
@@ -687,34 +681,6 @@ router.post("/listings/:id/set-featured", requireSuperadmin, (req, res) => {
       msg,
       { listingId: id, listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale", prevFeaturedUntil: prev, nextFeaturedUntil: next }
     );
-    if (restrictionsChanged) {
-      const r2 = db
-        .prepare(
-          `SELECT owner_block_edit,owner_block_pause_resume,owner_block_status_changes,owner_block_featuring,owner_block_reason
-           FROM listings WHERE id = ?`
-        )
-        .get(id) as any;
-      const nextBlocks = {
-        blockEdit: Boolean(Number(r2?.owner_block_edit ?? 0)),
-        blockPauseResume: Boolean(Number(r2?.owner_block_pause_resume ?? 0)),
-        blockStatusChanges: Boolean(Number(r2?.owner_block_status_changes ?? 0)),
-        blockFeaturing: Boolean(Number(r2?.owner_block_featuring ?? 0)),
-        reason: r2?.owner_block_reason != null ? String(r2.owner_block_reason) : null,
-      };
-      notify(
-        db,
-        ownerUserId,
-        "listing_restrictions_changed",
-        withListingTitle("Moderation restrictions updated", title),
-        null,
-        {
-          listingId: id,
-          listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale",
-          prev: prevBlocks,
-          next: nextBlocks,
-        }
-      );
-    }
   }
   return res.json({ ok: true });
 });
@@ -781,18 +747,6 @@ router.post("/listings/:id/set-restrictions", (req, res) => {
   );
 
   audit(db, req.user!.id, "set_listing_restrictions", "listing", id, { prev, next });
-
-  if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
-    const title = String(row.title ?? "").trim() || "your listing";
-    notify(
-      db,
-      ownerUserId,
-      "listing_restrictions_changed",
-      withListingTitle("Moderation restrictions updated", title),
-      next.reason ? `Reason: ${next.reason}` : null,
-      { listingId: id, listingType: Number(row.listing_type ?? 0) === 1 ? "wanted" : "sale", prev, next }
-    );
-  }
 
   return res.json({ ok: true });
 });
@@ -1513,6 +1467,8 @@ function loadPopularLlmSettingsOrThrow(db: Database.Database) {
   return { provider, model, apiKey, metaPrompt };
 }
 
+type PopularLlmCfg = { provider: "openai" | "gemini"; model: string; apiKey: string; metaPrompt: string };
+
 let lastPopularGenerateAtMs = 0;
 router.post("/popular-searches/generate", requireSuperadmin, (req, res) => {
   const nowMs = Date.now();
@@ -1526,7 +1482,7 @@ router.post("/popular-searches/generate", requireSuperadmin, (req, res) => {
 
   const db = getDb(req);
 
-  let cfg: { provider: "openai" | "gemini"; model: string; apiKey: string };
+  let cfg: PopularLlmCfg;
   try {
     cfg = loadPopularLlmSettingsOrThrow(db);
   } catch (e: any) {
@@ -1682,7 +1638,7 @@ LIMIT ?
           candidateStatsByTerm,
         });
 
-        const includedDetails = (includedLower.length ? includedLower : [label.toLowerCase()]).map((t) => {
+        const includedDetails = (includedLower.length ? includedLower : [label.toLowerCase()]).map((t: string) => {
           const s = candidateStatsByTerm.get(t);
           return {
             term: t,
@@ -2111,7 +2067,14 @@ AND listing_type = ?
   const ownerUserId = row.user_id != null ? Number(row.user_id) : null;
   if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
     const title = String(row.title ?? "").trim() || "your listing";
-    notify(db, ownerUserId, "listing_approved", withListingTitle("Listing approved", title), "Now live.", { listingId: id, listingType: kind });
+    notify(
+      db,
+      ownerUserId,
+      "listing_approved",
+      withListingTitle("Listing approved", title),
+      "Your listing was approved and is now live.",
+      { listingId: id, listingType: kind }
+    );
   }
   return res.json({ ok: true });
 });
@@ -2137,12 +2100,13 @@ router.post("/approvals/:kind/:id/reject", (req, res) => {
   if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
     const title = String(row.title ?? "").trim() || "your listing";
     const note = parsed.data.note ?? null;
+    const body = note ? `Your listing was rejected by an admin.\n\nNote: ${note}` : "Your listing was rejected by an admin.";
     notify(
       db,
       ownerUserId,
       "listing_rejected",
       withListingTitle("Listing rejected", title),
-      note ? `Note: ${note}` : "Rejected.",
+      body,
       { listingId: id, listingType: kind, note }
     );
   }

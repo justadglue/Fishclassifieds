@@ -1361,6 +1361,7 @@ export default function AdminListingsPage() {
 
                                                                 // 1) Listing actions
                                                                 const desiredStatus = d.desiredStatus ?? it.status;
+                                                                const statusReason = d.reason.trim() ? d.reason.trim() : null;
                                                                 if (desiredStatus !== it.status) {
                                                                     const ok =
                                                                         desiredStatus === "deleted"
@@ -1380,7 +1381,7 @@ export default function AdminListingsPage() {
                                                                                 })
                                                                                 : true;
                                                                     if (!ok) return;
-                                                                    await adminSetListingStatus(it.id, desiredStatus);
+                                                                    await adminSetListingStatus(it.id, desiredStatus, statusReason);
                                                                 }
 
                                                                 if (isSuperadmin && d.desiredFeaturedUntil !== undefined) {
@@ -1868,6 +1869,7 @@ export default function AdminListingsPage() {
 
                                                                             // 1) Listing actions
                                                                             const desiredStatus = d.desiredStatus ?? it.status;
+                                                                            const statusReason = d.reason.trim() ? d.reason.trim() : null;
                                                                             if (desiredStatus !== it.status) {
                                                                                 const ok =
                                                                                     desiredStatus === "deleted"
@@ -1887,7 +1889,7 @@ export default function AdminListingsPage() {
                                                                                             })
                                                                                             : true;
                                                                                 if (!ok) return;
-                                                                                await adminSetListingStatus(it.id, desiredStatus);
+                                                                                await adminSetListingStatus(it.id, desiredStatus, statusReason);
                                                                             }
 
                                                                             if (isSuperadmin && d.desiredFeaturedUntil !== undefined) {

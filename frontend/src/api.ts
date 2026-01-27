@@ -637,11 +637,11 @@ export function adminGetListing(id: string) {
   );
 }
 
-export function adminSetListingStatus(id: string, status: ListingStatus) {
+export function adminSetListingStatus(id: string, status: ListingStatus, reason?: string | null) {
   return apiFetch<{ ok: true }>(`/api/admin/listings/${encodeURIComponent(id)}/set-status`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, reason }),
   });
 }
 

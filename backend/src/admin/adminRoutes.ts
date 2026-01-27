@@ -265,8 +265,8 @@ router.get("/listings", (req, res) => {
 
   const orderBySql = (() => {
     const statusRankExpr = `CASE l.status
-      WHEN 'active' THEN 0
-      WHEN 'pending' THEN 1
+      WHEN 'pending' THEN 0
+      WHEN 'active' THEN 1
       WHEN 'paused' THEN 2
       WHEN 'draft' THEN 3
       WHEN 'expired' THEN 4

@@ -105,9 +105,9 @@ type SortDir = "asc" | "desc";
 function statusRank(l: Listing) {
   // Custom priority (lower = higher). Sold treated as its own state.
   switch (l.status) {
-    case "active":
-      return 0;
     case "pending":
+      return 0;
+    case "active":
       return 1;
     case "paused":
       return 2;
@@ -128,9 +128,9 @@ function statusRank(l: Listing) {
 
 function statusRankWanted(w: WantedPost) {
   switch (w.status) {
-    case "active":
-      return 0;
     case "pending":
+      return 0;
+    case "active":
       return 1;
     case "paused":
       return 2;

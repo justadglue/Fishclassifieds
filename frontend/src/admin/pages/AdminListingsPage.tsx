@@ -1275,6 +1275,8 @@ export default function AdminListingsPage() {
                                                                     onClick={async () => {
                                                                         // Apply immediately (don't require Save).
                                                                         await adminSetListingFeaturedUntil(it.id, null);
+                                                                        // Default: block owner from re-featuring after an admin unfeatures.
+                                                                        setRestrictionsDraft((p) => (p && p.listingId === it.id ? { ...p, blockFeaturing: true } : p));
                                                                         await load({ preserveOrder: true });
                                                                     }}
                                                                     icon={<CircleCheck aria-hidden="true" className="h-4 w-4" />}
@@ -1299,6 +1301,8 @@ export default function AdminListingsPage() {
                                                                         if (!Number.isFinite(days)) return;
                                                                         // Apply immediately (don't require Save).
                                                                         await adminSetListingFeaturedUntil(it.id, Date.now() + days * 24 * 60 * 60 * 1000);
+                                                                        // Featuring is allowed while featured (admin can still manually tick if desired).
+                                                                        setRestrictionsDraft((p) => (p && p.listingId === it.id ? { ...p, blockFeaturing: false } : p));
                                                                         await load({ preserveOrder: true });
                                                                     }}
                                                                     icon={<Star aria-hidden="true" className="h-4 w-4" />}
@@ -1785,6 +1789,8 @@ export default function AdminListingsPage() {
                                                                                 onClick={async () => {
                                                                                     // Apply immediately (don't require Save).
                                                                                     await adminSetListingFeaturedUntil(it.id, null);
+                                                                                    // Default: block owner from re-featuring after an admin unfeatures.
+                                                                                    setRestrictionsDraft((p) => (p && p.listingId === it.id ? { ...p, blockFeaturing: true } : p));
                                                                                     await load({ preserveOrder: true });
                                                                                 }}
                                                                                 icon={<CircleCheck aria-hidden="true" className="h-4 w-4" />}
@@ -1809,6 +1815,8 @@ export default function AdminListingsPage() {
                                                                                     if (!Number.isFinite(days)) return;
                                                                                     // Apply immediately (don't require Save).
                                                                                     await adminSetListingFeaturedUntil(it.id, Date.now() + days * 24 * 60 * 60 * 1000);
+                                                                                    // Featuring is allowed while featured (admin can still manually tick if desired).
+                                                                                    setRestrictionsDraft((p) => (p && p.listingId === it.id ? { ...p, blockFeaturing: false } : p));
                                                                                     await load({ preserveOrder: true });
                                                                                 }}
                                                                                 icon={<Star aria-hidden="true" className="h-4 w-4" />}

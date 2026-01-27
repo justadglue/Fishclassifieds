@@ -28,6 +28,7 @@ import AdminUserPrivilegesPage from "./admin/pages/AdminUserPrivilegesPage";
 import AdminAuditPage from "./admin/pages/AdminAuditPage";
 import AdminSettingsPage from "./admin/pages/AdminSettingsPage";
 import AdminListingsPage from "./admin/pages/AdminListingsPage";
+import AdminAiFunctionsPage from "./admin/pages/AdminAiFunctionsPage";
 import { NavHistoryProvider } from "./navigation/NavHistory";
 import { ScrollRestorationManager } from "./navigation/ScrollRestoration";
 
@@ -100,7 +101,8 @@ export default function App() {
               <Route path="approvals" element={<AdminApprovalsPage />} />
               <Route path="reports" element={<AdminReportsPage />} />
               <Route path="audit" element={<AdminAuditPage />} />
-              <Route path="settings" element={<AdminSettingsPage />} />
+              <Route path="settings" element={<AdminSettingsPage mode="settings" />} />
+              <Route path="ai" element={<AdminAiFunctionsPage />} />
               <Route path="users" element={<AdminUsersPage />} />
               <Route path="users/:id" element={<AdminUserDetailPage />} />
               <Route path="users/privileges" element={<AdminUserPrivilegesPage />} />

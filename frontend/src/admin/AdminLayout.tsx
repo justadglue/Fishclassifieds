@@ -74,14 +74,16 @@ export default function AdminLayout() {
               <TabLink to="/admin/users" label="Users" />
             </div>
 
-            <div className="flex flex-col items-end">
-              <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Superadmin</div>
-              <div className="mt-1 flex flex-wrap justify-end gap-2">
-                <TabLink to="/admin/ai" label="AI Functions" disabled={!isSuper} />
-                <TabLink to="/admin/settings" label="Settings" disabled={!isSuper} />
-                <TabLink to="/admin/users/privileges" label="Privileges" disabled={!isSuper} />
+            {isSuper ? (
+              <div className="flex flex-col items-end">
+                <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Superadmin</div>
+                <div className="mt-1 flex flex-wrap justify-end gap-2">
+                  <TabLink to="/admin/ai" label="AI Functions" />
+                  <TabLink to="/admin/settings" label="Settings" />
+                  <TabLink to="/admin/users/privileges" label="Privileges" />
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
         </div>
 

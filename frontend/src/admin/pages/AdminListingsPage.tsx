@@ -1683,26 +1683,28 @@ export default function AdminListingsPage() {
                                                             {it.user?.id != null ? (
                                                                 <ActionLink to={`/admin/users/${it.user.id}`} label="Open user" icon={<UserIcon aria-hidden="true" className="h-4 w-4" />} />
                                                             ) : null}
-                                                            <ActionButton
-                                                                label={restrictionsDraft?.listingId === it.id ? "Hide edit tools" : "Edit tools"}
-                                                                title="Open admin-only edit & moderation tools for this listing"
-                                                                onClick={() => {
-                                                                    if (restrictionsDraft?.listingId === it.id) {
-                                                                        setRestrictionsDraft(null);
-                                                                        return;
-                                                                    }
-                                                                    setRestrictionsDraft({
-                                                                        listingId: it.id,
-                                                                        desiredStatus: null,
-                                                                        desiredFeaturedUntil: undefined,
-                                                                        blockEdit: Boolean(it.ownerBlockEdit),
-                                                                        blockPauseResume: Boolean(it.ownerBlockPauseResume),
-                                                                        blockStatusChanges: Boolean(it.ownerBlockStatusChanges),
-                                                                        blockFeaturing: Boolean(it.ownerBlockFeaturing),
-                                                                        reason: String(it.ownerBlockReason ?? ""),
-                                                                    });
-                                                                }}
-                                                            />
+                                                            <span data-edit-tools-toggle="1">
+                                                                <ActionButton
+                                                                    label={restrictionsDraft?.listingId === it.id ? "Hide edit tools" : "Edit tools"}
+                                                                    title="Open admin-only edit & moderation tools for this listing"
+                                                                    onClick={() => {
+                                                                        if (restrictionsDraft?.listingId === it.id) {
+                                                                            setRestrictionsDraft(null);
+                                                                            return;
+                                                                        }
+                                                                        setRestrictionsDraft({
+                                                                            listingId: it.id,
+                                                                            desiredStatus: null,
+                                                                            desiredFeaturedUntil: undefined,
+                                                                            blockEdit: Boolean(it.ownerBlockEdit),
+                                                                            blockPauseResume: Boolean(it.ownerBlockPauseResume),
+                                                                            blockStatusChanges: Boolean(it.ownerBlockStatusChanges),
+                                                                            blockFeaturing: Boolean(it.ownerBlockFeaturing),
+                                                                            reason: String(it.ownerBlockReason ?? ""),
+                                                                        });
+                                                                    }}
+                                                                />
+                                                            </span>
                                                         </div>
 
                                                         {restrictionsDraft?.listingId === it.id && (

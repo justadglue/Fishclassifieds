@@ -134,6 +134,27 @@ export default function AdminApprovalsPage() {
 
   useEffect(() => {
     return () => {
+      // If the admin navigates away while an undo window is open, finalize the decision immediately.
+      // This avoids treating navigation as an implicit "undo".
+      try {
+        const staged = pendingUndoRef.current;
+        for (const k of Object.keys(staged)) {
+          const entry = staged[k];
+          const m = k.match(/^(sale|wanted)-(.*)$/);
+          if (!m) continue;
+          const kind = m[1] as "sale" | "wanted";
+          const id = m[2] as string;
+          if (entry.decision === "approve") {
+            void adminApprove(kind, id);
+          } else {
+            const note = entry.note && entry.note.trim() ? entry.note.trim() : undefined;
+            void adminReject(kind, id, note);
+          }
+        }
+      } catch {
+        // ignore
+      }
+
       // Clear any pending timers on unmount.
       const timers = pendingTimersRef.current;
       Object.values(timers).forEach((t) => window.clearTimeout(t));

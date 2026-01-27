@@ -138,6 +138,11 @@ export default function AuthGatePage() {
 
   function formatAuthError(e: any): string {
     const msg = String(e?.message ?? "Login failed");
+    // Common auth failure when credentials are incorrect.
+    // ApiError.message is formatted as: "API 401:{json}".
+    if (msg.startsWith("API 401:") || msg.toLowerCase().includes("invalid email or password")) {
+      return "Incorrect email or password. Please try again.";
+    }
     // Fallback: sometimes the error bubbles up as ApiError.message: "API 403:{json}"
     // Convert that into a user-friendly message.
     if (msg.startsWith("API 403:")) {

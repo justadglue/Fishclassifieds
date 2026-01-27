@@ -57,11 +57,19 @@ function statusChangeFromNotification(n: NotificationItem): { prevStatus: string
       return { prevStatus, nextStatus };
     }
     if (n.kind === "listing_approved") {
-      // Approvals always transition pending -> active.
+      // Prefer explicit meta if present (e.g., admin restore flows), otherwise default pending -> active.
+      const meta = n.metaJson ? JSON.parse(n.metaJson) : null;
+      const prevStatus = meta?.prevStatus != null ? String(meta.prevStatus) : null;
+      const nextStatus = meta?.nextStatus != null ? String(meta.nextStatus) : null;
+      if (prevStatus || nextStatus) return { prevStatus, nextStatus };
       return { prevStatus: "pending", nextStatus: "active" };
     }
     if (n.kind === "listing_rejected") {
-      // Rejections currently mark the listing deleted.
+      // Prefer explicit meta if present, otherwise default pending -> deleted.
+      const meta = n.metaJson ? JSON.parse(n.metaJson) : null;
+      const prevStatus = meta?.prevStatus != null ? String(meta.prevStatus) : null;
+      const nextStatus = meta?.nextStatus != null ? String(meta.nextStatus) : null;
+      if (prevStatus || nextStatus) return { prevStatus, nextStatus };
       return { prevStatus: "pending", nextStatus: "deleted" };
     }
     return null;

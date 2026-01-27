@@ -2381,10 +2381,36 @@ WHERE id = ? AND listing_type = ?
   // Notify owner (best-effort; aligns with the normal approval/reject notifications).
   if (ownerUserId != null && Number.isFinite(ownerUserId) && ownerUserId !== req.user!.id) {
     if (nextStatus === "active") {
-      notify(db, ownerUserId, "listing_approved", withListingTitle("Listing approved", title), "Your listing was approved and is now live.", { listingId: id, listingType: kind });
+      // If this is a restore (or any non-pending -> active), use status_changed so pills/wording reflect the real transition.
+      if (prevStatus !== "pending") {
+        const notifTitle = withListingTitle(listingStatusTitle("active"), title);
+        const body = listingStatusBodyForUser(prevStatus, "active", { actor: "admin", reason: note });
+        notify(db, ownerUserId, "listing_status_changed", notifTitle, body, {
+          listingId: id,
+          listingType: kind,
+          prevStatus,
+          nextStatus: "active",
+          reason: note,
+        });
+      } else {
+        notify(db, ownerUserId, "listing_approved", withListingTitle("Listing approved", title), "Your listing was approved and is now live.", { listingId: id, listingType: kind });
+      }
     } else if (nextStatus === "deleted") {
-      const body = note ? `Your listing was rejected by an admin.\n\nReason: ${note}` : "Your listing was rejected by an admin.";
-      notify(db, ownerUserId, "listing_rejected", withListingTitle("Listing rejected", title), body, { listingId: id, listingType: kind, note });
+      // If this is a non-pending -> deleted transition, use status_changed so pills/wording reflect the real transition.
+      if (prevStatus !== "pending") {
+        const notifTitle = withListingTitle(listingStatusTitle("deleted"), title);
+        const body = listingStatusBodyForUser(prevStatus, "deleted", { actor: "admin", reason: note });
+        notify(db, ownerUserId, "listing_status_changed", notifTitle, body, {
+          listingId: id,
+          listingType: kind,
+          prevStatus,
+          nextStatus: "deleted",
+          reason: note,
+        });
+      } else {
+        const body = note ? `Your listing was rejected by an admin.\n\nReason: ${note}` : "Your listing was rejected by an admin.";
+        notify(db, ownerUserId, "listing_rejected", withListingTitle("Listing rejected", title), body, { listingId: id, listingType: kind, note });
+      }
     } else {
       // pending
       const notifTitle = withListingTitle(listingStatusTitle("pending"), title);

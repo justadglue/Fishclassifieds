@@ -1918,11 +1918,11 @@ app.get("/api/listings/:id", optionalAuth, (req, res) => {
   const isSuperadmin = Boolean(req.user && req.user.isSuperadmin);
   const status = String(row.status ?? "active") as ListingStatus;
 
-  // Deleted listings are only viewable by superadmins (defense-in-depth).
-  if (status === "deleted" && !isSuperadmin) return res.status(404).json({ error: "Not found" });
+  // Deleted listings are only viewable by admins (defense-in-depth).
+  if (status === "deleted" && !isAdmin) return res.status(404).json({ error: "Not found" });
 
   const isPublic = PUBLIC_LIFECYCLE.includes(status);
-  const canView = isOwner || isPublic || (isAdmin && status === "pending");
+  const canView = isOwner || isPublic || (isAdmin && (status === "pending" || status === "deleted"));
   if (!canView) return res.status(404).json({ error: "Not found" });
 
   // Hide listings from the public if the owner is suspended/banned or deleted.
@@ -2449,14 +2449,14 @@ AND l.listing_type = 1
   const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.isSuperadmin));
   const isSuperadmin = Boolean(req.user && req.user.isSuperadmin);
   const status = String(row.status ?? "active") as ListingStatus;
-  // Deleted wanted posts are only viewable by superadmins (defense-in-depth).
-  if (status === "deleted" && !isSuperadmin) return res.status(404).json({ error: "Not found" });
+  // Deleted wanted posts are only viewable by admins (defense-in-depth).
+  if (status === "deleted" && !isAdmin) return res.status(404).json({ error: "Not found" });
   if (!isOwner && !isAdmin && (status === "expired" || status === "sold" || status === "closed")) {
     return res.status(404).json({ error: "Not found" });
   }
 
   const isPublic = PUBLIC_LIFECYCLE.includes(status);
-  const canView = isOwner || isPublic || (isAdmin && status === "pending");
+  const canView = isOwner || isPublic || (isAdmin && (status === "pending" || status === "deleted"));
   if (!canView) return res.status(404).json({ error: "Not found" });
 
   // Hide wanted posts from the public if the owner is suspended/banned or deleted.

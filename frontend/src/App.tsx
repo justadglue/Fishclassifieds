@@ -6,6 +6,8 @@ import BrowseListings from "./pages/BrowseListings";
 import LoginPage from "./pages/LoginPage";
 import SignUpPage from "./pages/SignUpPage";
 import AuthGatePage from "./pages/AuthGatePage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import ListingPage from "./pages/ListingPage";
 import PostChoosePage from "./pages/PostChoosePage";
 import PostListingPage from "./pages/PostListingPage";
@@ -87,6 +89,8 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignUpPage />} />
             <Route path="/auth" element={<AuthGatePage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             <Route
               path="/admin"

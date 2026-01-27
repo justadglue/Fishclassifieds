@@ -111,6 +111,11 @@ export default function LoginPage() {
             placeholder="Password"
             className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
           />
+          <div className="-mt-2 flex justify-end">
+            <Link to="/forgot-password" className="text-sm font-semibold text-slate-700 underline underline-offset-4 hover:text-slate-900">
+              Forgot password?
+            </Link>
+          </div>
           <button
             type="submit"
             disabled={loading}

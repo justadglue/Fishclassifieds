@@ -954,6 +954,22 @@ export async function deleteWantedPost(id: string) {
   return apiFetch<{ ok: true }>(`/api/wanted/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+export function requestPasswordReset(email: string) {
+  return apiFetch<{ ok: true }>(`/api/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPassword(email: string, token: string, newPassword: string) {
+  return apiFetch<{ ok: true }>(`/api/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, token, newPassword }),
+  });
+}
+
 export async function fetchListing(id: string, opts?: { viewContext?: "admin" | "public" }) {
   const qs = new URLSearchParams();
   if (opts?.viewContext) qs.set("viewContext", opts.viewContext);

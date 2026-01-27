@@ -33,6 +33,16 @@ const ReauthSchema = z.object({
   password: z.string().min(1).max(200),
 });
 
+const ForgotPasswordSchema = z.object({
+  email: z.string().email().max(320),
+});
+
+const ResetPasswordSchema = z.object({
+  email: z.string().email().max(320),
+  token: z.string().min(16).max(512),
+  newPassword: z.string().min(10).max(200),
+});
+
 function getDb(req: Request): Database.Database {
   const db = (req.app as any)?.locals?.db as Database.Database | undefined;
   if (!db) throw new Error("DB not available on app.locals.db");
@@ -46,6 +56,11 @@ function getIp(req: Request) {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+
+function nowMsIso() {
+  return new Date().toISOString();
+}
 
 function computeSlidingSessionExpiryIso(sessionCreatedAtIso: string): string {
   const nowMs = Date.now();
@@ -58,6 +73,12 @@ function computeSlidingSessionExpiryIso(sessionCreatedAtIso: string): string {
   const hardCapMs = Number.isFinite(createdAtMs) ? createdAtMs + maxDays * DAY_MS : slidingExpiryMs;
 
   return new Date(Math.min(slidingExpiryMs, hardCapMs)).toISOString();
+}
+
+function logPasswordResetLinkDev(link: string) {
+  if ((config.nodeEnv ?? "development") === "production") return;
+  // Temporary delivery mechanism until email infra is configured.
+  console.log(`[dev] password reset link: ${link}`);
 }
 
 router.post("/register", async (req: Request, res: Response) => {
@@ -105,6 +126,165 @@ VALUES(?,?,?,?,?,?,?)
   return res.status(201).json({
     user: { id: userId, email: normEmail, username: normUsername },
   });
+});
+
+router.post("/forgot-password", async (req: Request, res: Response) => {
+  const parsed = ForgotPasswordSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+
+  const db = getDb(req);
+  const normEmail = parsed.data.email.toLowerCase().trim();
+  const ip = getIp(req);
+  const ua = (req.headers["user-agent"] ?? null) as any;
+
+  // Throttle: best-effort per IP and per user (if user exists). Always respond generically.
+  const windowStartIso = new Date(Date.now() - HOUR_MS).toISOString();
+  try {
+    const ipCountRow = db
+      .prepare(
+        `
+SELECT COUNT(*) as c
+FROM password_reset_tokens
+WHERE created_at >= ?
+  AND ip IS NOT NULL
+  AND ip = ?
+`
+      )
+      .get(windowStartIso, ip) as any;
+    const ipCount = Number(ipCountRow?.c ?? 0);
+    if (Number.isFinite(ipCount) && ipCount >= 10) {
+      return res.json({ ok: true });
+    }
+  } catch {
+    // ignore throttling failures
+  }
+
+  const userRow = db.prepare(`SELECT id,email FROM users WHERE lower(email)= lower(?)`).get(normEmail) as any | undefined;
+  const userId = userRow?.id != null ? Number(userRow.id) : null;
+
+  try {
+    if (userId != null && Number.isFinite(userId)) {
+      const userCountRow = db
+        .prepare(
+          `
+SELECT COUNT(*) as c
+FROM password_reset_tokens
+WHERE created_at >= ?
+  AND user_id = ?
+`
+        )
+        .get(windowStartIso, userId) as any;
+      const userCount = Number(userCountRow?.c ?? 0);
+      if (Number.isFinite(userCount) && userCount >= 3) {
+        return res.json({ ok: true });
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  const createdAt = nowIso();
+
+  // If user doesn't exist, still write a tombstone row for IP throttling (no enumeration).
+  if (userId == null || !Number.isFinite(userId)) {
+    try {
+      const tid = crypto.randomUUID();
+      const tokenHash = sha256Hex(crypto.randomBytes(32).toString("hex"));
+      db.prepare(
+        `
+INSERT INTO password_reset_tokens(id,user_id,token_hash,expires_at,used_at,created_at,ip,user_agent)
+VALUES(?,?,?,?,?,?,?,?)
+`
+      ).run(tid, null, tokenHash, createdAt, createdAt, createdAt, ip, ua);
+    } catch {
+      // ignore
+    }
+    return res.json({ ok: true });
+  }
+
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const tokenHash = sha256Hex(rawToken);
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  const tokenId = crypto.randomUUID();
+
+  try {
+    // Invalidate any previous un-used tokens for this user (best-effort).
+    db.prepare(`UPDATE password_reset_tokens SET used_at = COALESCE(used_at, ?) WHERE user_id = ? AND used_at IS NULL`).run(createdAt, userId);
+  } catch {
+    // ignore
+  }
+
+  db.prepare(
+    `
+INSERT INTO password_reset_tokens(id,user_id,token_hash,expires_at,used_at,created_at,ip,user_agent)
+VALUES(?,?,?,?,NULL,?,?,?)
+`
+  ).run(tokenId, userId, tokenHash, expiresAt, createdAt, ip, ua);
+
+  const link = `${config.corsOrigin}/reset-password?email=${encodeURIComponent(normEmail)}&token=${encodeURIComponent(rawToken)}`;
+  logPasswordResetLinkDev(link);
+  return res.json({ ok: true });
+});
+
+router.post("/reset-password", async (req: Request, res: Response) => {
+  const parsed = ResetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+
+  const db = getDb(req);
+  const email = parsed.data.email.toLowerCase().trim();
+  const tokenHash = sha256Hex(String(parsed.data.token ?? "").trim());
+
+  const now = nowIso();
+  const nowT = Date.parse(now);
+
+  const row = db
+    .prepare(
+      `
+SELECT prt.id as token_id,
+       prt.user_id as user_id,
+       prt.used_at as used_at,
+       prt.expires_at as expires_at,
+       u.email as email
+FROM password_reset_tokens prt
+JOIN users u ON u.id = prt.user_id
+WHERE prt.token_hash = ?
+LIMIT 1
+`
+    )
+    .get(tokenHash) as any | undefined;
+
+  if (!row) return res.status(400).json({ error: "Invalid or expired reset link" });
+  if (String(row.email ?? "").toLowerCase().trim() !== email) return res.status(400).json({ error: "Invalid or expired reset link" });
+  if (row.used_at) return res.status(400).json({ error: "Invalid or expired reset link" });
+  const expMs = Date.parse(String(row.expires_at ?? ""));
+  if (!Number.isFinite(expMs) || (Number.isFinite(nowT) && expMs <= nowT)) return res.status(400).json({ error: "Invalid or expired reset link" });
+
+  const userId = Number(row.user_id);
+  if (!Number.isFinite(userId)) return res.status(400).json({ error: "Invalid or expired reset link" });
+
+  const passwordHash = await argon2.hash(parsed.data.newPassword, {
+    type: argon2.argon2id,
+    memoryCost: 19456,
+    timeCost: 2,
+    parallelism: 1,
+  });
+
+  const tx = db.transaction(() => {
+    db.prepare(`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`).run(passwordHash, now, userId);
+    db.prepare(`UPDATE password_reset_tokens SET used_at = ? WHERE id = ?`).run(now, String(row.token_id));
+    // Revoke all sessions so the user must re-login everywhere.
+    db.prepare(`UPDATE sessions SET revoked_at = COALESCE(revoked_at, ?) WHERE user_id = ?`).run(now, userId);
+  });
+
+  try {
+    tx();
+  } catch {
+    return res.status(400).json({ error: "Failed to reset password" });
+  }
+
+  // Best-effort: clear any auth cookies if present in this browser session.
+  clearAuthCookies(res);
+  return res.json({ ok: true });
 });
 
 router.post("/login", async (req: Request, res: Response) => {

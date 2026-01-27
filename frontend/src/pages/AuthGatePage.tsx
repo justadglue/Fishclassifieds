@@ -190,6 +190,14 @@ export default function AuthGatePage() {
     return qs ? `/signup?${qs}` : "/signup";
   }, [next, ctx]);
 
+  const forgotHref = useMemo(() => {
+    const qp = new URLSearchParams();
+    if (next) qp.set("next", next);
+    if (ctx) qp.set("ctx", ctx);
+    const qs = qp.toString();
+    return qs ? `/forgot-password?${qs}` : "/forgot-password";
+  }, [next, ctx]);
+
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
@@ -245,6 +253,12 @@ export default function AuthGatePage() {
                   {liLoading ? "Signing in..." : "Sign in"}
                 </button>
               </form>
+
+              <div className="mt-3 flex items-center justify-end">
+                <Link to={forgotHref} className="text-sm font-semibold text-slate-700 underline underline-offset-4 hover:text-slate-900">
+                  Forgot password?
+                </Link>
+              </div>
 
               <OAuthButtons intent="signin" />
             </section>

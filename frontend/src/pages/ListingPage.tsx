@@ -58,6 +58,18 @@ export default function ListingPage() {
   const [err, setErr] = useState<string | null>(null);
   const [phoneRevealed, setPhoneRevealed] = useState(false);
   const { user } = useAuth();
+  const ownerUsername = useMemo(() => {
+    if (!item) return null;
+    const u = kind === "sale" ? (item as any).sellerUsername : (item as any).username;
+    const t = u != null ? String(u).trim() : "";
+    return t ? t : null;
+  }, [item, kind]);
+  const isOwnListing = useMemo(() => {
+    if (!user) return false;
+    if (!ownerUsername) return false;
+    return ownerUsername.toLowerCase() === String(user.username ?? "").trim().toLowerCase();
+  }, [ownerUsername, user]);
+  const canReportListing = !user || !isOwnListing;
 
   // Report modal
   const [reportOpen, setReportOpen] = useState(false);
@@ -437,19 +449,21 @@ export default function ListingPage() {
                         <span>({Number((item as any).viewsToday ?? 0).toLocaleString()} today)</span>
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setReportErr(null);
-                        setReportOk(false);
-                        setReportOpen(true);
-                      }}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-red-400"
-                      title="Report this ad"
-                    >
-                      <Flag aria-hidden="true" className="h-3.5 w-3.5" />
-                      <span>Report this listing</span>
-                    </button>
+                    {canReportListing ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReportErr(null);
+                          setReportOk(false);
+                          setReportOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-red-400"
+                        title="Report this ad"
+                      >
+                        <Flag aria-hidden="true" className="h-3.5 w-3.5" />
+                        <span>Report this listing</span>
+                      </button>
+                    ) : null}
                   </div>
                 </div>
 

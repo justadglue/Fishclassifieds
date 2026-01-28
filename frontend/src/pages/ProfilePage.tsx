@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Pencil } from "lucide-react";
 import Header from "../components/Header";
 import { LocationTypeaheadAU } from "../components/LocationTypeaheadAU";
 import {
@@ -12,6 +13,8 @@ import {
   type ProfileResponse,
 } from "../api";
 import { useAuth } from "../auth";
+
+const API_BASE = (import.meta as any).env?.VITE_API_URL?.toString().trim() || "http://localhost:3001";
 
 function normNullable(s: string): string | null {
   const t = String(s ?? "").trim();
@@ -45,12 +48,18 @@ export default function ProfilePage() {
   const [avatarRemovePending, setAvatarRemovePending] = useState(false);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteUsername, setDeleteUsername] = useState("");
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailDraft, setEmailDraft] = useState("");
+  const [emailDraftPassword, setEmailDraftPassword] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailErr, setEmailErr] = useState<string | null>(null);
+
   const initialFocusRef = useRef<HTMLInputElement | null>(null);
+  const emailFocusRef = useRef<HTMLInputElement | null>(null);
   const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const avatarPreview = useMemo(() => {
@@ -126,6 +135,10 @@ export default function ProfilePage() {
         setData(res);
         setFirstName(res.account.firstName ?? "");
         setLastName(res.account.lastName ?? "");
+        setEmailOpen(false);
+        setEmailErr(null);
+        setEmailDraft(res.user.email ?? "");
+        setEmailDraftPassword("");
         setAvatarUrl(res.profile.avatarUrl ?? "");
         setLocation(res.profile.location ?? "");
         setPhone(res.profile.phone ?? "");
@@ -152,9 +165,10 @@ export default function ProfilePage() {
     if (!deleteOpen) return;
     setDeleteErr(null);
     setDeletePassword("");
-    const uname = (data?.user.username ?? user?.username ?? "").trim();
-    setDeleteUsername(uname);
-    window.setTimeout(() => initialFocusRef.current?.focus(), 0);
+    const hasGoogle = Boolean(data?.authMethods?.hasGoogle);
+    const hasPassword = Boolean(data?.authMethods?.hasPassword);
+    const isGoogleOnly = hasGoogle && !hasPassword;
+    if (!isGoogleOnly) window.setTimeout(() => initialFocusRef.current?.focus(), 0);
   }, [deleteOpen, data, user]);
 
   useEffect(() => {
@@ -167,6 +181,34 @@ export default function ProfilePage() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [deleteOpen]);
+
+  useEffect(() => {
+    if (!emailOpen) return;
+    setEmailErr(null);
+    setEmailDraft("");
+    setEmailDraftPassword("");
+    window.setTimeout(() => emailFocusRef.current?.focus(), 0);
+  }, [emailOpen]);
+
+  useEffect(() => {
+    if (!emailOpen) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setEmailOpen(false);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [emailOpen]);
+
+  useEffect(() => {
+    if (!emailOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [emailOpen]);
 
   useEffect(() => {
     if (!deleteOpen) return;
@@ -209,6 +251,7 @@ export default function ProfilePage() {
       setData(resProfile);
       setFirstName(resProfile.account.firstName ?? "");
       setLastName(resProfile.account.lastName ?? "");
+      setEmailDraft(resProfile.user.email ?? "");
 
       let finalRes: ProfileResponse = resProfile;
 
@@ -256,18 +299,63 @@ export default function ProfilePage() {
     }
   }
 
+  async function onConfirmEmailChange() {
+    setEmailErr(null);
+    if (emailBusy) return;
+
+    const currentEmail = String(data?.user.email ?? user?.email ?? "").trim().toLowerCase();
+    const nextEmail = String(emailDraft ?? "").trim().toLowerCase();
+
+    if (!nextEmail) {
+      setEmailErr("Email is required.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
+      setEmailErr("Please enter a valid email address.");
+      return;
+    }
+    if (currentEmail && nextEmail === currentEmail) {
+      setEmailErr("This is already your current email address.");
+      return;
+    }
+    if (!emailDraftPassword.trim()) {
+      setEmailErr("Password is required to change your email.");
+      return;
+    }
+
+    setEmailBusy(true);
+    try {
+      const resProfile = await updateProfile({ email: nextEmail, password: emailDraftPassword });
+      setData(resProfile);
+      setEmailDraft(resProfile.user.email ?? "");
+      setEmailDraftPassword("");
+      setEmailOpen(false);
+      await refresh();
+      setSavedMsg("Saved.");
+      window.setTimeout(() => setSavedMsg(null), 2000);
+    } catch (e: any) {
+      const status = typeof e?.status === "number" ? Number(e.status) : null;
+      const raw = String(e?.message ?? "");
+      // Make password errors user-friendly
+      if (status === 403) {
+        setEmailErr("Incorrect password.");
+      } else {
+        setEmailErr(raw || "Failed to update email");
+      }
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
   async function onConfirmDelete() {
     setDeleteErr(null);
 
-    const expectedUsername = (data?.user.username ?? user?.username ?? "").trim().toLowerCase();
-    const presentedUsername = deleteUsername.trim().toLowerCase();
+    const hasGoogle = Boolean(data?.authMethods?.hasGoogle);
+    const hasPassword = Boolean(data?.authMethods?.hasPassword);
+    const isGoogleOnly = hasGoogle && !hasPassword;
 
-    if (!expectedUsername) {
-      setDeleteErr("Cannot verify username for deletion.");
-      return;
-    }
-    if (presentedUsername !== expectedUsername) {
-      setDeleteErr("Username does not match your account.");
+    if (isGoogleOnly) {
+      window.location.href = `${API_BASE}/api/auth/oauth/google/delete-account/start`;
       return;
     }
     if (!deletePassword.trim()) {
@@ -277,12 +365,15 @@ export default function ProfilePage() {
 
     setDeleteLoading(true);
     try {
-      await deleteAccount({ username: deleteUsername.trim(), password: deletePassword });
+      await deleteAccount({ password: deletePassword });
       setDeleteOpen(false);
       await refresh();
       nav("/");
     } catch (e: any) {
-      setDeleteErr(e?.message ?? "Failed to delete account");
+      const status = typeof e?.status === "number" ? Number(e.status) : null;
+      const raw = String(e?.message ?? "");
+      if (status === 403) setDeleteErr("Incorrect password.");
+      else setDeleteErr(raw || "Failed to delete account");
     } finally {
       setDeleteLoading(false);
     }
@@ -290,6 +381,7 @@ export default function ProfilePage() {
 
   const readOnlyEmail = data?.user.email ?? user?.email ?? "";
   const readOnlyUsername = data?.user.username ?? user?.username ?? "";
+  const canChangeEmail = Boolean(data?.authMethods?.hasPassword);
 
   const deleteButtonDisabled = deleteLoading || loading || authLoading || !user;
 
@@ -377,11 +469,27 @@ export default function ProfilePage() {
 
               <label className="block">
                 <div className="mb-1 text-xs font-semibold text-slate-700">Email</div>
-                <input
-                  value={readOnlyEmail}
-                  readOnly
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
-                />
+                <div className="flex items-stretch gap-2">
+                  <input
+                    value={readOnlyEmail}
+                    readOnly
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                    disabled={loading || emailBusy}
+                    autoComplete="email"
+                  />
+                  {canChangeEmail ? (
+                    <button
+                      type="button"
+                      onClick={() => setEmailOpen(true)}
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                      disabled={loading || emailBusy}
+                      aria-label="Change email"
+                      title="Change email"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                </div>
               </label>
 
               <label className="block">
@@ -619,6 +727,85 @@ export default function ProfilePage() {
         </form>
       </main>
 
+      {emailOpen && canChangeEmail && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Change email"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setEmailOpen(false);
+          }}
+        >
+          <div className="w-full max-w-md max-h-[85dvh] overflow-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <div className="text-base font-extrabold text-slate-900">Change email</div>
+              <div className="mt-1 text-sm text-slate-600">Enter your new email and your password to confirm.</div>
+            </div>
+
+            <form
+              className="px-5 py-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                onConfirmEmailChange();
+              }}
+            >
+              {emailErr && (
+                <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                  {emailErr}
+                </div>
+              )}
+
+              <div className="grid gap-3">
+                <label className="block">
+                  <div className="mb-1 text-xs font-semibold text-slate-700">New email</div>
+                  <input
+                    ref={emailFocusRef}
+                    type="email"
+                    required
+                    value={emailDraft}
+                    onChange={(e) => setEmailDraft(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                    autoComplete="email"
+                    disabled={emailBusy}
+                  />
+                </label>
+
+                <label className="block">
+                  <div className="mb-1 text-xs font-semibold text-slate-700">Password</div>
+                  <input
+                    type="password"
+                    value={emailDraftPassword}
+                    onChange={(e) => setEmailDraftPassword(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                    autoComplete="current-password"
+                    disabled={emailBusy}
+                  />
+                </label>
+              </div>
+
+              <div className="mt-5 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEmailOpen(false)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-900 hover:bg-slate-50"
+                  disabled={emailBusy}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-60"
+                  disabled={emailBusy || !emailDraft.trim()}
+                >
+                  {emailBusy ? "Saving..." : "Update email"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {deleteOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -629,12 +816,18 @@ export default function ProfilePage() {
             if (e.target === e.currentTarget) setDeleteOpen(false);
           }}
         >
-          <div className="w-full max-w-md max-h-[85vh] max-h-[85dvh] overflow-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
+          <form
+            className="w-full max-w-md max-h-[85dvh] overflow-auto rounded-2xl border border-slate-200 bg-white shadow-xl"
+            onSubmit={(e) => {
+              e.preventDefault();
+              onConfirmDelete();
+            }}
+          >
             <div className="border-b border-slate-100 px-5 py-4">
               <div className="text-base font-extrabold text-slate-900">Confirm account deletion</div>
-              <div className="mt-1 text-sm text-slate-600">
-                Enter your username and password to permanently delete your account.
-              </div>
+              {Boolean(data?.authMethods?.hasGoogle) && !Boolean(data?.authMethods?.hasPassword) ? null : (
+                <div className="mt-1 text-sm text-slate-600">Enter your password to permanently delete your account.</div>
+              )}
             </div>
 
             <div className="px-5 py-4">
@@ -645,29 +838,20 @@ export default function ProfilePage() {
               )}
 
               <div className="grid gap-3">
-                <label className="block">
-                  <div className="mb-1 text-xs font-semibold text-slate-700">Username</div>
-                  <input
-                    ref={initialFocusRef}
-                    value={deleteUsername}
-                    onChange={(e) => setDeleteUsername(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                    autoComplete="username"
-                    disabled={deleteLoading}
-                  />
-                </label>
-
-                <label className="block">
-                  <div className="mb-1 text-xs font-semibold text-slate-700">Password</div>
-                  <input
-                    value={deletePassword}
-                    onChange={(e) => setDeletePassword(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-                    type="password"
-                    autoComplete="current-password"
-                    disabled={deleteLoading}
-                  />
-                </label>
+                {Boolean(data?.authMethods?.hasGoogle) && !Boolean(data?.authMethods?.hasPassword) ? null : (
+                  <label className="block">
+                    <div className="mb-1 text-xs font-semibold text-slate-700">Password</div>
+                    <input
+                      ref={initialFocusRef}
+                      value={deletePassword}
+                      onChange={(e) => setDeletePassword(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                      type="password"
+                      autoComplete="current-password"
+                      disabled={deleteLoading}
+                    />
+                  </label>
+                )}
 
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900/80">
                   This cannot be undone.
@@ -685,15 +869,14 @@ export default function ProfilePage() {
                 Cancel
               </button>
               <button
-                type="button"
-                onClick={onConfirmDelete}
+                type="submit"
                 disabled={deleteLoading}
                 className="rounded-2xl bg-red-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-red-700 disabled:opacity-60"
               >
                 {deleteLoading ? "Deleting..." : "Delete account"}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
     </div>

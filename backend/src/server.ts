@@ -851,6 +851,8 @@ INSERT INTO reports(
 });
 
 const ProfileSchema = z.object({
+  email: z.string().email().max(320).optional(),
+  password: z.string().min(1).max(200).optional(),
   firstName: z.string().min(1).max(80).optional(),
   lastName: z.string().min(1).max(80).optional(),
   location: z.string().max(120).nullable().optional(),
@@ -872,16 +874,27 @@ function mapProfileRow(row: any) {
 app.get("/api/profile", requireAuth, (req, res) => {
   const user = req.user!;
   const u = db
-    .prepare(`SELECT id,email,username,first_name,last_name FROM users WHERE id = ?`)
+    .prepare(`SELECT id,email,username,first_name,last_name,password_hash FROM users WHERE id = ?`)
     .get(user.id) as any | undefined;
   if (!u) return res.status(404).json({ error: "User not found" });
   const p = db.prepare(`SELECT * FROM user_profiles WHERE user_id = ?`).get(user.id) as any | undefined;
+  const googleIdent = db
+    .prepare(`SELECT 1 as ok FROM oauth_identities WHERE user_id = ? AND provider = 'google' LIMIT 1`)
+    .get(user.id) as any | undefined;
+  const hasGoogle = Boolean(googleIdent?.ok);
+  // OAuth-created accounts have a random password hash the user doesn't know.
+  // Treat them as having no password for deletion/auth purposes.
+  const hasPassword = !hasGoogle && Boolean(u.password_hash);
 
   return res.json({
     user: {
       id: Number(u.id),
       email: String(u.email),
       username: String(u.username),
+    },
+    authMethods: {
+      hasPassword,
+      hasGoogle,
     },
     account: {
       firstName: String(u.first_name),
@@ -1016,20 +1029,49 @@ app.post("/api/notifications/read-all", requireAuth, (req, res) => {
   return res.json({ ok: true, changes: Number(info?.changes ?? 0) });
 });
 
-app.put("/api/profile", requireAuth, (req, res) => {
+app.put("/api/profile", requireAuth, async (req, res) => {
   const user = req.user!;
   const parsed = ProfileSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
 
-  const { firstName, lastName, location, phone, website, bio } = parsed.data;
+  const { email, password, firstName, lastName, location, phone, website, bio } = parsed.data;
   const now = nowIsoSecurity();
+
+  const normEmail = email !== undefined ? String(email).toLowerCase().trim() : undefined;
+
+  // If email is changing, require password confirmation (like other sensitive actions).
+  if (normEmail !== undefined) {
+    const cur = db.prepare(`SELECT email,password_hash FROM users WHERE id = ?`).get(user.id) as any | undefined;
+    if (!cur) return res.status(404).json({ error: "User not found" });
+    const curEmail = String(cur.email ?? "").toLowerCase().trim();
+    const isChangingEmail = curEmail && normEmail !== curEmail;
+
+    if (isChangingEmail) {
+      if (!password) return res.status(403).json({ error: "Password confirmation required", code: "REAUTH_REQUIRED" });
+      try {
+        const ok = await argon2.verify(String(cur.password_hash ?? ""), String(password));
+        if (!ok) return res.status(403).json({ error: "Invalid password" });
+      } catch {
+        return res.status(403).json({ error: "Invalid password" });
+      }
+    }
+
+    const existing = db
+      .prepare(`SELECT id FROM users WHERE lower(email)= lower(?) AND id <> ? LIMIT 1`)
+      .get(normEmail, user.id) as any | undefined;
+    if (existing?.id != null) return res.status(409).json({ error: "Email already in use" });
+  }
 
   const tx = db.transaction(() => {
     const userSets: string[] = [];
     const userParams: any[] = [];
 
+    if (normEmail !== undefined) {
+      userSets.push(`email = ?`);
+      userParams.push(normEmail);
+    }
     if (firstName !== undefined) {
       userSets.push(`first_name = ?`);
       userParams.push(String(firstName).trim());
@@ -1207,7 +1249,6 @@ VALUES(?,?,?,?,?,?,?,?)
 });
 
 const DeleteAccountSchema = z.object({
-  username: z.string().min(1).max(50),
   password: z.string().min(1).max(200),
 });
 
@@ -1220,9 +1261,6 @@ app.delete("/api/account", requireAuth, async (req, res) => {
 
   const now = nowIsoSecurity();
   const norm = (s: unknown) => String(s ?? "").trim().toLowerCase();
-  const sha256 = (s: string) => crypto.createHash("sha256").update(s).digest("hex");
-
-  const presentedUsername = norm(parsed.data.username);
 
   try {
     const row = db
@@ -1231,13 +1269,9 @@ app.delete("/api/account", requireAuth, async (req, res) => {
 
     if (!row) return res.status(404).json({ error: "User not found" });
 
-    if (norm(row.username) !== presentedUsername) {
-      return res.status(401).json({ error: "Invalid username or password" });
-    }
-
     const ok = await argon2.verify(String(row.password_hash), parsed.data.password);
     if (!ok) {
-      return res.status(401).json({ error: "Invalid username or password" });
+      return res.status(403).json({ error: "Invalid password" });
     }
 
     const tx = db.transaction(() => {
@@ -1246,7 +1280,14 @@ app.delete("/api/account", requireAuth, async (req, res) => {
 INSERT INTO deleted_accounts(user_id,email_hash,username_hash,deleted_at,reason)
 VALUES(?,?,?,?,?)
 `
-      ).run(Number(row.id), sha256(norm(row.email)), sha256(norm(row.username)), now, null);
+      ).run(Number(row.id), sha256Hex(norm(row.email)), sha256Hex(norm(row.username)), now, null);
+
+      // Defense-in-depth: explicitly remove OAuth identities even if a DB was created without FK cascades.
+      try {
+        db.prepare(`DELETE FROM oauth_identities WHERE user_id = ?`).run(Number(row.id));
+      } catch {
+        // ignore
+      }
 
       db.prepare(`DELETE FROM users WHERE id = ?`).run(Number(row.id));
     });
@@ -3434,5 +3475,5 @@ function mapListing(req: express.Request, row: ListingRow & any) {
 }
 
 app.listen(config.port, () => {
-  console.log(`API running on http://localhost:${config.port}`);
+  console.log(`API running on ${process.env.CORS_ORIGIN ?? "http://localhost:5173"}:${config.port}`);
 });

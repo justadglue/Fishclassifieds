@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { adminDeleteUserAccount, adminGetUser, adminRevokeUserSessions, adminSetUserModeration, resolveImageUrl, type AdminUserDetail } from "../../api";
 import { useAuth } from "../../auth";
 import { useDialogs } from "../../components/dialogs/DialogProvider";

@@ -119,6 +119,7 @@ let refreshInFlight: Promise<void> | null = null;
 function isAuthEndpoint(path: string) {
   // Don't try to "refresh to fix refresh".
   return (
+    path.startsWith("/api/auth/oauth/") ||
     path === "/api/auth/refresh" ||
     path === "/api/auth/login" ||
     path === "/api/auth/register" ||
@@ -970,6 +971,29 @@ export function resetPassword(email: string, token: string, newPassword: string)
   });
 }
 
+export type OAuthPendingProfile = {
+  provider: "google";
+  providerUserId: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+};
+
+export function oauthFetchPending(state: string) {
+  const s = String(state ?? "").trim();
+  return apiFetch<{ ok: true; profile: OAuthPendingProfile }>(`/api/auth/oauth/pending/${encodeURIComponent(s)}`, { method: "GET" });
+}
+
+export function oauthCompletePending(input: { state: string; email: string; username: string; firstName: string; lastName: string }) {
+  return apiFetch<{ ok: true; redirectTo: string }>(`/api/auth/oauth/pending/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
 export async function fetchListing(id: string, opts?: { viewContext?: "admin" | "public" }) {
   const qs = new URLSearchParams();
   if (opts?.viewContext) qs.set("viewContext", opts.viewContext);
@@ -1215,6 +1239,7 @@ export type UserProfile = {
 
 export type ProfileResponse = {
   user: AuthUser;
+  authMethods?: { hasPassword: boolean; hasGoogle: boolean };
   account: { firstName: string; lastName: string };
   profile: UserProfile;
 };
@@ -1224,6 +1249,8 @@ export async function fetchProfile() {
 }
 
 export async function updateProfile(input: {
+  email?: string;
+  password?: string;
   firstName?: string;
   lastName?: string;
   location?: string | null;
@@ -1248,7 +1275,7 @@ export async function deleteProfileAvatar() {
   return apiFetch<ProfileResponse>(`/api/profile/avatar`, { method: "DELETE" });
 }
 
-export async function deleteAccount(input: { username: string; password: string }) {
+export async function deleteAccount(input: { password: string }) {
   return apiFetch<{ ok: true }>(`/api/account`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },

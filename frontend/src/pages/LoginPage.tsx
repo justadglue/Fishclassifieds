@@ -1,17 +1,46 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth";
 import OAuthButtons from "../components/OAuthButtons";
 import BackToButton from "../components/nav/BackToButton";
 
+function oauthErrorToMessage(code: string | null) {
+  const c = String(code ?? "").trim();
+  if (!c) return null;
+  switch (c) {
+    case "OAUTH_DENIED":
+      return "Sign-in was cancelled. Please try again.";
+    case "OAUTH_EMAIL_EXISTS":
+      return "An account with that email already exists. Please sign in with your email and password.";
+    case "OAUTH_STATE_EXPIRED":
+    case "OAUTH_STATE_NOT_FOUND":
+    case "OAUTH_STATE_CONSUMED":
+    case "OAUTH_STATE_MISMATCH":
+      return "That sign-in link expired. Please try again.";
+    case "OAUTH_EXCHANGE_FAILED":
+    case "OAUTH_PROFILE_INVALID":
+    case "OAUTH_PROVIDER_ERROR":
+      return "Sign-in failed. Please try again.";
+    default:
+      return "Sign-in failed. Please try again.";
+  }
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [sp] = useSearchParams();
   const { login } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (err) return;
+    const msg = oauthErrorToMessage(sp.get("oauthError"));
+    if (msg) setErr(msg);
+  }, [sp, err]);
 
   function renderErr(e: string) {
     const contactLine = "If you believe this is a mistake, please contact support.";

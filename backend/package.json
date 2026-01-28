@@ -5,6 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "test": "node --import tsx --test src/**/*.test.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "db:migration": "tsx scripts/db_migration.ts"

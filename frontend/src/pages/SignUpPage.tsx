@@ -52,7 +52,7 @@ export default function SignUpPage() {
       const next = sp.get("next");
       // Only allow internal paths.
       if (next && next.startsWith("/")) navigate(next);
-      else navigate("/me");
+      else navigate("/");
     } catch (e: any) {
       setErr(e?.message ?? "Sign up failed");
     } finally {
@@ -61,7 +61,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] min-h-screen bg-slate-50">
+    <div className="min-h-dvh bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <BackToButton fallbackTo="/" fallbackLabel="home" className="text-sm font-semibold text-slate-600 hover:text-slate-900" />
@@ -123,7 +123,7 @@ export default function SignUpPage() {
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Display name for your account"
+              placeholder="Username"
               className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-slate-900"
             />
 

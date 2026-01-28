@@ -1,4 +1,5 @@
 import type { ReactNode, SVGProps } from "react";
+import { useEffect, useState } from "react";
 
 function GoogleMark(props: SVGProps<SVGSVGElement>) {
   return (
@@ -24,30 +25,42 @@ function GoogleMark(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-function FacebookMark(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
-      <path
-        fill="#1877F2"
-        d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07C0 18.09 4.39 23.08 10.12 24v-8.44H7.08v-3.49h3.04V9.41c0-3.02 1.79-4.69 4.54-4.69 1.31 0 2.69.24 2.69.24v2.97h-1.52c-1.5 0-1.97.94-1.97 1.9v2.29h3.36l-.54 3.49h-2.82V24C19.61 23.08 24 18.09 24 12.07z"
-      />
-    </svg>
-  );
-}
-
-type ProviderId = "google" | "facebook";
+type ProviderId = "google";
 
 const PROVIDERS: Array<{
   id: ProviderId;
   label: string;
   Icon: (props: SVGProps<SVGSVGElement>) => ReactNode;
 }> = [
-  { id: "google", label: "Google", Icon: (p) => <GoogleMark {...p} /> },
-  { id: "facebook", label: "Facebook", Icon: (p) => <FacebookMark {...p} /> },
-];
+    { id: "google", label: "Google", Icon: (p) => <GoogleMark {...p} /> },
+  ];
+
+const API_BASE = (import.meta as any).env?.VITE_API_URL?.toString().trim() || "http://localhost:3001";
 
 export default function OAuthButtons(props: { intent: "signin" | "signup" }) {
   const caption = props.intent === "signup" ? "Or create an account with" : "Or continue with";
+  const [enabled, setEnabled] = useState<Record<ProviderId, boolean> | null>(null);
+  const isSingleProvider = PROVIDERS.length <= 1;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE}/api/auth/oauth/providers`, { credentials: "include" });
+        const j = (await r.json().catch(() => null)) as any;
+        if (!r.ok || !j?.providers) return;
+        const next = {
+          google: Boolean(j.providers.google),
+        } as Record<ProviderId, boolean>;
+        if (!cancelled) setEnabled(next);
+      } catch {
+        // ignore; we'll just leave them enabled (backend will reject if not configured)
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="mt-5">
@@ -57,16 +70,48 @@ export default function OAuthButtons(props: { intent: "signin" | "signup" }) {
         <div className="h-px flex-1 bg-slate-200" />
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className={["mt-4 grid gap-3", isSingleProvider ? "" : "sm:grid-cols-2"].join(" ")}>
         {PROVIDERS.map((p) => (
           <button
             key={p.id}
             type="button"
+            disabled={enabled ? !enabled[p.id] : false}
             onClick={() => {
+              if (enabled && !enabled[p.id]) return;
+              const sp = new URLSearchParams(window.location.search);
+              const nextFromQuery = sp.get("next");
+              const fallbackNext = "/";
+              const isOkNext = (v: string | null) => v && v.startsWith("/") && !v.startsWith("//");
+
+              // Prefer explicit ?next=... when present.
+              let next = isOkNext(nextFromQuery) ? nextFromQuery! : null;
+
+              // If no explicit next is provided, don't bounce back to auth pages.
+              if (!next) {
+                const p = String(window.location.pathname ?? "");
+                const isAuthPage = p === "/login" || p === "/signup" || p === "/auth" || p === "/forgot-password" || p === "/reset-password";
+                if (isAuthPage) next = fallbackNext;
+                else if (isOkNext(p)) next = `${p}${window.location.search || ""}`;
+                else next = fallbackNext;
+              }
+
+              // Store the current URL so OAuthCompletePage can return here if user cancels.
+              try {
+                sessionStorage.setItem("oauth_origin_url", window.location.href);
+              } catch {
+                // ignore
+              }
+
+              const u = new URL(`${API_BASE}/api/auth/oauth/${p.id}/start`);
+              u.searchParams.set("intent", props.intent);
+              u.searchParams.set("next", next);
+              window.location.href = u.toString();
             }}
+            title={enabled && !enabled[p.id] ? `${p.label} sign-in is not configured yet` : undefined}
             className={[
-              "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900",
+              "inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900",
               "hover:bg-slate-50",
+              "disabled:opacity-50 disabled:cursor-not-allowed",
               "focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
             ].join(" ")}
           >

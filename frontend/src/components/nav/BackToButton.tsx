@@ -5,7 +5,7 @@ import { MoveLeft } from "lucide-react";
 
 function isTemporaryPath(pathname: string) {
   const p = String(pathname || "/");
-  return p.startsWith("/edit/") || p.startsWith("/auth") || p === "/login" || p === "/signup";
+  return p.startsWith("/edit/") || p.startsWith("/auth") || p === "/login" || p === "/signup" || p === "/oauth/complete";
 }
 
 function canGoBackInBrowserHistory() {
@@ -44,6 +44,13 @@ export default function BackToButton(props: {
     <button
       type="button"
       onClick={() => {
+        // On temporary/auth pages, never rely on raw browser back (it can land on other temporary pages,
+        // like /oauth/complete). Always jump to the most recent non-temporary page instead.
+        if (isTemporaryPath(location.pathname)) {
+          goBackNonTemp(fallbackTo);
+          return;
+        }
+
         // Prefer in-app history helpers when we have them, to avoid landing on temporary routes like /edit/*.
         // Only fall back to browser history when our in-app stack is missing (e.g. after refresh),
         // or when we have an explicit `from` (browser back should match exactly and preserve scroll).

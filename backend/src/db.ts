@@ -122,6 +122,49 @@ CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_t
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_password_reset_tokens_token_hash ON password_reset_tokens(token_hash);
 
+-- OAuth identities (provider accounts linked to a local user).
+CREATE TABLE IF NOT EXISTS oauth_identities(
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,          -- 'google'
+  provider_user_id TEXT NOT NULL,
+  user_id INTEGER NOT NULL,
+  email TEXT,                      -- provider email at link time (optional)
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_identities_provider_user ON oauth_identities(provider, provider_user_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_identities_user_id ON oauth_identities(user_id);
+
+-- OAuth state storage (anti-CSRF + PKCE verifier; short-lived, one-time use).
+CREATE TABLE IF NOT EXISTS oauth_states(
+  state TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,          -- 'google'
+  intent TEXT NOT NULL,            -- 'signin' | 'signup'
+  user_id INTEGER,                 -- set for sensitive flows initiated by an authenticated user (e.g. delete_account)
+  next TEXT,                       -- validated internal path
+  code_verifier TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT,
+  ip TEXT,
+  user_agent TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_states_expires_at ON oauth_states(expires_at);
+CREATE INDEX IF NOT EXISTS idx_oauth_states_consumed_at ON oauth_states(consumed_at);
+
+-- OAuth pending (used when provider doesn't return required fields).
+CREATE TABLE IF NOT EXISTS oauth_pending(
+  state TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,          -- 'google'
+  provider_user_id TEXT NOT NULL,
+  profile_json TEXT NOT NULL,      -- serialized minimal provider profile
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  FOREIGN KEY(state) REFERENCES oauth_states(state) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_pending_expires_at ON oauth_pending(expires_at);
+
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
@@ -379,6 +422,19 @@ export function openDb() {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   createSchema(db);
+
+  // Best-effort: newer OAuth flows add columns to existing tables.
+  // Avoid requiring a manual migration step for local dev.
+  try {
+    const cols = db.pragma(`table_info(oauth_states)`) as Array<{ name: string }>;
+    const hasUserId = cols.some((c) => c.name === "user_id");
+    if (!hasUserId) {
+      db.exec(`ALTER TABLE oauth_states ADD COLUMN user_id INTEGER;`);
+    }
+  } catch {
+    // ignore
+  }
+
   _db = db;
   return db;
 }

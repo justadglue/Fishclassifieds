@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { MapPin } from "lucide-react";
 import Header from "../components/Header";
 import { clearListingFeaturing, clearWantedFeaturing, fetchListing, fetchWantedPost, setListingFeaturingForDays, setListingFeaturingUntilMs, setWantedFeaturingForDays, setWantedFeaturingUntilMs, type Listing, type WantedPost } from "../api";

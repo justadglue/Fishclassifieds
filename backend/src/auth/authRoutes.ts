@@ -9,8 +9,12 @@ import { config } from "../config.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken, signReauthToken } from "./jwt.js";
 import { clearAuthCookies, setAuthCookies, setReauthCookie, COOKIE_REFRESH } from "./cookies.js";
 import { requireAuth } from "./requireAuth.js";
+import oauthRoutes from "./oauthRoutes.js";
 
 const router = Router();
+
+// OAuth (Google)
+router.use("/oauth", oauthRoutes);
 
 const RegisterSchema = z.object({
   email: z.string().email().max(320),
@@ -221,7 +225,7 @@ VALUES(?,?,?,?,NULL,?,?,?)
 `
   ).run(tokenId, userId, tokenHash, expiresAt, createdAt, ip, ua);
 
-  const link = `${config.corsOrigin}/reset-password?email=${encodeURIComponent(normEmail)}&token=${encodeURIComponent(rawToken)}`;
+  const link = `${config.publicAppUrl}/reset-password?email=${encodeURIComponent(normEmail)}&token=${encodeURIComponent(rawToken)}`;
   logPasswordResetLinkDev(link);
   return res.json({ ok: true });
 });

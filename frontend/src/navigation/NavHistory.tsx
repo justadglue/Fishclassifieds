@@ -10,7 +10,7 @@ type NavEntry = {
 
 function isTemporaryPath(pathname: string) {
   const p = String(pathname || "/");
-  return p.startsWith("/edit/") || p.startsWith("/auth") || p === "/login" || p === "/signup";
+  return p.startsWith("/edit/") || p.startsWith("/auth") || p === "/login" || p === "/signup" || p === "/oauth/complete";
 }
 
 function labelForLocation(pathname: string, search: string) {
@@ -33,6 +33,7 @@ function labelForLocation(pathname: string, search: string) {
   if (p === "/contact") return "contact";
   if (p === "/terms") return "terms";
   if (p === "/privacy") return "privacy";
+  if (p === "/oauth/complete") return "home";
   if (p === "/login" || p === "/signup" || p === "/auth") return "home";
 
   if (p === "/admin") return "admin dashboard";

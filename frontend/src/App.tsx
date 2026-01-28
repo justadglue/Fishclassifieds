@@ -8,6 +8,7 @@ import SignUpPage from "./pages/SignUpPage";
 import AuthGatePage from "./pages/AuthGatePage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import OAuthCompletePage from "./pages/OAuthCompletePage";
 import ListingPage from "./pages/ListingPage";
 import PostChoosePage from "./pages/PostChoosePage";
 import PostListingPage from "./pages/PostListingPage";
@@ -36,7 +37,7 @@ import { ScrollRestorationManager } from "./navigation/ScrollRestoration";
 
 function VisualViewportCSSVars() {
   useEffect(() => {
-    function apply(reason: string) {
+    function apply() {
       const vv = (window as any).visualViewport as { width?: number; height?: number } | undefined;
       const vvw = typeof vv?.width === "number" && Number.isFinite(vv.width) ? vv.width : document.documentElement.clientWidth;
       const vvh = typeof vv?.height === "number" && Number.isFinite(vv.height) ? vv.height : window.innerHeight;
@@ -48,8 +49,8 @@ function VisualViewportCSSVars() {
       document.documentElement.style.setProperty("--vvh", `${h}px`);
     }
 
-    apply("mount");
-    const onResize = () => apply("resize");
+    apply();
+    const onResize = () => apply();
     window.addEventListener("resize", onResize);
     const vv = (window as any).visualViewport as { addEventListener?: any; removeEventListener?: any } | undefined;
     vv?.addEventListener?.("resize", onResize);
@@ -91,6 +92,7 @@ export default function App() {
             <Route path="/auth" element={<AuthGatePage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/oauth/complete" element={<OAuthCompletePage />} />
 
             <Route
               path="/admin"

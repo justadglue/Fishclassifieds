@@ -159,6 +159,65 @@ CREATE INDEX IF NOT EXISTS idx_site_settings_updated_at ON site_settings(updated
 `);
 }
 
+function ensureOAuthTables(db: Database.Database) {
+  if (!hasTable(db, "oauth_identities")) {
+    db.exec(`
+CREATE TABLE IF NOT EXISTS oauth_identities(
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  provider_user_id TEXT NOT NULL,
+  user_id INTEGER NOT NULL,
+  email TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_identities_provider_user ON oauth_identities(provider, provider_user_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_identities_user_id ON oauth_identities(user_id);
+`);
+  }
+
+  if (!hasTable(db, "oauth_states")) {
+    db.exec(`
+CREATE TABLE IF NOT EXISTS oauth_states(
+  state TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  intent TEXT NOT NULL,
+  user_id INTEGER,
+  next TEXT,
+  code_verifier TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT,
+  ip TEXT,
+  user_agent TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_states_expires_at ON oauth_states(expires_at);
+CREATE INDEX IF NOT EXISTS idx_oauth_states_consumed_at ON oauth_states(consumed_at);
+`);
+  } else {
+    // Add new columns for newer OAuth flows (best-effort).
+    if (!hasColumn(db, "oauth_states", "user_id")) {
+      db.exec(`ALTER TABLE oauth_states ADD COLUMN user_id INTEGER;`);
+    }
+  }
+
+  if (!hasTable(db, "oauth_pending")) {
+    db.exec(`
+CREATE TABLE IF NOT EXISTS oauth_pending(
+  state TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  provider_user_id TEXT NOT NULL,
+  profile_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  FOREIGN KEY(state) REFERENCES oauth_states(state) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_pending_expires_at ON oauth_pending(expires_at);
+`);
+  }
+}
+
 function extractWaterTypeFromDescription(desc: string): string | null {
   const m = String(desc ?? "").match(/^water type\s*:\s*(.+)\s*$/im);
   if (!m) return null;
@@ -551,6 +610,7 @@ AND contact IS NOT NULL;
   ensureNotificationsTable(db);
   ensureUserModerationTable(db);
   ensureSiteSettingsTable(db);
+  ensureOAuthTables(db);
 
   // Drop legacy columns on listings (owner_token, image_url, older wanted budget columns, and now removed status columns) by rebuilding the table.
   const hasOwnerToken = hasColumn(db, "listings", "owner_token");
